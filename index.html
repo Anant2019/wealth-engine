@@ -2,395 +2,774 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>Wealth Planner</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=202604112037">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <title>Aarth Sutra | The Logic of Wealth. The Code of Wisdom.</title>
+    <meta name="description" content="Aarth Sutra — Precision wealth planning for the modern professional. 100% Secure, 100% Local.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:ital,wght@0,600;0,700;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=202604140001">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-
+<div class="bg-grid"></div>
 <div class="app-container">
 
-    <!-- Top Navigation -->
+    <!-- ══ TOPBAR ══ -->
     <header class="topbar" id="main-topbar">
         <div class="topbar-left">
-            <h1 class="topbar-title">Wealth <span style="color:#d4af37">Engine</span></h1>
-            <div class="topbar-sub" id="weather-label">☀️ Financial Outlook Pending...</div>
+            <h1 class="topbar-title">Aarth <span style="color:var(--cyan)">Sutra</span></h1>
         </div>
         <div class="topbar-right">
-            <span class="weather-badge" id="weather-badge">⏳ Awaiting Data</span>
-            <button class="privacy-toggle-btn" onclick="togglePrivacy()" title="Blur all money values for privacy"><i data-lucide="eye-off"></i> Privacy Mode</button>
-            <button id="download-pdf-btn" class="export-btn" onclick="generateWealthBlueprintPDF()"><i data-lucide="file-check-2"></i> Export PDF</button>
+            <span class="weather-badge" id="weather-badge">Initializing</span>
         </div>
     </header>
 
-    <!-- Security Health Bar -->
+    <!-- ══ ACTION BAR ══ -->
+    <div class="action-bar">
+        <div id="weather-banner" class="weather-label">
+            <span class="logic-pulse pulse-emerald"></span> Market Mood: <span id="regime-text" style="color:var(--emerald); font-weight:700;">Positive — Good Time to Invest</span>
+        </div>
+        <div class="action-bar-right">
+            <button class="app-btn-sm" onclick="togglePrivacy()" title="Hide my numbers from screen">
+                <i data-lucide="eye" id="privacy-icon"></i>
+            </button>
+            <button class="app-btn-sm" onclick="generateWealthBlueprintPDF()" title="Save my report as PDF">
+                <i data-lucide="download"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ══ SECURITY BAR ══ -->
     <div class="security-health-bar">
-        <span class="sec-badge green"><span class="dot"></span>Data: Local Only</span>
-        <span class="sec-badge green"><span class="dot"></span>No Server Sync</span>
-        <span class="sec-badge green"><span class="dot"></span>Math: Verified</span>
-        <span class="sec-badge green"><span class="dot"></span>Open Source Logic</span>
-        <span class="sec-badge"><span class="dot"></span>SEBI Safe — No Trade Execution</span>
+        <span class="sec-badge green"><span class="dot"></span>Works on your device</span>
+        <span class="sec-badge green"><span class="dot"></span>Your data stays private</span>
+        <span class="sec-badge green"><span class="dot"></span>Maths verified</span>
+        <span class="sec-badge"><span class="dot"></span>No account needed</span>
     </div>
 
-
-    <div class="tab-system">
-        <button class="tab-btn active" id="btn-onboard" onclick="switchTab('onboard')"><i data-lucide="clipboard-list"></i> 1. Enter Details</button>
-        <button class="tab-btn" id="btn-dash" onclick="switchTab('dash')"><i data-lucide="activity"></i> 2. Financial Plan</button>
-        <button class="tab-btn" id="btn-sim" onclick="switchTab('sim')"><i data-lucide="bar-chart-2"></i> 3. Simulator</button>
-        <button class="tab-btn" id="btn-lib" onclick="switchTab('lib')"><i data-lucide="book-open"></i> 4. Investment Library</button>
-    </div>
+    <!-- ══ TABS ══ -->
+    <nav class="bottom-nav">
+        <a href="javascript:void(0)" onclick="switchTab('intake')" class="nav-item active" id="nav-intake">
+            <i data-lucide="clipboard-list"></i>
+            <span>My Numbers</span>
+        </a>
+        <a href="javascript:void(0)" onclick="switchTab('dash')" class="nav-item" id="nav-dash">
+            <i data-lucide="line-chart"></i>
+            <span>My Plan</span>
+        </a>
+        <a href="javascript:void(0)" onclick="switchTab('ai')" class="nav-item nav-ai-item" id="nav-ai">
+            <i data-lucide="sparkles"></i>
+            <span>Ask AI</span>
+        </a>
+        <a href="javascript:void(0)" onclick="switchTab('simulator')" class="nav-item" id="nav-simulator">
+            <i data-lucide="shield-check"></i>
+            <span>What If?</span>
+        </a>
+        <a href="javascript:void(0)" onclick="switchTab('lib')" class="nav-item" id="nav-lib">
+            <i data-lucide="book-open"></i>
+            <span>Learn</span>
+        </a>
+    </nav>
 
     <main class="content-area">
 
-        <!-- TAB 1: INTAKE -->
+        <!-- ═══════════════════════════════════════
+             TAB 1: INTAKE
+        ═══════════════════════════════════════ -->
         <section id="pg-onboard" class="pg on animated-fade">
-            <div class="premium-card">
-                <div class="card-hero-header">
-                    <h2>Your Details</h2>
-                    <p>Enter your details to generate your step-by-step wealth building plan.</p>
+            <div class="app-card glow-indigo" style="padding:0; overflow:visible; background:transparent; border:none; box-shadow:none;">
+
+                <!-- ── HERO ── -->
+                <div class="intake-hero">
+                    <div class="intake-hero-badge">🔒 100% Local · Zero Data Sent · Math Verified</div>
+                    <h2 class="intake-hero-title">Build Your Wealth Blueprint</h2>
+                    <p class="intake-hero-sub">Fill in your details below. Our engine will compute your personalized financial independence strategy.</p>
                 </div>
 
-                <div class="form-section">
-                    <div class="sec-title">1. Basic Details</div>
+                <!-- ── STEP 1: PERSONAL PROFILE ── -->
+                <div class="intake-section">
+                    <div class="intake-section-label"><i data-lucide="user"></i> Step 1 — Personal Profile</div>
                     <div class="grid-2">
-                        <div class="form-group"><label>Client Name</label><input type="text" id="u-name" value="Anonymous User"></div>
-                        <div class="form-group"><label>Age</label><input type="number" id="u-age" value="28"></div>
+                        <div class="form-group">
+                            <label>Your Name</label>
+                            <input type="text" id="u-name" placeholder="e.g. Rahul Sharma" value="">
+                        </div>
+                        <div class="form-group">
+                            <label>Your Current Age</label>
+                            <input type="number" id="u-age" placeholder="e.g. 28" value="28" min="18" max="65">
+                        </div>
                     </div>
                 </div>
 
-                <div class="form-section">
-                    <div class="sec-title">2. Income & Growth Parameters</div>
+                <!-- ── STEP 2: INCOME & STRATEGY ── -->
+                <div class="intake-section">
+                    <div class="intake-section-label"><i data-lucide="trending-up"></i> Step 2 — Income & Investment Strategy</div>
                     <div class="grid-2">
-                        <div class="form-group"><label>Net In-Hand (₹/mo)</label><input type="number" id="u-income" value="150000"></div>
-                        <div class="form-group"><label>Active Monthly Investment (SIP Amount) (₹/mo)</label><input type="number" id="u-sip" value="50000"></div>
-                        <div class="form-group"><label>Annual SIP Step-Up (Increase SIP yearly)</label>
+                        <div class="form-group">
+                            <label>Monthly In-Hand Income (₹)</label>
+                            <input type="number" id="u-income" placeholder="e.g. 150000" value="150000" oninput="updateInsuranceImpact()">
+                        </div>
+                        <div class="form-group">
+                            <label>Target Monthly SIP / Investment (₹)</label>
+                            <input type="number" id="u-sip" placeholder="e.g. 50000" value="50000">
+                        </div>
+                        <div class="form-group">
+                            <label>Annual SIP Step-Up</label>
                             <select id="u-stepup">
-                                <option value="0">0% (Flat SIP)</option>
-                                <option value="5">5% (Inflation Hedge)</option>
-                                <option value="10" selected>10% (Wealth Builder)</option>
-                                <option value="15">15% (Aggressive)</option>
+                                <option value="0">None (0%) — Flat SIP</option>
+                                <option value="5">Conservative (5%)</option>
+                                <option value="10" selected>Wealth Builder (10%) — Recommended</option>
+                                <option value="15">Aggressive (15%)</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <div class="form-section">
-                    <div class="sec-title">3. Monthly Expenses</div>
+                <!-- ── STEP 3: MONTHLY EXPENSES ── -->
+                <div class="intake-section">
+                    <div class="intake-section-label"><i data-lucide="receipt"></i> Step 3 — Monthly Expenses</div>
                     <div class="grid-2">
-                        <div class="form-group"><label>Housing/Rent (₹/mo)</label><input type="number" id="u-rent" value="25000"></div>
-                        <div class="form-group"><label>Utility & Food (₹/mo)</label><input type="number" id="u-groceries" value="15000"></div>
-                        <div class="form-group"><label>Unsecured Credit Flow (₹/mo)</label><input type="number" id="u-cc" value="45000"></div>
-                        <div class="form-group"><label>Lifestyle Expenses (₹/mo)</label><input type="number" id="u-life" value="10000"></div>
-                    </div>
-                </div>
-
-                <div class="form-section" style="border-left-color: var(--accent-green);">
-                    <div class="sec-title" style="display:flex; justify-content:space-between;"><span>4. Current Savings & Investments</span> <button class="sm-btn" onclick="addAccount()"><i data-lucide="plus"></i> Add Account</button></div>
-                    <p style="font-size:12px; color:var(--text-secondary); margin-bottom:10px;">Connect all your Bank Accounts, Mutual Funds, and Assets to aggregate your exact balance.</p>
-                    <div id="account-container"></div>
-                    <div class="form-group" style="margin-top:10px;"><label>Expected Return on Investments (%)</label><input type="number" id="u-xirr" value="12" step="0.1"></div>
-                </div>
-
-                <div class="form-section" style="border-left-color: var(--accent-red);">
-                    <div class="sec-title" style="display:flex; justify-content:space-between;"><span>5. Active Loans (Debt)</span> <button class="sm-btn" onclick="addDebt()"><i data-lucide="plus"></i> Add</button></div>
-                    <div id="debt-container"></div>
-                </div>
-
-                <div class="form-section" style="border-left-color: var(--accent-blue);">
-                    <div class="sec-title" style="display:flex; justify-content:space-between;"><span>6. Financial Goals</span> <button class="sm-btn" onclick="addGoal()"><i data-lucide="plus"></i> Add</button></div>
-                    <p style="font-size:12px; color:var(--text-secondary); margin-bottom:10px;">Warning: We prioritize your Emergency Fund and Retirement over lifestyle goals.</p>
-                    <div id="goal-container"></div>
-                </div>
-
-                <div class="form-section">
-                    <div class="sec-title">7. Insurance Protection</div>
-                    <div class="grid-2">
-                        <div class="form-group"><label>Health Insurance?</label><select id="u-med"><option value="no">No</option><option value="yes" selected>Yes</option></select></div>
-                        <div class="form-group"><label>Term Life Insurance?</label><select id="u-term"><option value="no">No</option><option value="yes" selected>Yes</option></select></div>
-                    </div>
-                </div>
-
-                <button class="primary-btn pulse-glow" onclick="calculateStrategy()">Generate Financial Plan <i data-lucide="cpu"></i></button>
-
-                <div class="premium-card" style="margin-top:20px; border:1px solid #e2e8f0; background:#fff;">
-                    <details class="rationale-details">
-                        <summary style="color:#2563eb;"><i data-lucide="info"></i> <strong>Investment Encyclopedia:</strong> Every Option in India</summary>
-                        <div class="rationale-content" style="color:#475569;">
-                            <div class="grid-2" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
-                                <div style="padding:10px; background:#f1f5f9; border-radius:6px;">
-                                    <strong style="color:#0f172a;">Savings/FD/RD:</strong> 100% Secure. 3% - 7.5% ROI. Best for Emergency Funds & goals < 2 years.
-                                </div>
-                                <div style="padding:10px; background:#f1f5f9; border-radius:6px;">
-                                    <strong style="color:#0f172a;">Mutual Funds/ETFs:</strong> Market Linked. 11% - 15% ROI. Primary wealth driver for long term.
-                                </div>
-                                <div style="padding:10px; background:#f1f5f9; border-radius:6px;">
-                                    <strong style="color:#0f172a;">Direct Stocks (IN/US):</strong> High Risk/Reward. 15%+ ROI. Requires deep research.
-                                </div>
-                                <div style="padding:10px; background:#f1f5f9; border-radius:6px;">
-                                    <strong style="color:#0f172a;">EPF/PPF/NPS:</strong> Retirement. 7% - 8.1% (Tax Free). Locked capital for long-term safety.
-                                </div>
-                                <div style="padding:10px; background:#f1f5f9; border-radius:6px;">
-                                    <strong style="color:#0f172a;">Gold & SGBs:</strong> Inflation Hedge. 8-10% ROI. Good for portfolio stability.
-                                </div>
-                                <div style="padding:10px; background:#f1f5f9; border-radius:6px;">
-                                    <strong style="color:#0f172a;">ULIPs/Endowment:</strong> Insurance + Investment. ~5% ROI. Expensive fees; usually better to keep separately.
-                                </div>
-                                <div style="padding:10px; background:#f1f5f9; border-radius:6px;">
-                                    <strong style="color:#0f172a;">Real Estate:</strong> Tangible Assets. 8-12% ROI. High entry barrier; very illiquid.
-                                </div>
-                                <div style="padding:10px; background:#f1f5f9; border-radius:6px;">
-                                    <strong style="color:#0f172a;">Cryptocurrency:</strong> Speculative. Extreme Volatility. Only for "play money."
-                                </div>
-                            </div>
+                        <div class="form-group">
+                            <label>Rent & Utilities (₹)</label>
+                            <input type="number" id="u-rent" placeholder="e.g. 25000" value="25000" oninput="updateInsuranceImpact()">
                         </div>
-                    </details>
+                        <div class="form-group">
+                            <label>Food & Essentials (₹)</label>
+                            <input type="number" id="u-groceries" placeholder="e.g. 15000" value="15000" oninput="updateInsuranceImpact()">
+                        </div>
+                        <div class="form-group">
+                            <label>Existing EMIs & Bills (₹)</label>
+                            <input type="number" id="u-cc" placeholder="e.g. 15000" value="15000" oninput="updateInsuranceImpact()">
+                        </div>
+                        <div class="form-group">
+                            <label>Lifestyle & Entertainment (₹)</label>
+                            <input type="number" id="u-life" placeholder="e.g. 10000" value="10000" oninput="updateInsuranceImpact()">
+                        </div>
+                    </div>
                 </div>
+
+                <!-- ── STEP 4: INSURANCE ── -->
+                <div class="intake-section">
+                    <div class="intake-section-label"><i data-lucide="shield-check"></i> Step 4 — Insurance Shields</div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>Health Insurance</label>
+                            <select id="u-med" onchange="updateInsuranceImpact()">
+                                <option value="no">❌ Not Yet — I Need One</option>
+                                <option value="yes" selected>✅ Active — I'm Covered</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Term Life Insurance</label>
+                            <select id="u-term" onchange="updateInsuranceImpact()">
+                                <option value="no">❌ Not Yet — I Need One</option>
+                                <option value="yes" selected>✅ Active — Family Protected</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="insurance-warning" style="display:none;margin-top:14px;"></div>
+                </div>
+
+                <!-- ── STEP 5: CURRENT PORTFOLIO ── -->
+                <div class="intake-section">
+                    <div class="intake-section-header">
+                        <div class="intake-section-label" style="margin-bottom:0;"><i data-lucide="wallet"></i> Step 5 — Current Portfolio</div>
+                        <div class="portfolio-total-badge">
+                            Total Assets: <span class="money-value" id="portfolio-total-display">₹0</span>
+                        </div>
+                    </div>
+                    <div class="portfolio-table-head">
+                        <span>Asset Type</span>
+                        <span>Description / Platform</span>
+                        <span>Current Value (₹)</span>
+                        <span>Annual Return</span>
+                        <span></span>
+                    </div>
+                    <div id="account-container"></div>
+                    <button class="add-row-btn" onclick="addAccount()">
+                        <i data-lucide="plus-circle"></i> Add Asset
+                    </button>
+                    <div class="portfolio-note">💡 Include all assets: FDs, mutual funds, P2P lending, gold, land, EPF, crypto — everything counts.</div>
+                </div>
+
+                <!-- ── STEP 6: DEBTS & LIABILITIES ── -->
+                <div class="intake-section" style="border-color:rgba(245,158,11,0.2);">
+                    <div class="intake-section-header">
+                        <div class="intake-section-label" style="margin-bottom:0; color:var(--amber);"><i data-lucide="alert-triangle"></i> Step 6 — Debts & Liabilities</div>
+                        <div class="portfolio-total-badge" style="color:var(--rose);">
+                            Total Debt: <span class="money-value" id="debt-total-display">₹0</span>
+                        </div>
+                    </div>
+                    <div id="debt-container"></div>
+                    <button class="add-row-btn" style="border-color:rgba(245,158,11,0.3);color:var(--amber);" onclick="addDebt()">
+                        <i data-lucide="plus-circle"></i> Add Loan / Debt / EMI
+                    </button>
+                    <div class="portfolio-note" style="border-color:rgba(245,158,11,0.2);">💡 Include home loans, car loans, credit card debt, personal loans, education loans.</div>
+                </div>
+
+                <!-- ── STEP 7: FINANCIAL GOALS ── -->
+                <div class="intake-section" style="border-color:rgba(129,140,248,0.2);">
+                    <div class="intake-section-label" style="color:var(--indigo);"><i data-lucide="target"></i> Step 7 — Financial Goals (Optional)</div>
+                    <div class="goal-table-head">
+                        <span>Goal Name</span>
+                        <span>Target Amount (₹)</span>
+                        <span>Years to Goal</span>
+                        <span></span>
+                    </div>
+                    <div id="goal-container"></div>
+                    <button class="add-row-btn" style="border-color:rgba(129,140,248,0.3);color:var(--indigo);" onclick="addGoal()">
+                        <i data-lucide="plus-circle"></i> Add Goal / Milestone
+                    </button>
+                    <div class="portfolio-note" style="border-color:rgba(129,140,248,0.2);">💡 e.g. New Car (₹10L, 3 yrs), Europe Trip (₹3L, 1 yr), Home Down Payment (₹30L, 7 yrs)</div>
+                </div>
+
+                <!-- ── COMPUTE BUTTON ── -->
+                <button class="compute-cta" onclick="calculateStrategy()">
+                    <div class="compute-cta-inner">
+                        <i data-lucide="cpu"></i>
+                        <div class="compute-cta-text">
+                            <span class="compute-cta-title">Compute My Wealth Blueprint</span>
+                            <span class="compute-cta-sub">Generate FI date · Portfolio analysis · Debt strategy · Goal feasibility</span>
+                        </div>
+                        <i data-lucide="arrow-right"></i>
+                    </div>
+                </button>
+
             </div>
         </section>
 
-        <!-- TAB 2: CFO DIAGNOSIS -->
+        <!-- ═══════════════════════════════════════
+             TAB 2: BLUEPRINT
+        ═══════════════════════════════════════ -->
         <section id="pg-dash" class="pg">
-            
-            <div class="nw-hero">
-                <div class="nw-hero-sub">TOTAL AGGREGATED BALANCE</div>
-                <div class="nw-hero-val money-value" id="nw-total-wealth">₹0</div>
-                <div class="nw-hero-trend">
-                    <i data-lucide="trending-up"></i> Projected 24-Month Growth
+
+            <!-- Daily Insight -->
+            <div class="daily-insight-card" id="daily-insight-card">
+                <div class="daily-insight-emoji">💰</div>
+                <div class="daily-insight-body">
+                    <div class="daily-insight-title">Simulated Daily Appreciation</div>
+                    <div class="daily-insight-text" id="daily-insight-text">Generate your blueprint to see how much your money earned today.</div>
                 </div>
-            </div>
-            <div class="nw-graph-container" id="nw-trend-graph">
-                <!-- Bars populated by JS -->
+                <div class="daily-insight-earnings money-value" id="daily-insight-earnings" style="display:none;"></div>
             </div>
 
-            <!-- Wealth Optimizer (Money Leaks) -->
-            <div class="optimizer-card" id="optimizer-section" style="display:none;">
-                <div class="optimizer-title"><i data-lucide="zap"></i> Wealth Optimizer — Money Leaks Detected</div>
+            <!-- Survival Runway Widget -->
+            <div class="survival-runway-card" id="survival-runway-card">
+                <div class="runway-header">
+                    <div class="runway-label">🛡️ Survival Runway</div>
+                    <div class="runway-value money-value" id="runway-value">—</div>
+                    <div class="runway-subtitle" id="runway-subtitle">Compute your blueprint to unlock your safety score.</div>
+                </div>
+                <div class="runway-bar-container">
+                    <div class="runway-bar-track">
+                        <div class="runway-bar-fill" id="runway-bar-fill" style="width: 0%;"></div>
+                    </div>
+                    <div class="runway-bar-labels">
+                        <span>0 months</span>
+                        <span style="color: var(--emerald); font-weight: 800;">Target: 6 mo</span>
+                        <span>12 months</span>
+                    </div>
+                    <div class="runway-target-marker" style="left: 50%;">Target</div>
+                </div>
+            </div>
+
+            <!-- Micro-Nudge Buttons -->
+            <div class="micro-nudge-bar" id="nudge-bar">
+                <button class="nudge-btn nudge-btn-primary" onclick="scrollToOptimizer()">
+                    🔧 Fix My Money Leak
+                </button>
+                <button class="nudge-btn nudge-btn-warn" onclick="openWithdrawModal()">
+                    🏦 Emergency Cash (Safe Way)
+                </button>
+                <button class="nudge-btn nudge-btn-secondary" onclick="switchTab('intake'); setTimeout(()=>document.getElementById('u-sip').focus(), 300)">
+                    🚀 Boost My Runway
+                </button>
+            </div>
+
+            <!-- Freedom Section: Meter + FI Date -->
+            <div class="freedom-section">
+
+                <div class="freedom-card">
+                    <div class="freedom-title">Wealth Logic Gauge</div>
+
+                    <div class="freedom-arc-wrapper">
+                        <svg class="freedom-arc-svg" viewBox="0 0 120 120">
+                            <defs>
+                                <linearGradient id="emerald-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" style="stop-color:#059669"/>
+                                    <stop offset="100%" style="stop-color:#6ee7b7"/>
+                                </linearGradient>
+                            </defs>
+                            <circle class="freedom-arc-track" cx="60" cy="60" r="54"/>
+                            <circle class="freedom-arc-fill" id="freedom-arc" cx="60" cy="60" r="54"/>
+                        </svg>
+                        <div class="freedom-center-text">
+                            <div class="freedom-pct money-value" id="freedom-pct">0%</div>
+                            <div class="freedom-pct-label">to FI</div>
+                        </div>
+                    </div>
+
+                    <div class="freedom-workers" id="freedom-workers">Your money works <strong>0 hrs/day</strong> for you right now.</div>
+                </div>
+
+                <div class="accel-card" style="margin-bottom:0; flex:1; display:flex; flex-direction:column; justify-content:center;">
+                    <div class="accel-fi-label">PROJECTED FINANCIAL INDEPENDENCE</div>
+                    <div class="accel-fi-date" id="fi-date">Analyzing...</div>
+                    <div class="accel-slider-label">Simulate Monthly SIP — drag to see your freedom date move</div>
+                    <input type="range" class="accel-slider" id="fi-slider" min="5000" max="500000" step="5000" value="50000" oninput="updateFISlider(this.value)">
+                    <div style="font-size: 17px; font-weight: 700; color:#6ee7b7; margin-bottom: 8px; font-family: var(--font-mono);" id="fi-slider-display">₹50,000 / month</div>
+                    <div class="accel-insight" id="fi-insight" style="font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.5;">Adjust the slider to see how compounding accelerates your freedom date.</div>
+                </div>
+
+            </div>
+
+            <!-- Net Worth Hero + Graph -->
+            <div class="nw-hero">
+                <div class="nw-hero-sub">TOTAL AGGREGATED CAPITAL</div>
+                <div class="nw-hero-val money-value" id="nw-total-wealth">₹0</div>
+                <div class="nw-hero-trend"><i data-lucide="trending-up"></i> 24-Month Trajectory</div>
+            </div>
+            <!-- Financial Freedom Gauge -->
+            <div class="freedom-gauge-card glass-card">
+                <div class="gauge-header">
+                    <div class="gauge-title">Strategic Target Tracking</div>
+                    <div class="gauge-percent" id="freedom-gauge-pct">0%</div>
+                </div>
+                <div class="gauge-bar-track">
+                    <div class="gauge-bar-fill" id="freedom-gauge-fill"></div>
+                </div>
+                <div class="gauge-footer" id="freedom-gauge-status">Calculating your path to wisdom...</div>
+            </div>
+
+            <!-- Withdraw CTA -->
+            <div style="display:flex; justify-content:flex-end; margin-bottom: 16px;">
+                <button class="nudge-btn nudge-btn-warn" onclick="openWithdrawModal()" style="font-size: 13px;">
+                    <i data-lucide="wallet"></i> Smart Withdraw
+                </button>
+            </div>
+
+            <!-- Optimizer -->
+            <div class="premium-card" id="optimizer-section" style="display:none; border-left: 5px solid var(--amber);">
+                <div class="card-hd" id="optimizer-anchor"><i data-lucide="zap"></i> Strategy Optimization Alerts</div>
                 <div id="leak-items-container"></div>
             </div>
 
-            <!-- Acceleration Slider -->
-            <div class="accel-card">
-                <div class="accel-title">⚡ Financial Independence Accelerator</div>
-                <div class="accel-fi-date" id="fi-date">Calculating...</div>
-                <div class="accel-fi-label">Estimated Financial Freedom Date</div>
-                <div class="accel-slider-label">Monthly SIP Amount — slide to see your FI date change in real-time</div>
-                <input type="range" class="accel-slider" id="fi-slider" min="5000" max="500000" step="5000" value="50000" oninput="updateFISlider(this.value)">
-                <div class="accel-sip-display" id="fi-slider-display">₹50,000 / month</div>
-                <div class="accel-insight" id="fi-insight">Adjust the slider above to see how increasing your monthly investment moves your retirement date closer.</div>
+            <!-- Ladder -->
+            <div class="premium-card">
+                <div class="card-hd"><i data-lucide="map"></i> The Wealth Ladder</div>
+                <div id="ladder-container"></div>
             </div>
 
-            <div class="premium-card">
-                <div class="card-hd"><i data-lucide="bar-chart-2"></i> Your Step-by-Step Plan</div>
-                <div id="ladder-container">
-                    <!-- Phases populated by JS -->
+            <!-- Asset / Liability snapshot -->
+            <div class="grid-2">
+                <div class="premium-card">
+                    <div class="card-hd"><i data-lucide="wallet"></i> Asset Valuation</div>
+                    <div class="vital-stat money-value" id="v-ast" style="font-size: 26px; font-weight: 800; color: var(--emerald); font-family: var(--font-mono);"></div>
+                </div>
+                <div class="premium-card">
+                    <div class="card-hd"><i data-lucide="minus-circle"></i> Outstanding Debt</div>
+                    <div class="vital-stat money-value" id="v-lia" style="font-size: 26px; font-weight: 800; color: #ef4444; font-family: var(--font-mono);"></div>
                 </div>
             </div>
 
-            <div class="premium-card">
-                <div class="card-hd"><i data-lucide="scale"></i> Net Worth Summary</div>
-                <div class="grid-2" style="margin-bottom:15px; border-bottom:1px solid #e2e8f0; padding-bottom:15px;">
-                    <div><div style="font-size:12px; font-weight:700; color:var(--text-secondary); text-transform:uppercase;">Total Investments & Savings</div><div class="vital-stat money-value" id="v-ast" style="color:var(--accent-green)"></div></div>
-                    <div><div style="font-size:12px; font-weight:700; color:var(--text-secondary); text-transform:uppercase;">Total Loans & Debt</div><div class="vital-stat money-value" id="v-lia" style="color:var(--accent-red)"></div></div>
-                </div>
-                <div style="text-align:center;">
-                    <div style="font-size:12px; font-weight:700; color:var(--text-secondary); text-transform:uppercase;">Total Net Worth</div>
-                    <div class="vital-stat money-value" id="v-nw" style="font-size:32px;"></div>
-                </div>
+            <div class="premium-card" style="border-left: 5px solid var(--emerald);">
+                <div class="card-hd"><i data-lucide="bar-chart-3"></i> Net Worth</div>
+                <div class="vital-stat money-value" id="v-nw" style="font-size: 32px; font-weight: 800; color: var(--emerald-deep); font-family: var(--font-mono);"></div>
             </div>
 
             <div class="premium-card">
-                <div class="card-hd"><i data-lucide="target"></i> Goal Analysis</div>
-                <div id="goal-protocol-blocks" style="background:#f8fafc; padding:15px; border-left:3px solid var(--accent-blue);"></div>
-            </div>
-            <div class="premium-card" style="padding: 20px 30px; background: #fdf8f6; border-color: #f7dac4;">
-                <details class="rationale-details">
-                    <summary><i data-lucide="book-open"></i> <strong>Strategy Directive:</strong> Why are we choosing these specific assets?</summary>
-                    <div class="rationale-content">
-                        <p>Our mathematical solver explicitly maps your capital into targeted asset vehicles to optimize for both absolute safety and high yield based on duration:</p>
-                        <ul>
-                            <li><strong style="color:var(--accent-blue);">Liquid & Safety Net (~7%):</strong> We use Savings, FDs, and Post Office schemes for absolute capital protection. These fund your ₹10k liquid buffer and your 6-month safety net.</li>
-                            <li><strong style="color:#10b981;">Growth Equities (~12-15%):</strong> Your Mutual Funds, Stocks, and ULIPs act as the primary wealth engine. These are volatile but historically double your money every 4-6 years.</li>
-                            <li><strong style="color:#8b5cf6;">Shield Assets (~10%):</strong> Corporate Bonds and NPS tiers provide a cushion during market crashes, ensuring your entire portfolio doesn't drop to zero.</li>
-                            <li><strong style="color:#b45309;">Hedge Assets (~8%):</strong> Gold, SGBs, and Real Estate preserve purchasing power against rising prices (inflation).</li>
-                        </ul>
-                    </div>
-                </details>
+                <div class="card-hd"><i data-lucide="target"></i> Goal Feasibility Orbit</div>
+                <div id="goal-protocol-blocks" style="font-size: 14px; color: var(--slate-light);"></div>
             </div>
 
+            <!-- Executive Allocation Matrix -->
             <div class="premium-card">
-                <div class="card-hd"><i data-lucide="calculator"></i> Strict Monthly Allocator</div>
-                <div style="font-size:13px; color:var(--text-secondary); margin-bottom:15px; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">Where exactly every ₹ of your monthly surplus goes. Follow this strict order of operations.</div>
+                <div class="card-hd"><i data-lucide="terminal"></i> Executive Allocation Matrix</div>
+                <p style="font-size:11px; color:var(--slate-light); margin-bottom:12px; font-family:var(--font-mono);">— Goldman-level 24-month capital routing —</p>
                 <div style="overflow-x:auto;">
-                    <table class="calc-table" id="monthly-allocator-table">
+                    <table class="calc-table">
                         <thead>
                             <tr>
-                                <th style="text-align:left;">Month</th>
-                                <th style="text-align:right;">Surplus</th>
-                                <th style="text-align:right; color:var(--accent-red)">Debt</th>
-                                <th style="text-align:right; color:#64748b">Liquid (0%)</th>
-                                <th style="text-align:right; color:var(--accent-blue)">FD (7%)</th>
-                                <th style="text-align:right; color:#10b981">Nifty SIP (12%)</th>
-                                <th style="text-align:right; color:#0d9488">MidCap SIP (15%)</th>
-                                <th style="text-align:right; color:#8b5cf6">Bonds (10%)</th>
-                                <th style="text-align:right; color:#b45309">Goal Spend</th>
-                                <th style="text-align:right; color:#0f172a; font-weight:900;">Wealth Acc</th>
+                                <th>Period</th>
+                                <th>Surplus</th>
+                                <th>Debt Exit</th>
+                                <th>Liquid</th>
+                                <th>Safety FD</th>
+                                <th>Equity (M)</th>
+                                <th>Equity (L)</th>
+                                <th>Bonds</th>
+                                <th>Spend</th>
+                                <th class="calc-val-wealth">Net Conv.</th>
                             </tr>
                         </thead>
-                        <tbody id="monthly-allocator-body">
-                            <!-- Populated by JS -->
-                        </tbody>
+                        <tbody id="monthly-allocator-body"></tbody>
                     </table>
                 </div>
             </div>
-
-
         </section>
 
-        <!-- TAB 3: VISUAL SIMULATOR -->
-        <section id="pg-sim" class="pg">
-            <div class="simulator-header">
-                <div><div style="font-size:14px; color:var(--text-secondary); text-transform:uppercase; font-weight:700;">Dynamic Simulator</div><div style="font-size:12px; color:var(--text-muted);">See how your wealth grows over time</div></div>
-                <div><button class="simulate-play-btn" onclick="runCrisisSimulator()"><i data-lucide="activity"></i> Run Wealth Simulator</button></div>
+        <!-- ═══════════════════════════════════════
+             TAB 3: AI INTELLIGENCE
+        ═══════════════════════════════════════ -->
+        <section id="pg-ai" class="pg">
+            <div class="ai-tab-hero">
+                <div class="ai-tab-icon"><i data-lucide="sparkles"></i></div>
+                <h2 class="ai-tab-title">Your Money Guide</h2>
+                <p class="ai-tab-sub">Ask me anything about saving, investing, paying off loans, or getting out of debt. I only talk money — so you get focused, honest help. Your data never leaves this app.</p>
             </div>
-            
-            <div class="timeline-container" id="timeline-log" style="position:relative;">
-                <div style="padding:40px; text-align:center; color:var(--text-muted); font-style:italic;">Run engine to compute compounding thresholds and unlock events.</div>
-                <!-- GIF Overlay hooks -->
-                <div id="gif-overlay" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); flex-direction:column; align-items:center; z-index:10; background:rgba(255,255,255,0.95); padding:30px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.2); width:80%;">
-                    <div style="font-size:60px; margin-bottom:10px;">🎉</div>
-                    <div id="gif-txt" style="font-size:16px; font-weight:800; color:#111; text-align:center; line-height:1.4;">[MILESTONE TEXT]</div>
+            <div class="ai-key-card premium-card">
+                <div class="card-hd"><i data-lucide="key"></i> Connect Your Free AI Key</div>
+                <p style="font-size:13px;color:var(--slate-mid);margin-bottom:16px;line-height:1.6;">To activate the AI, you need a free Gemini key from Google. It takes 30 seconds to get — no payment required. Once added, I can give you personalised advice based on your actual numbers.</p>
+                <div class="ai-key-input-row">
+                    <input type="password" id="gemini-api-key-2" placeholder="Paste your free AI key here..." class="ai-key-input" oninput="document.getElementById('gemini-api-key').value=this.value">
+                    <a href="https://aistudio.google.com/apikey" target="_blank" class="ai-get-key-btn">Get Free Key →</a>
+                </div>
+            </div>
+
+            <!-- Quick question shortcuts -->
+            <div class="ai-prompts-grid">
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('Look at my numbers and tell me the top 3 things I should do right now to improve my finances.')">
+                    <span class="ai-prompt-icon">🔍</span>
+                    <div class="ai-prompt-text">What should I fix first?</div>
+                </div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('Based on my income and savings, how many years until I can stop working? What can I do to retire earlier?')">
+                    <span class="ai-prompt-icon">🚀</span>
+                    <div class="ai-prompt-text">When can I retire?</div>
+                </div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('I have loans and want to invest too. Should I pay off my loans first or start a SIP? Give me a simple plan.')">
+                    <span class="ai-prompt-icon">⚖️</span>
+                    <div class="ai-prompt-text">Loan first or invest first?</div>
+                </div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('What are the simplest ways to save tax in India for my income level? Explain in very simple language.')">
+                    <span class="ai-prompt-icon">🛡️</span>
+                    <div class="ai-prompt-text">How do I save on taxes?</div>
+                </div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('I feel stressed and overwhelmed about my finances. I feel like I will never get out of debt. Please help me feel better and give me a real plan.')">
+                    <span class="ai-prompt-icon">💚</span>
+                    <div class="ai-prompt-text">I feel stressed about money</div>
+                </div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('How do I build ₹1 crore? Give me a simple step-by-step monthly SIP plan I can actually follow.')">
+                    <span class="ai-prompt-icon">💰</span>
+                    <div class="ai-prompt-text">How to save ₹1 Crore?</div>
+                </div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('generate PDF report')">
+                    <span class="ai-prompt-icon">📄</span>
+                    <div class="ai-prompt-text">Download my PDF report</div>
+                </div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('generate Excel report')">
+                    <span class="ai-prompt-icon">📊</span>
+                    <div class="ai-prompt-text">Get my Excel sheet</div>
+                </div>
+            </div>
+
+            <!-- Two download buttons (no AI key needed) -->
+            <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+                <button onclick="generateWealthBlueprintPDF()" class="add-row-btn" style="flex:1;min-width:140px;border-color:rgba(16,185,129,0.4);color:var(--emerald);">
+                    <i data-lucide="file-text"></i> Save as PDF
+                </button>
+                <button onclick="generateExcelReport()" class="add-row-btn" style="flex:1;min-width:140px;border-color:rgba(129,140,248,0.4);color:#a5b4fc;">
+                    <i data-lucide="table-2"></i> Download Excel / CSV
+                </button>
+            </div>
+
+            <div class="ai-chat-inline premium-card">
+                <div class="card-hd"><i data-lucide="message-circle"></i> Chat with Your Money Guide</div>
+                <div class="ai-inline-history" id="ai-inline-history">
+                    <div class="chat-msg ai">Namaste! 🙏 I'm your Aarth Sutra money guide. Add your AI key above and I'll give you personalised advice — ask me about saving, loans, investing, insurance, or anything money-related. I only talk finance, so my help is focused and honest.</div>
+                </div>
+                <div class="ai-inline-input-row">
+                    <input type="text" id="ai-inline-input" placeholder="Ask me anything about money, loans, or savings..." class="ai-inline-input">
+                    <button onclick="sendInlineChat()" class="ai-send-btn"><i data-lucide="send"></i></button>
                 </div>
             </div>
         </section>
 
-        <!-- TAB 4: INVESTMENT LIBRARY -->
+        <!-- ═══════════════════════════════════════
+             TAB 4: SIMULATOR (VAULT)
+        ═══════════════════════════════════════ -->
+        <section id="pg-sim" class="pg">
+            <div class="premium-card">
+                <div class="sim-header">
+                    <div>
+                        <h2 style="font-family: var(--font-display); font-size: 26px; color: var(--emerald-deep);">What If the Market Crashes?</h2>
+                        <p style="color: var(--slate-light); font-size: 14px;">See how your money would hold up during real past market crashes — and what would happen to your wealth.</p>
+                    </div>
+                    <button class="primary-btn" onclick="runCrisisSimulator()" style="width: auto; padding: 12px 24px;">
+                        <i data-lucide="play"></i> Run Simulation
+                    </button>
+                </div>
+                <div class="timeline-container" id="timeline-log">
+                    <div style="padding: 60px; text-align: center; color: var(--slate-light); font-style: italic; font-size: 14px;">
+                        Click 'Run Simulation' to model historical market crashes and recovery cycles.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════
+             TAB 4: ENCYCLOPEDIA
+        ═══════════════════════════════════════ -->
         <section id="pg-lib" class="pg">
 
-            <!-- Scam Alert -->
-            <div style="background:linear-gradient(90deg,#7f1d1d,#991b1b); color:white; border-radius:12px; padding:16px 22px; margin-bottom:22px; display:flex; align-items:center; gap:14px;">
-                <div style="font-size:28px;">&#128680;</div>
-                <div>
-                    <div style="font-weight:900; font-size:15px; margin-bottom:4px;">SCAM ALERT — Read Before Investing</div>
-                    <div style="font-size:13px; opacity:0.9; line-height:1.5;">Never share your OTP, Aadhaar, or PAN with anyone online. Legitimate SEBI-registered advisors never promise guaranteed returns. If someone on Telegram or WhatsApp promises 30%+ monthly returns — it is fraud. Report to <strong>cybercrime.gov.in</strong></div>
+            <!-- Safety Protocol Banner -->
+            <div class="glass-card-dark" style="margin-bottom:20px;">
+                <div class="safety-protocol-header">
+                    <i data-lucide="shield-alert" style="width:44px;height:44px;color:#fca5a5;flex-shrink:0;"></i>
+                    <div>
+                        <h4 style="font-size:17px;margin-bottom:4px;color:#fca5a5;">Institutional Safety Protocol</h4>
+                        <p style="font-size:13px;color:rgba(255,255,255,0.6);line-height:1.5;">Antigravity never asks for money. Anyone promising >20% guaranteed monthly returns is running a <strong>scam</strong>. Report to <strong style="color:#fca5a5;">cybercrime.gov.in</strong> immediately.</p>
+                    </div>
                 </div>
             </div>
 
-            <!-- Diversification Meter -->
-            <div class="premium-card" id="div-meter-card" style="margin-bottom:20px;">
-                <div class="card-hd"><i data-lucide="gauge"></i> Portfolio Diversification Health</div>
-                <div id="div-meter-content" style="font-size:13px; color:#475569;">Generate your Financial Plan on Tab 2 first to see your personalised diversification score.</div>
+            <!-- Diversification Health -->
+            <div class="premium-card">
+                <div class="card-hd"><i data-lucide="pie-chart"></i> Portfolio Diversification Score</div>
+                <div id="div-meter-content" style="color:var(--slate-light);font-size:14px;">Generate your blueprint to analyze your portfolio diversification.</div>
             </div>
 
-            <!-- Filter Bar -->
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px;">
-                <button class="lib-filter active" onclick="filterLib('all', this)">All</button>
-                <button class="lib-filter" onclick="filterLib('safe', this)">&#128994; Safe</button>
-                <button class="lib-filter" onclick="filterLib('moderate', this)">&#128993; Moderate</button>
-                <button class="lib-filter" onclick="filterLib('aggressive', this)">&#128308; Aggressive</button>
-                <button class="lib-filter" onclick="filterLib('retirement', this)">&#129399; Retirement</button>
-                <button class="lib-filter" onclick="filterLib('alternative', this)">&#129811; Alternative</button>
+            <!-- 5-PILLAR LIBRARY -->
+            <div class="card-hd" style="margin-bottom: 16px;"><i data-lucide="columns"></i> The 5-Pillar Investment Framework</div>
+
+            <div class="pillar-grid" id="pillar-grid">
+                <!-- Pillar 1: Govt Bonds -->
+                <div class="pillar-card" style="--pillar-color: #059669;" onclick="openPillarModal('govtbond')">
+                    <span class="pillar-emoji">🏛️</span>
+                    <div class="pillar-name">Govt Bonds & T-Bills</div>
+                    <div class="pillar-hook">"Safe as a bank, but pays more."</div>
+                    <div class="pillar-risk-badge risk-zero">Risk: Zero</div>
+                    <div class="pillar-platform">RBI Retail Direct</div>
+                </div>
+                <!-- Pillar 2: Corporate Bonds -->
+                <div class="pillar-card" style="--pillar-color: #2563eb;" onclick="openPillarModal('corpbond')">
+                    <span class="pillar-emoji">🏢</span>
+                    <div class="pillar-name">FD & Corporate Bonds</div>
+                    <div class="pillar-hook">"Be the lender to big companies."</div>
+                    <div class="pillar-risk-badge risk-low">Risk: Low–Med</div>
+                    <div class="pillar-platform">Wint Wealth · GoldenPi</div>
+                </div>
+                <!-- Pillar 3: Index Funds -->
+                <div class="pillar-card" style="--pillar-color: #7c3aed;" onclick="openPillarModal('indexfund')">
+                    <span class="pillar-emoji">📈</span>
+                    <div class="pillar-name">Index Funds (Core)</div>
+                    <div class="pillar-hook">"Own India's entire economy."</div>
+                    <div class="pillar-risk-badge risk-medium">Risk: Moderate</div>
+                    <div class="pillar-platform">Zerodha · Groww · Kuvera</div>
+                </div>
+                <!-- Pillar 4: Momentum / P2P -->
+                <div class="pillar-card" style="--pillar-color: #d97706;" onclick="openPillarModal('momentum')">
+                    <span class="pillar-emoji">🚀</span>
+                    <div class="pillar-name">Momentum ETFs & P2P</div>
+                    <div class="pillar-hook">"Ride the fastest-moving stocks."</div>
+                    <div class="pillar-risk-badge risk-high">Risk: High</div>
+                    <div class="pillar-platform">12% Club · Faircent · Groww</div>
+                </div>
+                <!-- Pillar 5: Insurance / SGB -->
+                <div class="pillar-card" style="--pillar-color: #be185d;" onclick="openPillarModal('sgb')">
+                    <span class="pillar-emoji">🛡️</span>
+                    <div class="pillar-name">SGB & Insurance Shield</div>
+                    <div class="pillar-hook">"Gold that pays you 2.5% rent."</div>
+                    <div class="pillar-risk-badge risk-medium">Risk: Medium</div>
+                    <div class="pillar-platform">Any Bank · Zerodha</div>
+                </div>
             </div>
 
-            <!-- Investment Grid -->
-            <div class="lib-grid" id="lib-grid">
-                <!-- Populated by JS -->
+            <!-- Legacy Search Filter + Grid -->
+            <div class="card-hd" style="margin: 28px 0 16px;"><i data-lucide="search"></i> Full Investment Encyclopedia</div>
+            <div class="lib-filter-bar">
+                <button class="lib-filter active" onclick="filterLib('all', this)">All Vehicles</button>
+                <button class="lib-filter" onclick="filterLib('safe', this)">Sovereign Safe</button>
+                <button class="lib-filter" onclick="filterLib('moderate', this)">Growth</button>
+                <button class="lib-filter" onclick="filterLib('aggressive', this)">Speculative</button>
+                <button class="lib-filter" onclick="filterLib('retirement', this)">Long-Term</button>
+                <button class="lib-filter" onclick="filterLib('alternative', this)">Alternative</button>
             </div>
+            <div class="lib-grid" id="lib-grid"></div>
 
         </section>
 
-    </main>
+    </main><!-- /content-area -->
 
-</div>
+    <!-- ══ MODALS ══ -->
 
-<!-- DEEP DIVE MODAL -->
-<div id="lib-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.7); backdrop-filter:blur(8px); z-index:500; overflow-y:auto;" onclick="closeLibModal(event)">
-    <div id="lib-modal" style="max-width:640px; margin:40px auto; background:rgba(255,255,255,0.97); border-radius:20px; box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow:hidden;">
-        <div id="lib-modal-inner"></div>
-    </div>
-</div>
-
-<!-- AI CHATBOT -->
-<div class="ai-chat-widget">
-    <button id="open-chat-btn" class="chat-toggle-btn"><i data-lucide="bot"></i> AI Financial Coach</button>
-    <div class="chat-window hidden" id="chat-window">
-        <div class="chat-header">
-            <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="bot" style="width:16px;"></i><strong>Antigravity AI CFO</strong></div>
-            <button id="close-chat-btn"><i data-lucide="x"></i></button>
+    <!-- Library Modal -->
+    <div id="lib-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(6,78,59,0.6); backdrop-filter:blur(12px); z-index:5000; overflow-y:auto;" onclick="closeLibModal(event)">
+        <div id="lib-modal" style="max-width:680px; margin:48px auto; background:var(--glass-white-strong); backdrop-filter:blur(24px); border-radius:var(--r-xl); overflow:hidden; box-shadow:var(--shadow-premium); border:1px solid rgba(255,255,255,0.7);">
+            <div id="lib-modal-inner"></div>
         </div>
-        <!-- API KEY ONBOARDING -->
-        <div id="api-key-panel" style="padding:14px; background:#f8fafc; border-bottom:1px solid #e2e8f0;">
-            <div style="font-size:12px; font-weight:800; color:#0f172a; margin-bottom:8px;">&#128273; Connect Your AI Brain</div>
-            <input type="password" id="gemini-api-key" placeholder="Paste your Gemini API Key here..." style="width:100%; border:1px solid #cbd5e1; padding:8px 10px; border-radius:8px; font-family:inherit; outline:none; font-size:12px; margin-bottom:8px;">
-            <details style="font-size:11px; color:#475569; cursor:pointer;">
-                <summary style="font-weight:700; color:#2563eb; margin-bottom:4px;">&#128279; How to get your free Gemini API Key?</summary>
-                <div style="margin-top:8px; padding:10px; background:white; border-radius:8px; border:1px solid #e2e8f0; line-height:1.7;">
-                    <strong>3 steps only:</strong><br>
-                    1&#65039;&#8419; Go to <strong>aistudio.google.com</strong><br>
-                    2&#65039;&#8419; Sign in with <strong>your Google account</strong><br>
-                    3&#65039;&#8419; Click <strong>"Get API Key"</strong> &#8594; "Create API Key" &#8594; Copy &amp; paste above<br>
-                    <br>
-                    <span style="color:#059669; font-weight:700;">&#10003; Free to use. No credit card needed. Works instantly.</span>
+    </div>
+
+    <!-- Pillar Modal -->
+    <div id="pillar-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(6,78,59,0.6); backdrop-filter:blur(12px); z-index:5100; overflow-y:auto;" onclick="closePillarModal(event)">
+        <div id="pillar-modal" style="max-width:600px; margin:48px auto; background:var(--glass-white-strong); backdrop-filter:blur(24px); border-radius:var(--r-xl); overflow:hidden; box-shadow:var(--shadow-premium); border:1px solid rgba(255,255,255,0.7);">
+            <div id="pillar-modal-inner" style="padding:36px; position:relative;"></div>
+        </div>
+    </div>
+
+    <!-- Smart Withdrawal Modal -->
+    <div class="modal-overlay" id="withdraw-modal-overlay">
+        <div class="withdraw-modal">
+            <button class="modal-close" onclick="closeWithdrawModal()">✕</button>
+            <h3 style="font-family:var(--font-display);font-size:22px;color:var(--emerald-deep);margin-bottom:6px;">Smart Withdraw</h3>
+            <p style="color:var(--slate-light);font-size:13px;margin-bottom:20px;">Our algorithm will guide you to withdraw money without destroying your long-term wealth.</p>
+
+            <!-- Step 1: Market Check -->
+            <div class="withdraw-step active" id="w-step-1">
+                <div style="font-size:14px;font-weight:700;color:var(--slate);margin-bottom:12px;">Is the market near its recent all-time high?</div>
+                <button class="withdraw-option-btn" onclick="withdrawStep2('near-high')">
+                    <div class="withdraw-option-icon">📈</div>
+                    <div><div class="withdraw-option-title">Yes — Market is near ATH</div><div class="withdraw-option-sub">Markets are strong. Selling now is reasonable.</div></div>
+                </button>
+                <button class="withdraw-option-btn" onclick="withdrawStep2('low')">
+                    <div class="withdraw-option-icon">📉</div>
+                    <div><div class="withdraw-option-title">No — Market is down / uncertain</div><div class="withdraw-option-sub">Selling at a discount destroys your CAGR.</div></div>
+                </button>
+            </div>
+
+            <div id="goal-shield-warning" style="display:none;"></div>
+            <div class="withdraw-step" id="w-step-2a">
+                <div style="background:var(--emerald-light);border:1px solid rgba(5,150,105,0.2);border-radius:var(--r-md);padding:16px;margin-bottom:16px;">
+                    <div style="font-size:15px;font-weight:800;color:var(--emerald-deep);margin-bottom:4px;">✅ Market is Healthy — Proceed</div>
+                    <div style="font-size:13px;color:var(--emerald-mid);">You can liquidate a portion of your equity without losing CAGR momentum. Prefer to withdraw from <strong>FDs and Liquid Funds first</strong>, then equity if necessary.</div>
                 </div>
-            </details>
-        </div>
-        <div class="chat-history" id="chat-history">
-            <div class="chat-msg ai">&#128075; Hi! I am your Antigravity AI CFO. Paste your Gemini API key above to activate me. I can analyse your full portfolio, answer any financial question, and adjust your strategy in real-time.</div>
-        </div>
-        <div class="chat-input-area">
-            <input type="text" id="chat-input" placeholder="Ask me anything...">
-            <button id="send-chat-btn"><i data-lucide="send"></i></button>
-        </div>
-    </div>
-</div>
+                <button class="withdraw-option-btn" onclick="closeWithdrawModal()">
+                    <div class="withdraw-option-icon">🏦</div>
+                    <div><div class="withdraw-option-title">Withdraw from Safety Net FD</div><div class="withdraw-option-sub">0% penalty. Rebuild over next 3-6 months.</div></div>
+                </button>
+                <button class="withdraw-option-btn" onclick="closeWithdrawModal()">
+                    <div class="withdraw-option-icon">📤</div>
+                    <div><div class="withdraw-option-title">Partial Equity Redemption</div><div class="withdraw-option-sub">Sell units from your Nifty/Midcap SIP. Tax applies.</div></div>
+                </button>
+            </div>
 
-<!-- PDF EXPORT -->
-<div id="pdf-container" class="pdf-offscreen">
-    <div id="pdf-content" class="pdf-blueprint-document">
-        
-        <div class="bp-header">
-            <div class="bp-stamp">FINANCIAL PLAN</div>
-            <div class="bp-title" id="pdf-bp-title">Your Wealth Blueprint</div>
-            <div class="bp-sub">A clear, step-by-step roadmap to financial freedom.</div>
-        </div>
-
-        <div class="bp-hd" style="margin-top:20px;">I. FINANCIAL SNAPSHOT</div>
-        <div class="bp-stat"><strong>Cash Flow:</strong> <span id="pdf-cf-stat"></span></div>
-        <div class="bp-stat"><strong>Safety Net:</strong> <span id="pdf-safe-stat"></span></div>
-        <div class="bp-stat"><strong>Liability Status:</strong> <span id="pdf-lia-stat"></span></div>
-        <div class="bp-stat"><strong>Next Milestone:</strong> <span id="pdf-next-stat" style="color:#2563eb;"></span></div>
-
-        <div class="bp-hd" style="margin-top:30px;">II. LIFESTYLE GOALS FEASIBILITY VERDICT</div>
-        <div class="bp-text" id="pdf-goal-text"></div>
-
-        <div class="bp-hd" style="margin-top:30px;">III. WHERE TO INVEST EVERY MONTH</div>
-        <div class="bp-text" id="pdf-alloc-text">Your monthly savings should be invested into the following assets based on your current phase.</div>
-        <table class="pdf-table" id="pdf-alloc-table">
-            <thead><tr><th>Investment Type</th><th>Target Yield</th><th>Action to Take</th></tr></thead>
-            <tbody id="pdf-alloc-body"></tbody>
-        </table>
-
-        <div class="bp-hd" style="margin-top:30px;">IV. LOAN CLEARANCE PLAN</div>
-        <div class="bp-text" id="pdf-amort-text"></div>
-        <table class="pdf-table" id="pdf-amort-table" style="display:table;">
-            <thead><tr><th>Bank / Loan</th><th>Outstanding Principal</th><th>Time to Clear (Normal)</th><th>Time to Clear (Accelerated)</th></tr></thead>
-            <tbody id="pdf-amort-body"></tbody>
-        </table>
-
-        <div id="pdf-ego-section">
-            <div class="bp-hd" style="margin-top:30px;">V. THE WEALTH PREDICTION (Your Bragging Rights)</div>
-            <div class="bp-text" id="pdf-ego-text"></div>
-            <div class="grid-2" style="margin-top:15px; background:#f0fdf4; padding:15px; border-left:4px solid #16a34a;">
-                <div><div style="font-size:11px; text-transform:uppercase; color:#166534; font-weight:700;">Total Bank Interest Saved</div><div id="pdf-ego-interest" style="font-size:24px; color:#16a34a; font-weight:800;">₹0</div></div>
-                <div><div style="font-size:11px; text-transform:uppercase; color:#166534; font-weight:700;">Debt Obliterated Early By</div><div id="pdf-ego-years" style="font-size:24px; color:#16a34a; font-weight:800;">0 Years</div></div>
+            <!-- Step 2b: Market is LOW — Protect! -->
+            <div class="withdraw-step" id="w-step-2b">
+                <div class="withdraw-alert-box">
+                    <div class="withdraw-alert-icon">⚠️</div>
+                    <div class="withdraw-alert-title">Strategic Alert: Don't Sell at a Discount!</div>
+                    <div class="withdraw-alert-text">The market is currently below its 52-week high. Selling your stocks now is like selling your house during a flood — you get far below fair value. Your future self will regret it. Use these alternatives instead:</div>
+                </div>
+                <button class="withdraw-option-btn" onclick="closeWithdrawModal()">
+                    <div class="withdraw-option-icon">🛡️</div>
+                    <div><div class="withdraw-option-title">Use Your Safety Net FD</div><div class="withdraw-option-sub">This is exactly what your emergency fund is built for. Zero market impact.</div></div>
+                </button>
+                <button class="withdraw-option-btn" onclick="closeWithdrawModal()">
+                    <div class="withdraw-option-icon">🏛️</div>
+                    <div><div class="withdraw-option-title">Portfolio Loan @ ~9% Interest</div><div class="withdraw-option-sub">Pledge your mutual funds as collateral to any broker or bank. Keep your investments intact while you get cash. 9% loan beats selling at a 20% market discount.</div></div>
+                </button>
+                <button class="withdraw-option-btn" onclick="closeWithdrawModal()">
+                    <div class="withdraw-option-icon">⏳</div>
+                    <div><div class="withdraw-option-title">Wait 30–60 Days</div><div class="withdraw-option-sub">If this is not a true emergency, patience is the highest-yield asset right now.</div></div>
+                </button>
             </div>
         </div>
+    </div>
 
+    <!-- ══ SEBI COMPLIANCE FOOTER ══ -->
+    <footer class="sebi-footer">
+        <div class="sebi-content">
+            <div class="sebi-main-warning">
+                ⚠️ INVESTMENT IN SECURITIES MARKET IS SUBJECT TO MARKET RISKS. READ ALL THE RELATED DOCUMENTS CAREFULLY BEFORE INVESTING.
+            </div>
+            <div class="sebi-fine-print">
+                <p>Registration granted by SEBI, membership of BASL, and NISM certification do not in any way guarantee the performance of the intermediary or provide any assurance of returns to investors.</p>
+                <p>Aarth Sutra is a strategic visualization tool. All data provided is for educational and simulation purposes only. Past performance is not indicative of future results.</p>
+                <div class="sebi-links">
+                    <a href="https://scores.gov.in/" target="_blank">SEBI SCORES</a> • 
+                    <a href="https://smartodr.in/" target="_blank">SMART ODR Portal</a> • 
+                    <span>Grievance: complaints@aarthsutra.ai</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ══ HIDDEN GEMINI KEY STORE (for AI tab compatibility) ══ -->
+    <input type="hidden" id="gemini-api-key" value="">
+    <div class="chat-history" id="chat-history" style="display:none;"></div>
+    <input type="text" id="chat-input" style="display:none;">
+
+    <!-- ══ PDF BLUEPRINT (Offscreen) ══ -->
+    <div id="pdf-container" class="pdf-offscreen">
+        <div id="pdf-content" class="pdf-blueprint-document">
+            <div style="text-align:center;border-bottom:3px solid #064e3b;padding-bottom:20px;margin-bottom:28px;">
+                <h1 id="pdf-bp-title" style="font-family:'Playfair Display',serif;font-size:26px;color:#064e3b;margin-bottom:4px;">Aarth Sutra | Algorithmic Strategy</h1>
+                <p style="color:#64748b;font-size:12px;">Generated by Aarth Sutra Intelligence — Private, Local & Non-Custodial</p>
+            </div>
+            <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px;color:#064e3b;">Section A: Financial Health Audit</h3>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;">
+                <tr><td style="padding:8px;font-weight:600;border-bottom:1px solid #f1f5f9;">Cash Flow Status</td><td id="pdf-cf-stat" style="padding:8px;border-bottom:1px solid #f1f5f9;"></td></tr>
+                <tr><td style="padding:8px;font-weight:600;border-bottom:1px solid #f1f5f9;">Safety Net Status</td><td id="pdf-safe-stat" style="padding:8px;border-bottom:1px solid #f1f5f9;"></td></tr>
+                <tr><td style="padding:8px;font-weight:600;border-bottom:1px solid #f1f5f9;">Liability Status</td><td id="pdf-lia-stat" style="padding:8px;border-bottom:1px solid #f1f5f9;"></td></tr>
+                <tr><td style="padding:8px;font-weight:600;">Next Milestone</td><td id="pdf-next-stat" style="padding:8px;"></td></tr>
+            </table>
+            <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px;color:#064e3b;">Section B: Goal Feasibility</h3>
+            <div id="pdf-goal-text" style="font-size:13px;margin-bottom:28px;"></div>
+            <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px;color:#064e3b;">Section C: Monthly Allocation Protocol</h3>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;">
+                <thead><tr style="background:#f0fdf4;"><th style="padding:8px;text-align:left;color:#064e3b;">Instrument</th><th style="padding:8px;text-align:left;color:#064e3b;">Expected Yield</th><th style="padding:8px;text-align:left;color:#064e3b;">Monthly Allocation</th></tr></thead>
+                <tbody id="pdf-alloc-body"></tbody>
+            </table>
+            <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px;color:#064e3b;">Section D: Debt Amortization Schedule</h3>
+            <p id="pdf-amort-text" style="font-size:13px;margin-bottom:10px;"></p>
+            <table id="pdf-amort-table" style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;">
+                <thead><tr style="background:#f0fdf4;"><th style="padding:8px;text-align:left;">Lender</th><th style="padding:8px;text-align:left;">Principal</th><th style="padding:8px;text-align:left;">Normal Payoff</th><th style="padding:8px;text-align:left;color:#059669;">Accelerated Payoff</th></tr></thead>
+                <tbody id="pdf-amort-body"></tbody>
+            </table>
+            <div id="pdf-ego-section" style="display:none;background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px;text-align:center;margin-bottom:28px;">
+                <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#166534;margin-bottom:8px;">BRAGGING RIGHTS</div>
+                <p id="pdf-ego-text" style="font-size:13px;color:#166534;margin-bottom:12px;"></p>
+                <div style="display:flex;justify-content:center;gap:40px;">
+                    <div><div style="font-size:22px;font-weight:900;color:#059669;" id="pdf-ego-interest"></div><div style="font-size:11px;color:#64748b;">Interest Saved</div></div>
+                    <div><div style="font-size:22px;font-weight:900;color:#059669;" id="pdf-ego-years"></div><div style="font-size:11px;color:#64748b;">Years Faster</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /app-container -->
+
+<!-- ══ WELCOME MODAL ══ -->
+<div class="welcome-overlay" id="welcome-overlay">
+    <div class="welcome-modal">
+        <div class="welcome-logo">
+            <div class="welcome-logo-icon">⚡</div>
+            <h1>Aarth <span>Sutra</span></h1>
+            <p>India's most advanced wealth planning engine. 100% local. Zero data sent anywhere.</p>
+        </div>
+        <div class="welcome-form">
+            <div class="form-group">
+                <label style="font-size:12px;color:#94a3b8;letter-spacing:0.5px;">YOUR NAME</label>
+                <input type="text" id="welcome-name" placeholder="e.g. Rahul Sharma" class="welcome-input" autocomplete="name">
+            </div>
+            <div class="welcome-ai-section">
+                <div class="welcome-ai-label">
+                    <span>🤖</span>
+                    <div>
+                        <div style="font-weight:700;color:white;font-size:13px;">Unlock AI Wealth Analysis <span style="font-size:11px;color:#818cf8;background:rgba(129,140,248,0.15);padding:2px 8px;border-radius:999px;margin-left:6px;">Optional</span></div>
+                        <div style="font-size:12px;color:#64748b;margin-top:2px;">Get a free Gemini API key and let AI analyze your portfolio</div>
+                    </div>
+                </div>
+                <div class="welcome-ai-steps">
+                    <a href="https://aistudio.google.com/apikey" target="_blank" class="welcome-get-key-btn">
+                        <i data-lucide="external-link"></i> Step 1: Get Free Gemini Key (Google AI Studio)
+                    </a>
+                    <input type="password" id="welcome-api-key" placeholder="Step 2: Paste your API key here..." class="welcome-input">
+                </div>
+            </div>
+            <button class="welcome-start-btn" onclick="completeWelcome()">
+                <i data-lucide="arrow-right"></i>
+                Begin My Wealth Journey
+            </button>
+        </div>
+        <div class="welcome-trust-bar">
+            <span>🔒 Locally Computed</span>
+            <span>🛡️ No Account Needed</span>
+            <span>✓ Zero Data Sent</span>
+            <span>📱 Works on Phone</span>
+        </div>
     </div>
 </div>
 
-<script src="script.js?v=202604131151"></script>
-<script src="library.js?v=202604131151"></script>
+<script src="script.js?v=202604140000"></script>
+<script src="library.js?v=202604140000"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 // ============================================================
-//  WEALTH ENGINE — INVESTMENT LIBRARY (library.js)
+//  AARTH SUTRA — INVESTMENT LIBRARY (library.js)
 //  Complete Indian Investment Ecosystem — 30+ Asset Classes
 // ============================================================
 
@@ -24,9 +24,10 @@ const INVESTMENT_LIBRARY = [
         id: 'fd',
         category: 'safe',
         icon: '📦',
-        name: 'Fixed Deposit (FD)',
-        tagline: 'Guaranteed returns, zero market risk',
+        name: 'Fixed Deposits (FD)',
+        tagline: 'Guaranteed returns, zero volatility',
         risk: 'safe', riskLabel: 'Sovereign Safe', badgeClass: 'badge-safe',
+        riskRating: 1, speedRating: 1,
         returns: '6.5–8.1% p.a.',
         pros: ['DICGC insured up to ₹5L', 'Guaranteed returns', 'Flexible tenure 7 days–10 yrs', 'Senior citizen bonus 0.5%'],
         cons: ['Taxed as per income slab', 'Penalty on premature withdrawal', 'Barely beats inflation'],
@@ -54,9 +55,10 @@ const INVESTMENT_LIBRARY = [
         id: 'govt_bonds',
         category: 'safe',
         icon: '🇮🇳',
-        name: 'Government Bonds (G-Secs)',
-        tagline: 'Sovereign-guaranteed debt of India',
+        name: 'Government Bonds',
+        tagline: 'Sovereign-guaranteed stability',
         risk: 'safe', riskLabel: 'Sovereign Safe', badgeClass: 'badge-safe',
+        riskRating: 1, speedRating: 1,
         returns: '6.5–8% p.a.',
         pros: ['100% sovereign guarantee (cannot default)', 'Tax-free options (54EC bonds)', 'Predictable income', 'Long tenure options up to 40 years'],
         cons: ['Interest rate risk if sold before maturity', 'Low liquidity in secondary market', 'Complex for beginners'],
@@ -146,16 +148,33 @@ const INVESTMENT_LIBRARY = [
         id: 'nifty_index',
         category: 'moderate',
         icon: '📈',
-        name: 'Nifty 50 Index Fund',
-        tagline: 'Own India\'s 50 biggest companies in one click',
+        name: 'Index Funds (Nifty 50)',
+        tagline: 'Own India\'s top 50 companies',
         risk: 'moderate', riskLabel: 'Moderate', badgeClass: 'badge-moderate',
-        returns: '12–14% p.a. (long-term CAGR)',
+        riskRating: 3, speedRating: 4,
+        returns: '12–14% p.a.',
         pros: ['Very low expense ratio (0.05–0.2%)', 'Automatically tracks India\'s top 50 companies', 'No fund manager risk', 'Diversified across sectors automatically'],
         cons: ['Market can drop 30–50% in crashes', 'Boring — not exciting for short-term traders', 'Returns not guaranteed year-on-year'],
         worstCase: '2020 Covid crash: Nifty fell 38% in 45 days. Recovered in 7 months. Every long-term investor who stayed made record gains.',
         bestFor: 'EVERY investor. This is the one investment that should form the backbone of 60–80% of your equity portfolio.',
         reinvest: 'Enable Step-Up SIP: Auto-increment your SIP by 10% every January. This alone can build a ₹10 Crore retirement corpus.',
         platforms: ['Zerodha Coin', 'Groww', 'Kuvera', 'INDmoney', 'Paytm Money'],
+    },
+    {
+        id: 'momentum_etf',
+        category: 'aggressive',
+        icon: '🚀',
+        name: 'Momentum ETFs',
+        tagline: 'Ride the fastest growing stock trends',
+        risk: 'high', riskLabel: 'High Risk', badgeClass: 'badge-high',
+        riskRating: 4, speedRating: 5,
+        returns: '18–25% p.a.',
+        pros: ['Capitalizes on existing market trends', 'Systematic & rule-based', 'Beats Nifty 50 in bull runs'],
+        cons: ['High turnover costs', 'Can crash harder in sudden reversals', 'Not for the emotional investor'],
+        worstCase: 'Market regime change — momentum stops working for years. Exit strategy is key.',
+        bestFor: 'Alpha seekers with 5+ year horizon. Allocate 10-15% of equity satellite.',
+        reinvest: 'Harvest momentum gains and move them to SGBs or Liquid funds during market peaks.',
+        platforms: ['Zerodha', 'Groww', 'Nippon India', 'Edelweiss'],
     },
     {
         id: 'midcap',
@@ -238,8 +257,9 @@ const INVESTMENT_LIBRARY = [
         category: 'aggressive',
         icon: '🤝',
         name: 'P2P Lending',
-        tagline: 'Become the bank — lend directly to consumers',
+        tagline: 'Lend directly for higher yields',
         risk: 'high', riskLabel: 'High Risk', badgeClass: 'badge-high',
+        riskRating: 4, speedRating: 2,
         returns: '10–14% p.a.',
         pros: ['High monthly income potential', 'Small ticket sizes (₹500–₹50k per loan)', 'Monthly cash flow', 'Platform does credit checks'],
         cons: ['Borrower can default — no insurance', 'RBI capped P2P investment at ₹50L max', 'Not DICGC insured', 'Platform may shut down (3 major platforms closed 2021–2023)'],
@@ -637,17 +657,31 @@ function renderLibGrid(filter = 'all') {
     const filtered = filter === 'all'
         ? INVESTMENT_LIBRARY
         : INVESTMENT_LIBRARY.filter(i => i.category === filter);
-    grid.innerHTML = filtered.map(item => `
-        <div class="lib-card risk-${item.risk}" onclick="openLibModal('${item.id}')" data-cat="${item.category}">
-            <span class="lib-card-icon">${item.icon}</span>
-            <div class="lib-card-name">${item.name}</div>
-            <div class="lib-card-tagline">${item.tagline}</div>
-            <div class="lib-card-meta">
-                <span class="lib-risk-badge ${item.badgeClass}">${item.riskLabel}</span>
-                <span class="lib-return money-value">${item.returns}</span>
+        
+    grid.innerHTML = filtered.map(item => {
+        const ratingsHTML = item.riskRating ? `
+            <div class="lib-ratings">
+                <div class="rating-row"><span>Logic Risk</span><div class="rating-dots">${'⬬'.repeat(item.riskRating)}${'⬩'.repeat(5-item.riskRating)}</div></div>
+                <div class="rating-row"><span>Growth Alpha</span><div class="rating-dots" style="color:var(--indigo)">${'⬬'.repeat(item.speedRating)}${'⬩'.repeat(5-item.speedRating)}</div></div>
             </div>
-        </div>
-    `).join('');
+        ` : '';
+        return `
+            <div class="app-card ${item.risk === 'safe' ? 'glow-emerald' : 'glow-indigo'}" onclick="openLibModal('${item.id}')" data-cat="${item.category}" style="cursor:pointer; margin-bottom:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+                    <span style="font-size:24px;">${item.icon}</span>
+                    <span class="lib-risk-badge badge-${item.risk}">${item.riskLabel}</span>
+                </div>
+                <div style="font-family:var(--font-display); font-weight:800; color:white; font-size:16px; margin-bottom:2px;">${item.name}</div>
+                <div style="font-size:11px; color:var(--slate); margin-bottom:12px; line-height:1.4;">${item.tagline}</div>
+                ${ratingsHTML}
+                <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:14px; font-weight:800; color:var(--emerald); font-family:var(--font-mono);">${item.returns}</span>
+                    <i data-lucide="chevron-right" style="width:14px; color:var(--slate-mid);"></i>
+                </div>
+            </div>
+        `;
+    }).join('');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function filterLib(cat, btn) {
@@ -672,60 +706,56 @@ function openLibModal(id) {
         </label>
     `).join('');
     inner.innerHTML = `
-        <div class="lib-modal-header">
-            <div class="lib-modal-header-icon">${item.icon}</div>
+        <div class="lib-modal-header" style="background:var(--obsidian-dark); padding:32px 24px; border-bottom:1px solid var(--glass-border);">
+            <div style="font-size:48px; margin-bottom:12px;">${item.icon}</div>
             <div class="lib-modal-header-info">
-                <div class="lib-modal-header-name">${item.name}</div>
-                <div class="lib-modal-header-sub">${item.tagline}</div>
-                <div style="margin-top:8px;">
-                    <span class="lib-risk-badge ${item.badgeClass}">${item.riskLabel}</span>
-                    &nbsp;
-                    <span style="font-size:14px; font-weight:900; color:#059669;" class="money-value">${item.returns}</span>
+                <div style="font-family:var(--font-display); font-weight:800; font-size:24px; color:white; line-height:1.2;">${item.name}</div>
+                <div style="font-size:12px; color:var(--slate); text-transform:uppercase; letter-spacing:1px; margin-top:4px;">${item.tagline}</div>
+                <div style="margin-top:16px; display:flex; gap:12px; align-items:center;">
+                    <span class="lib-risk-badge badge-${item.risk}">${item.riskLabel}</span>
+                    <span style="font-size:20px; font-weight:900; color:var(--emerald); font-family:var(--font-mono);">${item.returns}</span>
                 </div>
             </div>
         </div>
-        <div class="lib-modal-body">
-
+        <div class="lib-modal-body" style="background:var(--obsidian); padding:24px; color:var(--slate-light);">
             <div class="lib-modal-section">
-                <div class="lib-modal-section-title">&#128161; Best For</div>
-                <div class="lib-best-for">${item.bestFor}</div>
+                <div style="font-weight:800; font-size:14px; color:white; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                    <i data-lucide="info" style="width:16px;"></i> Strategic Best Use
+                </div>
+                <div style="font-size:13px; line-height:1.6; color:var(--slate);">${item.bestFor}</div>
             </div>
 
-            <div class="lib-modal-section">
-                <div class="lib-risk-box">
-                    <div class="lib-risk-box-title">&#9888;&#65039; What Can Go Wrong?</div>
-                    <p>${item.worstCase}</p>
+            <div class="app-card" style="background:rgba(248, 113, 113, 0.05); border-color:rgba(248, 113, 113, 0.2); margin:20px 0;">
+                <div style="font-weight:800; font-size:13px; color:var(--error); margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                    <i data-lucide="alert-triangle" style="width:16px;"></i> Critical Risk Analysis
+                </div>
+                <div style="font-size:12px; line-height:1.5; color:var(--slate-light);">${item.worstCase}</div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;">
+                <div class="lib-pros">
+                    <div style="font-weight:800; font-size:12px; color:var(--success); margin-bottom:8px;">PROS</div>
+                    <div style="font-size:12px; line-height:1.5;">${prosHTML}</div>
+                </div>
+                <div class="lib-cons">
+                    <div style="font-weight:800; font-size:12px; color:var(--error); margin-bottom:8px;">CONS</div>
+                    <div style="font-size:12px; line-height:1.5;">${consHTML}</div>
                 </div>
             </div>
 
-            <div class="lib-modal-section">
-                <div class="lib-modal-section-title">&#9878;&#65039; Pros vs Cons</div>
-                <div class="lib-pros-cons">
-                    <div class="lib-pros"><strong>&#9989; Pros</strong>${prosHTML}</div>
-                    <div class="lib-cons"><strong>&#10060; Cons</strong>${consHTML}</div>
+            <div class="lib-modal-section" style="background:rgba(129, 140, 248, 0.05); border:1px solid rgba(129, 140, 248, 0.1); border-radius:12px; padding:16px;">
+                <div style="font-weight:800; font-size:14px; color:var(--indigo); margin-bottom:6px;">Algorithmic Reinvestment</div>
+                <div style="font-size:12px; line-height:1.6; color:var(--slate-light);">${item.reinvest}</div>
+            </div>
+
+            <div style="margin-top:24px;">
+                <div style="font-weight:800; font-size:12px; color:var(--slate-mid); text-transform:uppercase; margin-bottom:12px;">Institutional Access Platforms</div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    ${item.platforms.map(p => `<span style="background:var(--surface); border:1px solid var(--glass-border); padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; color:var(--slate);">${p}</span>`).join('')}
                 </div>
             </div>
-
-            <div class="lib-modal-section">
-                <div class="lib-modal-section-title">&#128260; The Reinvestment Strategy</div>
-                <div class="lib-reinvest">${item.reinvest}</div>
-            </div>
-
-            <div class="lib-modal-section">
-                <div class="lib-modal-section-title">&#128279; Trusted Indian Platforms</div>
-                <div class="lib-platforms">
-                    ${item.platforms.map(p => `<span class="lib-platform-tag">${p}</span>`).join('')}
-                </div>
-            </div>
-
-            <div class="lib-modal-section" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
-                <div class="lib-modal-section-title" style="color:#0f172a;">&#9989; Before You Invest — Due Diligence Checklist</div>
-                <div style="font-size:11px; color:#64748b; margin-bottom:10px;">Tick each box before putting any money here:</div>
-                ${checklistHTML}
-            </div>
-
         </div>
-        <button class="lib-close-btn" onclick="closeLibModal()">&#10005; Close</button>
+        <button class="app-btn-sm" onclick="closeLibModal()" style="position:absolute; top:12px; right:12px; width:40px; height:40px; border-radius:50%;"><i data-lucide="x"></i></button>
     `;
     overlay.style.display = 'block';
     document.body.style.overflow = 'hidden';
