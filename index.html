@@ -6,7 +6,7 @@
     <title>Aarth Sutra | The Logic of Wealth. The Code of Wisdom.</title>
     <meta name="description" content="Aarth Sutra — Precision wealth planning for the modern professional. 100% Secure, 100% Local.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:ital,wght@0,600;0,700;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=202604140001">
+    <link rel="stylesheet" href="styles.css?v=202604160004">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -109,8 +109,9 @@
                             <input type="number" id="u-income" placeholder="e.g. 150000" value="150000" oninput="updateInsuranceImpact()">
                         </div>
                         <div class="form-group">
-                            <label>Target Monthly SIP / Investment (₹)</label>
+                            <label>How Much Can You Invest Every Month? (₹)</label>
                             <input type="number" id="u-sip" placeholder="e.g. 50000" value="50000">
+                            <div style="font-size:11px; color:rgba(255,255,255,0.5); margin-top:4px;">This is how much you want to invest in mutual funds, stocks, and FDs every month</div>
                         </div>
                         <div class="form-group">
                             <label>Annual SIP Step-Up</label>
@@ -169,6 +170,57 @@
                     <div id="insurance-warning" style="display:none;margin-top:14px;"></div>
                 </div>
 
+                <!-- ── STEP 4B: RISK PROFILE ── -->
+                <div class="intake-section" style="border-color:rgba(168,85,247,0.2);">
+                    <div class="intake-section-label" style="color:#A855F7;"><i data-lucide="activity"></i> Step 4B — Your Risk Comfort Level</div>
+                    <p style="font-size:12px; color:rgba(255,255,255,0.5); margin-bottom:14px; line-height:1.5;">This helps us recommend the right mix of safe and risky investments for you. Be honest — there are no wrong answers.</p>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>If your investments drop 20% in one month, you would:</label>
+                            <select id="u-risk-q1" onchange="getRiskProfile()">
+                                <option value="1">Sell everything immediately — I can't handle losses</option>
+                                <option value="2">Sell some and keep some — I get nervous</option>
+                                <option value="3" selected>Do nothing — markets recover eventually</option>
+                                <option value="4">Buy more — this is a sale!</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Your investment experience:</label>
+                            <select id="u-risk-q2" onchange="getRiskProfile()">
+                                <option value="1">Brand new — never invested before</option>
+                                <option value="2" selected>Some experience — FDs, mutual funds</option>
+                                <option value="3">Experienced — stocks, options, crypto</option>
+                                <option value="4">Expert — I understand derivatives & risk</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>When do you need this money?</label>
+                            <select id="u-risk-q3" onchange="getRiskProfile()">
+                                <option value="1">Within 1-2 years</option>
+                                <option value="2">3-5 years</option>
+                                <option value="3" selected>5-10 years</option>
+                                <option value="4">10+ years — I'm in no rush</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Your age group:</label>
+                            <select id="u-risk-q4" onchange="getRiskProfile()">
+                                <option value="4">Under 30 — lots of time to grow</option>
+                                <option value="3" selected>30-40 — balanced approach</option>
+                                <option value="2">40-50 — need to be careful</option>
+                                <option value="1">50+ — capital preservation matters</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="risk-profile-badge" style="margin-top:12px; padding:10px 16px; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.3); border-radius:8px; display:flex; align-items:center; gap:10px;">
+                        <span style="font-size:20px;" id="risk-profile-icon">⚖️</span>
+                        <div>
+                            <div style="font-weight:800; font-size:13px; color:#A855F7;" id="risk-profile-label">Moderate Investor</div>
+                            <div style="font-size:11px; color:rgba(255,255,255,0.5);" id="risk-profile-desc">You can handle some ups and downs. Good for balanced mutual funds and index investing.</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ── STEP 5: CURRENT PORTFOLIO ── -->
                 <div class="intake-section">
                     <div class="intake-section-header">
@@ -223,14 +275,26 @@
                 </div>
 
                 <!-- ── COMPUTE BUTTON ── -->
-                <button class="compute-cta" onclick="calculateStrategy()">
-                    <div class="compute-cta-inner">
+                <button class="compute-cta" id="compute-btn" onclick="calculateStrategy()">
+                    <!-- Default state -->
+                    <div class="compute-cta-inner cta-default">
                         <i data-lucide="cpu"></i>
                         <div class="compute-cta-text">
                             <span class="compute-cta-title">Compute My Wealth Blueprint</span>
                             <span class="compute-cta-sub">Generate FI date · Portfolio analysis · Debt strategy · Goal feasibility</span>
                         </div>
                         <i data-lucide="arrow-right"></i>
+                    </div>
+                    <!-- Loading state (hidden until clicked) -->
+                    <div class="compute-cta-inner cta-loading" style="display:none;">
+                        <svg class="cta-spin" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.3)" stroke-width="2.5"/>
+                            <path d="M12 3a9 9 0 0 1 9 9" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                        </svg>
+                        <div class="compute-cta-text">
+                            <span class="compute-cta-title">Calculating…</span>
+                            <span class="compute-cta-sub">Building your personalised wealth plan</span>
+                        </div>
                     </div>
                 </button>
 
@@ -314,7 +378,7 @@
                 <div class="accel-card" style="margin-bottom:0; flex:1; display:flex; flex-direction:column; justify-content:center;">
                     <div class="accel-fi-label">PROJECTED FINANCIAL INDEPENDENCE</div>
                     <div class="accel-fi-date" id="fi-date">Analyzing...</div>
-                    <div class="accel-slider-label">Simulate Monthly SIP — drag to see your freedom date move</div>
+                    <div class="accel-slider-label">Try different monthly investment amounts — drag to see how fast you reach financial freedom</div>
                     <input type="range" class="accel-slider" id="fi-slider" min="5000" max="500000" step="5000" value="50000" oninput="updateFISlider(this.value)">
                     <div style="font-size: 17px; font-weight: 700; color:#6ee7b7; margin-bottom: 8px; font-family: var(--font-mono);" id="fi-slider-display">₹50,000 / month</div>
                     <div class="accel-insight" id="fi-insight" style="font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.5;">Adjust the slider to see how compounding accelerates your freedom date.</div>
@@ -338,6 +402,17 @@
                     <div class="gauge-bar-fill" id="freedom-gauge-fill"></div>
                 </div>
                 <div class="gauge-footer" id="freedom-gauge-status">Calculating your path to wisdom...</div>
+            </div>
+
+            <!-- Insurance Shield Status -->
+            <div class="premium-card" id="insurance-shield-card" style="border-left: 5px solid #EF4444;">
+                <div class="card-hd" style="display:flex; align-items:center; gap:8px;">
+                    <span id="shield-icon" style="font-size:24px;">🛡️💔</span>
+                    <span id="shield-title">Insurance Shield: Broken</span>
+                </div>
+                <div id="shield-status" style="font-size:13px; color:rgba(255,255,255,0.7); line-height:1.6; margin-top:8px;">
+                    You don't have complete insurance. Your family is at risk. Fix this before investing.
+                </div>
             </div>
 
             <!-- Withdraw CTA -->
@@ -381,29 +456,34 @@
                 <div id="goal-protocol-blocks" style="font-size: 14px; color: var(--slate-light);"></div>
             </div>
 
-            <!-- Executive Allocation Matrix -->
+            <!-- Where Your Money Goes Every Month -->
             <div class="premium-card">
-                <div class="card-hd"><i data-lucide="terminal"></i> Executive Allocation Matrix</div>
-                <p style="font-size:11px; color:var(--slate-light); margin-bottom:12px; font-family:var(--font-mono);">— Goldman-level 24-month capital routing —</p>
+                <div class="card-hd"><i data-lucide="terminal"></i> Where Your Money Goes Every Month</div>
+                <p style="font-size:11px; color:var(--slate-light); margin-bottom:12px;">Your 24-month roadmap — see exactly where each rupee is invested</p>
                 <div style="overflow-x:auto;">
                     <table class="calc-table">
                         <thead>
                             <tr>
-                                <th>Period</th>
-                                <th>Surplus</th>
-                                <th>Debt Exit</th>
-                                <th>Liquid</th>
-                                <th>Safety FD</th>
-                                <th>Equity (M)</th>
-                                <th>Equity (L)</th>
-                                <th>Bonds</th>
-                                <th>Spend</th>
-                                <th class="calc-val-wealth">Net Conv.</th>
+                                <th>Month</th>
+                                <th>Free Cash</th>
+                                <th>Loan Repayment</th>
+                                <th>Savings (Liquid)</th>
+                                <th>Emergency FD</th>
+                                <th>Large Cap & Index Funds</th>
+                                <th>Mid & Small Cap Funds</th>
+                                <th>Bonds & Debt Funds</th>
+                                <th>Goal Spend</th>
+                                <th class="calc-val-wealth">Total Wealth</th>
                             </tr>
                         </thead>
                         <tbody id="monthly-allocator-body"></tbody>
                     </table>
                 </div>
+                <p style="font-size:10px; color:rgba(255,255,255,0.4); margin-top:8px; line-height:1.6;">
+                    💡 <strong>Large Cap & Index Funds</strong> = Safest stock market investment (Nifty 50, Sensex).
+                    <strong>Mid & Small Cap Funds</strong> = Higher growth, more volatility.
+                    <strong>Bonds & Debt Funds</strong> = Stable, low-risk, added when portfolio crosses ₹5L.
+                </p>
             </div>
         </section>
 
@@ -769,7 +849,31 @@
     </div>
 </div>
 
-<script src="script.js?v=202604140000"></script>
+<script src="script.js?v=202604160004"></script>
 <script src="library.js?v=202604140000"></script>
+
+<!-- ══════════════════════════════════════════════════
+     FULL-SCREEN GUARD LOADER
+     (Backdrop: position fixed inset 0, z-index 9999)
+     ══════════════════════════════════════════════════ -->
+<div id="compute-backdrop" class="compute-backdrop hidden" role="presentation" aria-hidden="true">
+    <div class="compute-loader-center">
+        <!-- Electric Purple Glowing Spinner -->
+        <div class="spinner-glow-wrap">
+            <svg class="compute-spinner" viewBox="0 0 60 60">
+                <!-- Background circle -->
+                <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(168,85,247,0.15)" stroke-width="2.5"/>
+                <!-- Glowing animated arc (Electric Purple) -->
+                <circle cx="30" cy="30" r="24" fill="none" stroke="#A855F7" stroke-width="2.5"
+                        stroke-linecap="round" stroke-dasharray="150" stroke-dashoffset="110"
+                        class="spinner-arc"/>
+            </svg>
+            <!-- Center icon/glow -->
+            <div class="spinner-center-glow">⚡</div>
+        </div>
+        <div class="compute-spinner-text">Calculating your wealth blueprint…</div>
+    </div>
+</div>
+
 </body>
 </html>

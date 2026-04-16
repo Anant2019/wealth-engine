@@ -22,6 +22,343 @@ let engineMemory = {};
 let privacyOn = false;
 let marketMode = 'bull'; // 'bull' or 'bear'
 
+// ══ GUARD LOADER STATE ══
+let isComputing = false; // State: true while calculation runs, false when complete
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INSURANCE COST ESTIMATOR
+// Standard yearly insurance costs deducted from budget
+// ══════════════════════════════════════════════════════════════════════════════
+
+function estimateInsuranceCost(age = 30, income = 50000) {
+    // Conservative estimates for India:
+    // Term Life: ~₹40-50/month per ₹1Cr coverage (₹1Cr = 20x annual income)
+    // Health: ~₹250-400/month for individual coverage
+
+    const termLifeYearly = 500;  // ₹500/month × 12 = ₹6,000/year (₹50L coverage)
+    const healthYearly = 3000;   // ₹250/month × 12 = ₹3,000/year (basic plan)
+
+    return {
+        termLifeYearly,
+        healthYearly,
+        totalYearly: termLifeYearly + healthYearly,
+        monthlyDeduction: (termLifeYearly + healthYearly) / 12
+    };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RISK PROFILING ENGINE
+// Scores user on 4 questions → Conservative / Moderate / Aggressive / Very Aggressive
+// Determines which asset classes are allowed for the user
+// ══════════════════════════════════════════════════════════════════════════════
+
+function getRiskProfile() {
+    const numVal = id => { const el = document.getElementById(id); return el ? (parseInt(el.value) || 2) : 2; };
+    const q1 = numVal('u-risk-q1'); // Market drop reaction
+    const q2 = numVal('u-risk-q2'); // Experience level
+    const q3 = numVal('u-risk-q3'); // Time horizon
+    const q4 = numVal('u-risk-q4'); // Age factor
+
+    const totalScore = q1 + q2 + q3 + q4; // Range: 4-16
+
+    let profile = {};
+    if (totalScore <= 6) {
+        profile = {
+            level: 'conservative',
+            label: 'Conservative Investor',
+            icon: '🛡️',
+            score: totalScore,
+            desc: 'Safety first. Stick to FDs, PPF, and Debt Mutual Funds. Avoid direct stocks and crypto.',
+            maxEquityPct: 30,
+            allowP2P: false,
+            allowCrypto: false,
+            allowSmallCap: false,
+            allowMidCap: false,
+            color: '#3B82F6'
+        };
+    } else if (totalScore <= 10) {
+        profile = {
+            level: 'moderate',
+            label: 'Moderate Investor',
+            icon: '⚖️',
+            score: totalScore,
+            desc: 'You can handle some ups and downs. Good for balanced mutual funds and index investing.',
+            maxEquityPct: 60,
+            allowP2P: false,
+            allowCrypto: false,
+            allowSmallCap: false,
+            allowMidCap: true,
+            color: '#A855F7'
+        };
+    } else if (totalScore <= 13) {
+        profile = {
+            level: 'aggressive',
+            label: 'Aggressive Investor',
+            icon: '🔥',
+            score: totalScore,
+            desc: 'You understand risk and can stomach volatility. Mid caps, small caps, and tactical bets are OK in moderation.',
+            maxEquityPct: 80,
+            allowP2P: true,
+            allowCrypto: false,
+            allowSmallCap: true,
+            allowMidCap: true,
+            color: '#F59E0B'
+        };
+    } else {
+        profile = {
+            level: 'very_aggressive',
+            label: 'Very Aggressive Investor',
+            icon: '🚀',
+            score: totalScore,
+            desc: 'Max growth mode. You understand derivatives, crypto volatility, and P2P default risk. Allocate carefully.',
+            maxEquityPct: 90,
+            allowP2P: true,
+            allowCrypto: true,
+            allowSmallCap: true,
+            allowMidCap: true,
+            color: '#EF4444'
+        };
+    }
+
+    // Update the UI badge
+    const iconEl = document.getElementById('risk-profile-icon');
+    const labelEl = document.getElementById('risk-profile-label');
+    const descEl = document.getElementById('risk-profile-desc');
+    if (iconEl) iconEl.textContent = profile.icon;
+    if (labelEl) { labelEl.textContent = profile.label; labelEl.style.color = profile.color; }
+    if (descEl) descEl.textContent = profile.desc;
+
+    return profile;
+}
+
+// Validate portfolio against risk profile — returns warnings for mismatched allocations
+function validateRiskAllocation(riskProfile, totalAssets) {
+    const warnings = [];
+    let hasP2P = false, hasCrypto = false, hasSmallCap = false;
+    let p2pValue = 0, cryptoValue = 0, smallCapValue = 0;
+
+    document.querySelectorAll('.dy-account').forEach(r => {
+        const type = r.querySelector('.a-t') ? r.querySelector('.a-t').value : '';
+        const bal = parseFloat(r.querySelector('.a-p') ? r.querySelector('.a-p').value : 0) || 0;
+        if (type === 'p2p') { hasP2P = true; p2pValue += bal; }
+        if (type === 'crypto') { hasCrypto = true; cryptoValue += bal; }
+        if (type === 'stocks_small') { hasSmallCap = true; smallCapValue += bal; }
+    });
+
+    if (hasP2P && !riskProfile.allowP2P) {
+        const pct = totalAssets > 0 ? ((p2pValue / totalAssets) * 100).toFixed(1) : 0;
+        warnings.push({
+            icon: '🚨', severity: 'HIGH',
+            title: `P2P Lending Not Suitable (${pct}% of portfolio)`,
+            message: `Your risk profile is "${riskProfile.label}". P2P lending has NO collateral and high default risk. SEBI recommends this only for experienced investors. Move this ${formatCurrency(p2pValue)} to Debt Mutual Funds for similar returns with lower risk.`,
+            color: '#EF4444'
+        });
+    }
+
+    if (hasCrypto && !riskProfile.allowCrypto) {
+        const pct = totalAssets > 0 ? ((cryptoValue / totalAssets) * 100).toFixed(1) : 0;
+        warnings.push({
+            icon: '⚠️', severity: 'HIGH',
+            title: `Crypto Not Suitable for Your Profile (${pct}% of portfolio)`,
+            message: `Crypto is extremely volatile (can drop 50%+ in weeks). Your "${riskProfile.label}" profile suggests you should not hold crypto. Also note: India taxes crypto gains at flat 30% + 1% TDS. Consider moving to SGBs (gold) for safer diversification.`,
+            color: '#F59E0B'
+        });
+    }
+
+    if (hasSmallCap && !riskProfile.allowSmallCap) {
+        const pct = totalAssets > 0 ? ((smallCapValue / totalAssets) * 100).toFixed(1) : 0;
+        warnings.push({
+            icon: '📉', severity: 'MEDIUM',
+            title: `Small Cap Funds May Be Too Risky (${pct}% of portfolio)`,
+            message: `Small cap funds can drop 40-60% in bear markets. Your "${riskProfile.label}" profile suggests sticking to Large Cap Index Funds (Nifty 50) for equity exposure. These give 12% returns with much less volatility.`,
+            color: '#D97706'
+        });
+    }
+
+    // Check if total equity exceeds recommended % for profile
+    let equityTotal = 0;
+    document.querySelectorAll('.dy-account').forEach(r => {
+        const type = r.querySelector('.a-t') ? r.querySelector('.a-t').value : '';
+        const bal = parseFloat(r.querySelector('.a-p') ? r.querySelector('.a-p').value : 0) || 0;
+        if (['mutual_fund', 'stocks_mid', 'stocks_small', 'stocks_in', 'stocks_us', 'etf', 'crypto', 'p2p'].includes(type)) {
+            equityTotal += bal;
+        }
+    });
+
+    if (totalAssets > 0) {
+        const equityPct = (equityTotal / totalAssets) * 100;
+        if (equityPct > riskProfile.maxEquityPct + 10) {
+            warnings.push({
+                icon: '📊', severity: 'MEDIUM',
+                title: `Equity Overweight: ${equityPct.toFixed(0)}% vs recommended max ${riskProfile.maxEquityPct}%`,
+                message: `For your "${riskProfile.label}" profile, SEBI guidelines suggest max ${riskProfile.maxEquityPct}% in equity. Consider moving ${formatCurrency(equityTotal - (totalAssets * riskProfile.maxEquityPct / 100))} to Debt MF or FD for balance.`,
+                color: '#D97706'
+            });
+        }
+    }
+
+    return warnings;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SMART GOAL ALLOCATION ENGINE
+// Splits investment across FD, Bonds, MF, Equity based on timeline
+// WITHOUT damaging corpus — smarter returns with appropriate risk
+// ══════════════════════════════════════════════════════════════════════════════
+
+function getSmartGoalAllocation(yearsUntilGoal) {
+    // Returns optimal allocation based on timeline
+    // Goal: Maximize returns while keeping risk appropriate for timeline
+
+    let allocation = {};
+
+    if (yearsUntilGoal <= 0.5) {
+        // ┌─ EMERGENCY GOAL (< 6 months) ─────────────────────────────┐
+        // 100% FD — completely safe, no market risk
+        allocation = {
+            fd:      { pct: 100, rate: 7.0,  label: 'Fixed Deposit (FD)' },
+            debt:    { pct: 0,   rate: 7.5,  label: 'Debt Mutual Funds' },
+            balanced:{ pct: 0,   rate: 9.0,  label: 'Balanced Funds' },
+            equity:  { pct: 0,   rate: 12.0, label: 'Nifty 50 / Mid Cap' },
+            blended: 7.0
+        };
+    } else if (yearsUntilGoal <= 1) {
+        // ┌─ SHORT TERM (6mo - 1yr) ──────────────────────────────────┐
+        // 80% FD + 20% Debt MF — very safe, slight return boost
+        allocation = {
+            fd:      { pct: 80,  rate: 7.0,  label: 'Fixed Deposit (FD)' },
+            debt:    { pct: 20,  rate: 7.5,  label: 'Debt Mutual Funds' },
+            balanced:{ pct: 0,   rate: 9.0,  label: 'Balanced Funds' },
+            equity:  { pct: 0,   rate: 12.0, label: 'Nifty 50 / Mid Cap' },
+            blended: (0.80 * 7.0) + (0.20 * 7.5)  // 7.1%
+        };
+    } else if (yearsUntilGoal <= 2) {
+        // ┌─ MEDIUM SHORT TERM (1-2yr) ───────────────────────────────┐
+        // 60% FD + 30% Debt MF + 10% Balanced — safe with better growth
+        allocation = {
+            fd:      { pct: 60,  rate: 7.0,  label: 'Fixed Deposit (FD)' },
+            debt:    { pct: 30,  rate: 7.5,  label: 'Debt Mutual Funds' },
+            balanced:{ pct: 10,  rate: 9.0,  label: 'Balanced Funds' },
+            equity:  { pct: 0,   rate: 12.0, label: 'Nifty 50 / Mid Cap' },
+            blended: (0.60 * 7.0) + (0.30 * 7.5) + (0.10 * 9.0)  // 7.35%
+        };
+    } else if (yearsUntilGoal <= 3) {
+        // ┌─ MEDIUM TERM (2-3yr) ─────────────────────────────────────┐
+        // 45% FD + 35% Debt MF + 15% Balanced + 5% Equity
+        allocation = {
+            fd:      { pct: 45,  rate: 7.0,  label: 'Fixed Deposit (FD)' },
+            debt:    { pct: 35,  rate: 7.5,  label: 'Debt Mutual Funds' },
+            balanced:{ pct: 15,  rate: 9.0,  label: 'Balanced Funds' },
+            equity:  { pct: 5,   rate: 12.0, label: 'Nifty 50 / Mid Cap' },
+            blended: (0.45 * 7.0) + (0.35 * 7.5) + (0.15 * 9.0) + (0.05 * 12.0)  // 7.775%
+        };
+    } else if (yearsUntilGoal <= 5) {
+        // ┌─ MEDIUM-LONG TERM (3-5yr) ────────────────────────────────┐
+        // 35% FD + 30% Debt MF + 20% Balanced + 15% Equity
+        allocation = {
+            fd:      { pct: 35,  rate: 7.0,  label: 'Fixed Deposit (FD)' },
+            debt:    { pct: 30,  rate: 7.5,  label: 'Debt Mutual Funds' },
+            balanced:{ pct: 20,  rate: 9.0,  label: 'Balanced Funds' },
+            equity:  { pct: 15,  rate: 12.0, label: 'Nifty 50 / Mid Cap' },
+            blended: (0.35 * 7.0) + (0.30 * 7.5) + (0.20 * 9.0) + (0.15 * 12.0)  // 8.375%
+        };
+    } else {
+        // ┌─ LONG TERM (5yr+) ────────────────────────────────────────┐
+        // 20% FD + 20% Debt MF + 20% Balanced + 40% Equity — aggressive growth
+        allocation = {
+            fd:      { pct: 20,  rate: 7.0,  label: 'Fixed Deposit (FD)' },
+            debt:    { pct: 20,  rate: 7.5,  label: 'Debt Mutual Funds' },
+            balanced:{ pct: 20,  rate: 9.0,  label: 'Balanced Funds' },
+            equity:  { pct: 40,  rate: 12.0, label: 'Nifty 50 / Mid Cap' },
+            blended: (0.20 * 7.0) + (0.20 * 7.5) + (0.20 * 9.0) + (0.40 * 12.0)  // 9.8%
+        };
+    }
+
+    return allocation;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DETERMINISTIC FINANCIAL HIERARCHY VALIDATOR
+// Enforces: Safety Net → Insurance → Investments (in strict order)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function validateFinancialHierarchy(income, totalExp, hasMedIns, hasTermIns, astCash, totalEMI, sip) {
+    const alerts = [];
+    let isBlockedFromInvesting = false;
+
+    // ┌─ STEP 1: INSURANCE MANDATE CHECK ─────────────────────────────────────┐
+    // If user has NO insurance, BLOCK all investments until they buy it
+    if (!hasMedIns || !hasTermIns) {
+        isBlockedFromInvesting = true;
+        const missing = [];
+        if (!hasTermIns) missing.push('Term Life Insurance');
+        if (!hasMedIns) missing.push('Health Insurance');
+
+        alerts.push({
+            level: 'CRITICAL',
+            icon: '🛡️',
+            title: 'Insurance Shield Broken',
+            message: `Your family is unprotected. You must buy ${missing.join(' & ')} before investing. Visit PolicyBazaar.com immediately.`,
+            color: '#EF4444'
+        });
+    }
+
+    // ┌─ STEP 2: EMERGENCY FUND (FD SHIELD) MANDATE ──────────────────────────┐
+    // User MUST have 6 months of SALARY in liquid savings (FD, Savings, RD)
+    // This is the safety net that protects against job loss
+    const emFundRequired = income * 6;  // 6 months of SALARY
+    const emFundGap = Math.max(0, emFundRequired - astCash);
+
+    if (emFundGap > 0) {
+        isBlockedFromInvesting = true;
+        const monthsComplete = astCash > 0 ? (astCash / totalExp).toFixed(1) : 0;
+
+        alerts.push({
+            level: 'CRITICAL',
+            icon: '🏦',
+            title: 'Safety Net Incomplete',
+            message: `You have ${monthsComplete}/6 months of emergency funds. Complete your safety net first (need ₹${formatCurrency(emFundGap)} more). Your family depends on this.`,
+            color: '#D97706',
+            progressCurrent: astCash,
+            progressTarget: emFundRequired
+        });
+    }
+
+    // ┌─ STEP 3: SURPLUS VALIDATION ──────────────────────────────────────────┐
+    // Monthly surplus = Salary - Expenses - EMI
+    // Can't invest more than we earn
+    const monthlySurplus = income - totalExp - totalEMI;
+
+    if (monthlySurplus <= 0) {
+        isBlockedFromInvesting = true;
+        const insEstimate = estimateInsuranceCost();
+        alerts.push({
+            level: 'CRITICAL',
+            icon: '⚠️',
+            title: 'Negative Cash Flow',
+            message: `Your expenses (${formatCurrency(totalExp)}) + EMI (${formatCurrency(totalEMI)}) + Insurance (${formatCurrency(insEstimate.monthlyDeduction)}) exceed your income (${formatCurrency(income)}). You're going backwards. Cut expenses or increase income first.`,
+            color: '#DC2626'
+        });
+    } else if (sip > monthlySurplus) {
+        // ┌─ RED FLAG: Investment exceeds surplus ────────────────────────┐
+        alerts.push({
+            level: 'WARNING',
+            icon: '🚨',
+            title: 'Caution: Over-Investment',
+            message: `You're planning to invest ₹${formatCurrency(sip)}/month but your surplus is only ₹${formatCurrency(monthlySurplus)}. Adjust to ₹${formatCurrency(Math.floor(monthlySurplus * 0.8))} to stay debt-free.`,
+            color: '#F59E0B'
+        });
+    }
+
+    return {
+        isBlockedFromInvesting,
+        alerts,
+        monthlySurplus,
+        emFundRequired,
+        emFundGap
+    };
+}
+
 // ==================== CELEBRATION SYSTEM ====================
 let _confettiCtx = null;
 let _confettiParticles = [];
@@ -462,10 +799,47 @@ function celebrateRunwayGain() {
 }
 
 // ==================== WEALTH WEATHER ENGINE ====================
+// ══════════════════════════════════════════════════════════════════════════════
+// INSURANCE SHIELD STATUS INDICATOR
+// Shows visual feedback whether family is protected (Gold) or at risk (Broken)
+// ══════════════════════════════════════════════════════════════════════════════
+function updateInsuranceShield(hasTerm, hasMed) {
+    const card = document.getElementById('insurance-shield-card');
+    const icon = document.getElementById('shield-icon');
+    const title = document.getElementById('shield-title');
+    const status = document.getElementById('shield-status');
+
+    if (!card || !icon || !title || !status) return;
+
+    if (hasTerm && hasMed) {
+        // ── PROTECTED: Gold shield ──
+        card.style.borderLeftColor = '#FBBF24';
+        icon.textContent = '🛡️✨';
+        title.textContent = 'Insurance Shield: Active';
+        title.style.color = '#FBBF24';
+        status.innerHTML = '✅ Your family is protected. You can invest with peace of mind. Continue building wealth!';
+        status.style.color = '#D4AF37';
+    } else {
+        // ── AT RISK: Broken shield ──
+        card.style.borderLeftColor = '#EF4444';
+        icon.textContent = '🛡️💔';
+        title.textContent = 'Insurance Shield: Broken';
+        title.style.color = '#EF4444';
+
+        const missing = [];
+        if (!hasTerm) missing.push('Term Life Insurance');
+        if (!hasMed) missing.push('Health Insurance');
+
+        status.innerHTML = `⚠️ Missing: ${missing.join(' & ')}. <br>Your family is unprotected. Visit <strong>PolicyBazaar.com</strong> and buy insurance immediately before investing a single rupee.`;
+        status.style.color = '#FCA5A5';
+    }
+}
+
 function updateWealthWeather(hasBadDebt, isShortfall, hasIdleCash) {
     const banner = document.getElementById('weather-banner');
     if (!banner) return;
     const text = document.getElementById('regime-text');
+    if (!text) return;
     if (hasBadDebt || isShortfall) {
         text.textContent = 'Action Required (Logic Leak)';
         text.style.color = 'var(--error)';
@@ -526,8 +900,10 @@ function hideCommandResults() {
 
 // ==================== FI ACCELERATOR SLIDER ====================
 function updateFISlider(sipVal) {
+    try {
     sipVal = Number(sipVal);
-    document.getElementById('fi-slider-display').innerText = formatCurrency(sipVal) + ' / month';
+    const dispEl = document.getElementById('fi-slider-display');
+    if (dispEl) dispEl.innerText = formatCurrency(sipVal) + ' / month';
     const ageRaw = document.getElementById('u-age') ? document.getElementById('u-age').value : 28;
     const age = Number(ageRaw) || 28;
     const totalAssets = engineMemory.totalAssets || 0;
@@ -545,20 +921,19 @@ function updateFISlider(sipVal) {
     const fiDateEl = document.getElementById('fi-date');
     const fiInsight = document.getElementById('fi-insight');
     if (months >= 1199) {
-        fiDateEl.textContent = 'Needs higher SIP';
-        fiDateEl.style.color = '#ef4444';
-        if(fiInsight) fiInsight.innerHTML = 'At this rate, investments may not outpace expenses. Increase your monthly SIP significantly.';
+        if (fiDateEl) { fiDateEl.textContent = 'Needs higher SIP'; fiDateEl.style.color = '#ef4444'; }
+        if (fiInsight) fiInsight.innerHTML = 'At this rate, investments may not outpace expenses. Increase your monthly SIP significantly.';
     } else {
-        fiDateEl.textContent = fiYear + ' (Age ' + fiAge + ')';
-        fiDateEl.style.color = '#34d399';
-        if(fiInsight) fiInsight.innerHTML = 'Investing <strong>' + formatCurrency(sipVal) + '/month</strong> for <strong>' + (months/12).toFixed(1) + ' years</strong> will fund <strong>' + formatCurrency(fiTarget) + '</strong> FI corpus (25x rule). Each extra ' + formatCurrency(10000) + '/mo saves roughly ' + Math.floor(months * 0.015) + ' months of working life.';
+        if (fiDateEl) { fiDateEl.textContent = fiYear + ' (Age ' + fiAge + ')'; fiDateEl.style.color = '#34d399'; }
+        if (fiInsight) fiInsight.innerHTML = 'Investing <strong>' + formatCurrency(sipVal) + '/month</strong> for <strong>' + (months/12).toFixed(1) + ' years</strong> will fund <strong>' + formatCurrency(fiTarget) + '</strong> FI corpus (25x rule). Each extra ' + formatCurrency(10000) + '/mo saves roughly ' + Math.floor(months * 0.015) + ' months of working life.';
     }
+    } catch(e) { console.warn('updateFISlider error:', e); }
 }
 
 // ==================== WEALTH OPTIMIZER (MONEY LEAKS) ====================
-function runWealthOptimizer(astCash, totalAssets, dArr, totalExp) {
+function runWealthOptimizer(astCash, totalAssets, dArr, totalExp, income) {
     const leaks = [];
-    const emFundReq = totalExp * 6;
+    const emFundReq = (income || totalExp) * 6; // 6 months salary
     const idleCash = astCash - emFundReq - 10000;
     if (idleCash > 50000) {
         leaks.push({ icon: '&#128164;', title: 'Idle Cash: ' + formatCurrency(idleCash), desc: 'You have excess cash sitting at ~3.5% when it could earn 7.5% in an FD or 12% in Index Funds.', save: '+' + formatCurrency(idleCash * 0.04 * 5) + ' over 5 yrs' });
@@ -694,7 +1069,8 @@ function addDebtField() { addDebt(); }
 // Default rates by asset type
 const ASSET_DEFAULT_RATES = {
     savings: 3.5, fd: 7.5, rd: 7.0, corp_bonds: 10.0, po_schemes: 7.7,
-    mutual_fund: 12.0, stocks_in: 15.0, stocks_us: 13.0, etf: 12.0,
+    mutual_fund: 12.0, stocks_mid: 15.0, stocks_small: 18.0, stocks_in: 13.0,
+    mutual_debt: 7.5, stocks_us: 13.0, etf: 12.0,
     epf: 8.1, ppf: 7.1, nps: 10.0, endowment: 4.5,
     ulip: 8.0, gold_physical: 8.5, sgb: 10.0, real_estate: 10.0,
     crypto: 20.0, reit: 10.0, p2p: 12.0
@@ -706,11 +1082,13 @@ const ASSET_LABELS = {
     rd:      { label: '🏦 Recurring Deposit (RD)', liq: true },
     corp_bonds: { label: '📋 Corporate Bonds', liq: true },
     po_schemes: { label: '📮 Post Office / NSC', liq: true },
-    mutual_fund: { label: '📈 Equity Mutual Funds', liq: true },
-    mutual_debt: { label: '📊 Debt Mutual Funds', liq: true },
-    stocks_in:   { label: '📉 Direct Stocks (India)', liq: true },
-    stocks_us:   { label: '🌍 US / Global Stocks', liq: true },
-    etf:         { label: '📈 Index Funds & ETFs', liq: true },
+    mutual_fund: { label: '📈 Nifty 50 & Index Funds', liq: true },
+    stocks_mid: { label: '🎯 Mid Cap Funds', liq: true },
+    stocks_small: { label: '🚀 Small Cap Funds', liq: true },
+    mutual_debt: { label: '🏦 Debt Mutual Funds', liq: true },
+    stocks_in:   { label: '📊 Large Cap & Blue Chip Stocks', liq: true },
+    stocks_us:   { label: '🌍 US / International Stocks', liq: true },
+    etf:         { label: '📈 ETFs & Exchange Traded Funds', liq: true },
     epf:  { label: '🏛️ EPF / Provident Fund', liq: false },
     ppf:  { label: '📮 PPF (Public Provident Fund)', liq: false },
     nps:  { label: '🏅 NPS (National Pension)', liq: false },
@@ -744,12 +1122,14 @@ function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = n
                     <option value="corp_bonds">📋 Corporate Bonds (10%)</option>
                     <option value="po_schemes">📮 Post Office / NSC (7.7%)</option>
                 </optgroup>
-                <optgroup label="📈 Market Investments">
-                    <option value="mutual_fund">📈 Equity Mutual Funds (12%)</option>
-                    <option value="mutual_debt">📊 Debt Mutual Funds (7.5%)</option>
-                    <option value="stocks_in">📉 Direct Stocks India (15%)</option>
-                    <option value="stocks_us">🌍 US / Global Stocks (13%)</option>
-                    <option value="etf">📈 Index Funds & ETFs (12%)</option>
+                <optgroup label="📈 Stock Market Investments">
+                    <option value="mutual_fund">📈 Nifty 50 & Index Funds (12%) - Safest stocks</option>
+                    <option value="stocks_mid">🎯 Mid Cap Funds (15%) - Medium risk, good growth</option>
+                    <option value="stocks_small">🚀 Small Cap Funds (18%) - Higher risk, highest growth</option>
+                    <option value="stocks_in">📊 Large Cap & Blue Chip Stocks (13%) - Quality companies</option>
+                    <option value="mutual_debt">🏦 Debt Mutual Funds (7.5%) - Low risk, stable returns</option>
+                    <option value="stocks_us">🌍 US / International Stocks (13%) - Diversification</option>
+                    <option value="etf">📈 ETFs & Exchange Traded Funds (12%) - Low cost investing</option>
                 </optgroup>
                 <optgroup label="🏛️ Retirement & Long-Term">
                     <option value="epf">🏛️ EPF / Provident Fund (8.15%)</option>
@@ -953,23 +1333,43 @@ function checkFirstVisit() {
 
 // --- MASTER ALGORITHM (LADDER LOGIC & GOALS) ---
 function calculateStrategy() {
-    // Visual feedback on the compute button
-    const ctaBtn = document.querySelector('.compute-cta');
-    if (ctaBtn) ctaBtn.classList.add('computing');
+    // Guard: prevent multiple simultaneous computations
+    if (isComputing) return;
+    isComputing = true;
 
-    const name = document.getElementById('u-name').value;
+    const ctaBtn     = document.querySelector('.compute-cta');
+    const ctaDefault = document.querySelector('.cta-default');
+    const ctaLoading = document.querySelector('.cta-loading');
+    const backdrop   = document.getElementById('compute-backdrop');
+
+    // ── STATE ON CLICK: Show button loading state + full-screen guard backdrop ──
+    if (ctaBtn)     ctaBtn.classList.add('computing');
+    if (ctaDefault) ctaDefault.style.display = 'none';
+    if (ctaLoading) ctaLoading.style.display = 'flex';
+    if (backdrop)   backdrop.classList.remove('hidden');
+
+    // ── rAF + setTimeout ensures browser PAINTS the guard backdrop + spinner
+    //    before the heavy synchronous calculation blocks the thread ──
+    requestAnimationFrame(() => setTimeout(() => {
+    try {
+    const name = (document.getElementById('u-name') || {}).value || '';
+
+    // Helper: safely read a numeric field
+    const numVal = id => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || 0) : 0; };
+    const strVal = id => { const el = document.getElementById(id); return el ? (el.value || '') : ''; };
 
     // Cashflow
-    const income = parseFloat(document.getElementById('u-income').value) || 0;
-    const sip = parseFloat(document.getElementById('u-sip').value) || 0;
-    const stepUpPercent = parseFloat(document.getElementById('u-stepup').value) || 0;
-    const totalExp = (parseFloat(document.getElementById('u-rent').value)||0) + (parseFloat(document.getElementById('u-groceries').value)||0) + (parseFloat(document.getElementById('u-cc').value)||0) + (parseFloat(document.getElementById('u-life').value)||0);
+    const income       = numVal('u-income');
+    const sip          = numVal('u-sip');
+    const stepUpPercent= numVal('u-stepup');
+    const totalExp     = numVal('u-rent') + numVal('u-groceries') + numVal('u-cc') + numVal('u-life');
 
     // Insurance flags affect emergency fund requirement
-    const hasMedIns  = (document.getElementById('u-med')  || {}).value === 'yes';
-    const hasTermIns = (document.getElementById('u-term') || {}).value === 'yes';
-    const emFundMonths = hasMedIns ? 6 : 12; // no health insurance = double emergency fund
-    const emFundReq = totalExp * emFundMonths;
+    const hasMedIns  = strVal('u-med')  === 'yes';
+    const hasTermIns = strVal('u-term') === 'yes';
+    // FD Shield: 6 months of SALARY (not expenses) — protects against job loss
+    const emFundMonths = 6;
+    const emFundReq = income * emFundMonths;
 
     // Dynamic Asset Aggregation — uses ASSET_LABELS for liquid/illiquid classification
     let astCash = 0; let astEq = 0; let astPF = 0; let astGold = 0;
@@ -997,8 +1397,8 @@ function calculateStrategy() {
             case 'savings': case 'fd': case 'rd': case 'po_schemes':
             case 'corp_bonds': case 'mutual_debt':
                 astCash += bal; break;
-            case 'mutual_fund': case 'stocks_in': case 'stocks_us':
-            case 'etf': case 'crypto': case 'reit':
+            case 'mutual_fund': case 'stocks_mid': case 'stocks_small':
+            case 'stocks_in': case 'stocks_us': case 'etf': case 'crypto': case 'reit':
                 astEq += bal; break;
             case 'ulip': case 'epf': case 'ppf': case 'nps': case 'endowment':
                 astPF += bal; break;
@@ -1024,48 +1424,207 @@ function calculateStrategy() {
     let hasModerateDebt = false; // moderate (7-10%)
     let anyDebt = false;
     document.querySelectorAll('.dy-debt').forEach(r => {
-        let p = parseFloat(r.querySelector('.d-p').value)||0;
-        let e = parseFloat(r.querySelector('.d-e').value)||0;
-        let rt = parseFloat(r.querySelector('.d-r').value)||0;
+        const dpEl = r.querySelector('.d-p'), deEl = r.querySelector('.d-e'),
+              drEl = r.querySelector('.d-r'), dnEl = r.querySelector('.d-n');
+        let p  = parseFloat((dpEl && dpEl.value) || 0) || 0;
+        let e  = parseFloat((deEl && deEl.value) || 0) || 0;
+        let rt = parseFloat((drEl && drEl.value) || 0) || 0;
         if(p > 0) anyDebt = true;
         totalLiabilities += p; totalEMI += e;
         if(rt > 10)  hasBadDebt = true;
         if(rt > 7 && rt <= 10) hasModerateDebt = true;
-        dArr.push({n: r.querySelector('.d-n').value, p, rt, e});
+        dArr.push({n: (dnEl && dnEl.value) || 'Debt', p, rt, e});
     });
 
     const netWorth = totalAssets - totalLiabilities;
     const unallocatedCashflow = income - totalExp - totalEMI;
     const sumSurplus = sip + (unallocatedCashflow > 0 ? unallocatedCashflow : 0);
+
+    // ┌─ ENFORCE DETERMINISTIC FINANCIAL HIERARCHY ────────────────────────────┐
+    // Check: Insurance → Safety Net → Surplus
+    const hierarchy = validateFinancialHierarchy(
+        income, totalExp, hasMedIns, hasTermIns, astCash, totalEMI, sip
+    );
+
+    // If critical issues exist, show alerts BEFORE proceeding
+    let hierarchyWarnings = '';
+    hierarchy.alerts.forEach(alert => {
+        const bgColor = alert.level === 'CRITICAL' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)';
+        const borderColor = alert.color;
+
+        if (alert.progressCurrent !== undefined) {
+            // Show progress bar for emergency fund
+            const pct = Math.min((alert.progressCurrent / alert.progressTarget) * 100, 100);
+            hierarchyWarnings += `
+                <div style="margin-bottom:12px; padding:12px; background:${bgColor}; border-left:4px solid ${borderColor}; border-radius:6px;">
+                    <div style="font-weight:800; color:${borderColor}; font-size:13px;">${alert.icon} ${alert.title}</div>
+                    <div style="color:rgba(255,255,255,0.7); font-size:12px; margin-top:6px;">${alert.message}</div>
+                    <div style="margin-top:8px; background:rgba(0,0,0,0.3); border-radius:4px; height:8px; overflow:hidden;">
+                        <div style="background:linear-gradient(90deg, #10B981, #34D399); height:100%; width:${pct}%; transition:width 0.3s ease;"></div>
+                    </div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.5); margin-top:4px;">${(pct).toFixed(0)}% complete (${formatCurrency(alert.progressCurrent)} / ${formatCurrency(alert.progressTarget)})</div>
+                </div>
+            `;
+        } else {
+            hierarchyWarnings += `
+                <div style="margin-bottom:12px; padding:12px; background:${bgColor}; border-left:4px solid ${borderColor}; border-radius:6px;">
+                    <div style="font-weight:800; color:${borderColor}; font-size:13px;">${alert.icon} ${alert.title}</div>
+                    <div style="color:rgba(255,255,255,0.7); font-size:12px; margin-top:6px;">${alert.message}</div>
+                </div>
+            `;
+        }
+    });
+
+    // Show hierarchy warnings in the goal-protocol section
+    if (hierarchyWarnings) {
+        const protocolEl = document.getElementById('goal-protocol-blocks');
+        if (protocolEl) {
+            protocolEl.innerHTML = `
+                <div style="background:rgba(239,68,68,0.05); border:1px solid rgba(239,68,68,0.3); border-radius:12px; padding:16px; margin-bottom:20px;">
+                    <div style="font-size:16px; font-weight:900; color:#EF4444; margin-bottom:12px;">🔴 Financial Hierarchy Warnings</div>
+                    ${hierarchyWarnings}
+                </div>
+                ${hierarchy.isBlockedFromInvesting ? `
+                    <div style="text-align:center; padding:40px 20px; color:rgba(255,255,255,0.5);">
+                        <div style="font-size:48px; margin-bottom:8px;">🔒</div>
+                        <div style="font-size:16px; font-weight:800; color:#EF4444;">Investments Locked</div>
+                        <div style="font-size:13px; margin-top:8px; color:rgba(255,255,255,0.6); line-height:1.5;">
+                            Fix the critical issues above to unlock your wealth strategy. Your financial foundation comes first.
+                        </div>
+                    </div>
+                ` : '<div style="color:rgba(255,255,255,0.5); font-size:12px; margin-top:12px;">⚠️ Warnings above — review and adjust before investing.</div>'}
+            `;
+        }
+    }
     
-    const hasTerm = document.getElementById('u-term').value === 'yes';
-    const hasMed = document.getElementById('u-med').value === 'yes';
+    // hasTerm / hasMed reuse the already-null-guarded variables above
+    const hasTerm = hasTermIns;
+    const hasMed  = hasMedIns;
 
     // *** DISCRETIONARY GOAL PARSER (FEASIBILITY ENGINE) ***
+    // Uses SMART GOAL ALLOCATION for optimal returns without damaging corpus
     let totalRequiredSIP = 0;
     let goalAnalysisHTML = "";
     let extractedGoals = [];
-    
+    let allGoalAllocations = []; // Track all goal allocations for chart
+
     document.querySelectorAll('.dy-goal').forEach(r => {
-        let nm = r.querySelector('.g-name').value;
-        let tgt = parseFloat(r.querySelector('.g-tgt').value)||0;
-        let yrs = parseFloat(r.querySelector('.g-yrs').value)||0;
-        
+        const gnEl = r.querySelector('.g-name'), gtEl = r.querySelector('.g-tgt'), gyEl = r.querySelector('.g-yrs');
+        let nm  = (gnEl && gnEl.value) || 'My Goal';
+        let tgt = parseFloat((gtEl && gtEl.value) || 0) || 0;
+        let yrs = parseFloat((gyEl && gyEl.value) || 0) || 0;
+
         if(tgt > 0 && yrs > 0) {
-            let rate = yrs <= 3 ? 7.0 : 12.0; // 7% FD for short term, 12% Equity for long term
-            let rawSIP = calcRequiredSIP(tgt, yrs, rate);
+            // ┌─ GET SMART ALLOCATION ───────────────────────────────────┐
+            let allocation = getSmartGoalAllocation(yrs);
+            let rawSIP = calcRequiredSIP(tgt, yrs, allocation.blended);
+
             totalRequiredSIP += rawSIP;
-            let instr = yrs <= 3 ? "Secure FD (7%)" : "Equity SIP (12%)";
-            let color = yrs <= 3 ? "var(--accent-blue)" : "var(--accent-green)";
-            
-            goalAnalysisHTML += `<div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed #cbd5e1;">🎯 <strong>${nm}</strong> (${yrs} Yrs): Need <strong style="color:${color}">${formatCurrency(rawSIP)}/mo</strong> mapped to ${instr}.</div>`;
-            extractedGoals.push({ name: nm, target: tgt, monthDue: Math.floor(yrs * 12), hit: false });
+
+            // Build allocation breakdown HTML
+            let allocationBreakdown = `
+                <div style="background:rgba(16,185,129,0.08); border-radius:6px; padding:8px; margin:8px 0; font-size:11px;">
+                    <div style="font-weight:700; margin-bottom:4px; color:var(--text-hi);">💼 Smart Allocation (${(allocation.blended).toFixed(2)}% return):</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;">
+            `;
+
+            // Show non-zero allocations
+            if (allocation.fd.pct > 0) allocationBreakdown += `<div>🏦 FD: <strong>${allocation.fd.pct}%</strong></div>`;
+            if (allocation.debt.pct > 0) allocationBreakdown += `<div>🏦 Debt MF: <strong>${allocation.debt.pct}%</strong></div>`;
+            if (allocation.balanced.pct > 0) allocationBreakdown += `<div>⚖️ Balanced: <strong>${allocation.balanced.pct}%</strong></div>`;
+            if (allocation.equity.pct > 0) allocationBreakdown += `<div>📈 Equity: <strong>${allocation.equity.pct}%</strong></div>`;
+
+            allocationBreakdown += `</div></div>`;
+
+            goalAnalysisHTML += `
+                <div style="margin-bottom:12px; padding:10px; background:rgba(255,255,255,0.03); border-left:3px solid var(--emerald); border-radius:4px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-weight:800; color:var(--text-hi);">🎯 ${nm}</div>
+                            <div style="font-size:12px; color:rgba(255,255,255,0.6);">Target: ${formatCurrency(tgt)} in ${yrs} year(s)</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:16px; font-weight:900; color:var(--emerald);">${formatCurrency(rawSIP)}/mo</div>
+                            <div style="font-size:11px; color:rgba(255,255,255,0.5);">Blended return: ${allocation.blended.toFixed(2)}%</div>
+                        </div>
+                    </div>
+                    ${allocationBreakdown}
+                </div>
+            `;
+
+            extractedGoals.push({
+                name: nm,
+                target: tgt,
+                monthDue: Math.floor(yrs * 12),
+                hit: false,
+                allocation: allocation,
+                monthlyAmount: rawSIP
+            });
+
+            allGoalAllocations.push({
+                name: nm,
+                years: yrs,
+                target: tgt,
+                sip: rawSIP,
+                allocation: allocation
+            });
         }
     });
+
+    // ┌─ ALLOCATION CHART ──────────────────────────────────────────────┐
+    let allocationChartHTML = "";
+    if (allGoalAllocations.length > 0) {
+        allocationChartHTML = `
+            <div style="margin:20px 0; background:rgba(16,185,129,0.05); border:1px solid rgba(16,185,129,0.2); border-radius:12px; padding:16px;">
+                <div style="font-weight:900; font-size:14px; color:var(--text-hi); margin-bottom:12px;">📊 Goal-by-Goal Allocation Breakdown</div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; font-size:12px; color:rgba(255,255,255,0.8); border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:2px solid rgba(16,185,129,0.3);">
+                                <th style="text-align:left; padding:8px; font-weight:800;">Goal</th>
+                                <th style="text-align:center; padding:8px; font-weight:800;">Timeline</th>
+                                <th style="text-align:right; padding:8px; font-weight:800;">Monthly SIP</th>
+                                <th style="text-align:center; padding:8px; font-weight:800;">FD</th>
+                                <th style="text-align:center; padding:8px; font-weight:800;">Debt MF</th>
+                                <th style="text-align:center; padding:8px; font-weight:800;">Balanced</th>
+                                <th style="text-align:center; padding:8px; font-weight:800;">Equity</th>
+                                <th style="text-align:right; padding:8px; font-weight:800;">Blended %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+
+        allGoalAllocations.forEach((goal, idx) => {
+            const bgColor = idx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent';
+            allocationChartHTML += `
+                            <tr style="border-bottom:1px dashed rgba(16,185,129,0.15); background:${bgColor};">
+                                <td style="padding:8px; font-weight:700;">🎯 ${goal.name}</td>
+                                <td style="text-align:center; padding:8px;">${goal.years}y</td>
+                                <td style="text-align:right; padding:8px; color:var(--emerald); font-weight:800;">${formatCurrency(goal.sip)}</td>
+                                <td style="text-align:center; padding:8px;">${goal.allocation.fd.pct}%</td>
+                                <td style="text-align:center; padding:8px;">${goal.allocation.debt.pct}%</td>
+                                <td style="text-align:center; padding:8px;">${goal.allocation.balanced.pct}%</td>
+                                <td style="text-align:center; padding:8px;">${goal.allocation.equity.pct}%</td>
+                                <td style="text-align:right; padding:8px; font-weight:700; color:var(--accent-hi);">${goal.allocation.blended.toFixed(2)}%</td>
+                            </tr>
+            `;
+        });
+
+        allocationChartHTML += `
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top:12px; font-size:11px; color:rgba(255,255,255,0.6); line-height:1.6;">
+                    💡 <strong>How This Works:</strong> Short-term goals (1-2 years) are mostly in FD (safe). Medium-term goals (3-5 years) blend in Debt MF & Balanced funds. Long-term goals (5+ years) can invest more in Equity for better growth. All allocations are calculated to hit your goal without excessive risk.
+                </div>
+            </div>
+        `;
+    }
 
     let fireText = "<strong>Priority 1: FINANCIAL INDEPENDENCE</strong> always comes first. Then, your lifestyle goals:<br><br>";
     if (goalAnalysisHTML !== "") {
         fireText += `<div style="font-size:13px;">${goalAnalysisHTML}</div>`;
+        fireText += allocationChartHTML;
         fireText += `<div style="margin-top:10px; font-weight:800; font-size:14px; text-transform:uppercase;">Total SIP Required For Goals: ${formatCurrency(totalRequiredSIP)}/mo</div>`;
         
         if (totalRequiredSIP <= sumSurplus) {
@@ -1132,7 +1691,8 @@ function calculateStrategy() {
 
     // *** LADDER EVALUATION (ORDER OF OPS) ***
     // p1 = Step 1 unlocked: emergency fund + insurance + NO TOXIC debt (moderate/good debt still OK to invest)
-    let p1_secure = astCash >= emFundReq && hasTerm && hasMed && !hasBadDebt;
+    // ┌─ STRICT HIERARCHY: Block investing if hierarchy validation fails ───────┐
+    let p1_secure = !hierarchy.isBlockedFromInvesting && astCash >= emFundReq && hasTerm && hasMed && !hasBadDebt;
     let p2_secure = p1_secure && astEq >= 0;
     let p3_secure = p1_secure && astEq >= 500000;
     let p4_secure = p1_secure && astEq >= 2000000;
@@ -1166,17 +1726,100 @@ function calculateStrategy() {
     else if(!p4_secure) nextMilestone = "Reach ₹20 Lakhs in Mutual Funds to unlock US Stocks.";
     else nextMilestone = "You have reached the maximum diversification level.";
 
-    // DOM Updates
-    document.getElementById('goal-protocol-blocks').innerHTML = fireText;
-    document.getElementById('ladder-container').innerHTML = ladderHTML;
-    document.getElementById('v-ast').innerText = formatCurrency(totalAssets);
-    document.getElementById('v-lia').innerText = formatCurrency(totalLiabilities);
-    document.getElementById('v-nw').innerText = formatCurrency(netWorth);
+    // DOM Updates — all guarded to never crash
+    const _sid = id => document.getElementById(id);
+    if (_sid('goal-protocol-blocks')) _sid('goal-protocol-blocks').innerHTML = fireText;
+    if (_sid('ladder-container'))     _sid('ladder-container').innerHTML = ladderHTML;
+    if (_sid('v-ast')) _sid('v-ast').innerText = formatCurrency(totalAssets);
+    if (_sid('v-lia')) _sid('v-lia').innerText = formatCurrency(totalLiabilities);
+    if (_sid('v-nw'))  _sid('v-nw').innerText  = formatCurrency(netWorth);
 
     // ══ NEW PREMIUM WIDGETS ══
     calcSurvivalRunway(astCash, totalExp);
     const { dailyEarning } = calcFreedomMeter(totalAssets, totalExp);
     renderDailyInsight(totalAssets);
+
+    // ─── Insurance Shield Status (Gold if protected, Broken if at risk) ───
+    updateInsuranceShield(hasTermIns, hasMedIns);
+
+    // ─── SEBI COMPLIANCE & GOLDMAN SACHS AUDIT ENGINE ────────────────────────
+    // 1. Risk Profiling
+    const riskProfile = getRiskProfile();
+    const riskWarnings = validateRiskAllocation(riskProfile, totalAssets);
+
+    // 2. Tax Alpha Optimization
+    const taxAlerts = generateTaxAlpha(totalAssets, astEq, astCash, income);
+
+    // 3. Rebalancing Recommendations
+    const rebalanceData = generateRebalancingPlan(riskProfile, totalAssets);
+
+    // ─── RENDER: Risk Warnings in Goal Protocol section ───
+    if (riskWarnings.length > 0) {
+        let riskHTML = `<div style="margin-top:16px; background:rgba(168,85,247,0.05); border:1px solid rgba(168,85,247,0.3); border-radius:12px; padding:16px; margin-bottom:20px;">
+            <div style="font-size:14px; font-weight:900; color:#A855F7; margin-bottom:12px;">⚠️ Risk Profile Warnings (${riskProfile.label})</div>`;
+        riskWarnings.forEach(w => {
+            riskHTML += `<div style="margin-bottom:10px; padding:10px; background:rgba(0,0,0,0.15); border-left:3px solid ${w.color}; border-radius:4px;">
+                <div style="font-weight:800; font-size:12px; color:${w.color};">${w.icon} ${w.title}</div>
+                <div style="font-size:11px; color:rgba(255,255,255,0.6); margin-top:4px; line-height:1.5;">${w.message}</div>
+            </div>`;
+        });
+        riskHTML += `</div>`;
+        const protocolEl = _sid('goal-protocol-blocks');
+        if (protocolEl) protocolEl.innerHTML += riskHTML;
+    }
+
+    // ─── RENDER: Tax Alpha ───
+    const taxSection = _sid('tax-alpha-section');
+    const taxContent = _sid('tax-alpha-content');
+    if (taxSection && taxContent && taxAlerts.length > 0) {
+        taxSection.style.display = 'block';
+        let taxHTML = '';
+        taxAlerts.forEach(a => {
+            taxHTML += `<div style="margin-bottom:10px; padding:10px; background:rgba(0,0,0,0.15); border-left:3px solid ${a.color}; border-radius:4px;">
+                <div style="font-weight:800; font-size:12px; color:${a.color};">${a.icon} ${a.title}</div>
+                <div style="font-size:11px; color:rgba(255,255,255,0.6); margin-top:4px; line-height:1.5;">${a.message}</div>
+            </div>`;
+        });
+        taxContent.innerHTML = taxHTML;
+    }
+
+    // ─── RENDER: Rebalancing ───
+    const rebalSection = _sid('rebalance-section');
+    const rebalContent = _sid('rebalance-content');
+    if (rebalSection && rebalContent && rebalanceData.recommendations.length > 0) {
+        rebalSection.style.display = 'block';
+        let rebalHTML = '';
+
+        // Asset breakdown pie-like bar
+        if (totalAssets > 0) {
+            const bd = rebalanceData.assetBreakdown;
+            const tgt = rebalanceData.targets;
+            rebalHTML += `<div style="margin-bottom:12px;">
+                <div style="font-weight:800; font-size:12px; margin-bottom:6px; color:var(--text-hi);">Current vs Target Allocation</div>
+                <div style="display:flex; height:24px; border-radius:6px; overflow:hidden; margin-bottom:4px;">
+                    <div style="width:${bd.safe/totalAssets*100}%; background:#3B82F6;" title="Safe: ${(bd.safe/totalAssets*100).toFixed(0)}%"></div>
+                    <div style="width:${bd.moderate/totalAssets*100}%; background:#10B981;" title="Moderate: ${(bd.moderate/totalAssets*100).toFixed(0)}%"></div>
+                    <div style="width:${bd.aggressive/totalAssets*100}%; background:#F59E0B;" title="Aggressive: ${(bd.aggressive/totalAssets*100).toFixed(0)}%"></div>
+                    <div style="width:${bd.speculative/totalAssets*100}%; background:#EF4444;" title="Speculative: ${(bd.speculative/totalAssets*100).toFixed(0)}%"></div>
+                </div>
+                <div style="display:flex; gap:12px; font-size:10px; color:rgba(255,255,255,0.5); flex-wrap:wrap;">
+                    <span>🔵 Safe: ${(bd.safe/totalAssets*100).toFixed(0)}% (target: ${tgt.safe}%)</span>
+                    <span>🟢 Moderate: ${(bd.moderate/totalAssets*100).toFixed(0)}% (target: ${tgt.moderate}%)</span>
+                    <span>🟡 Growth: ${(bd.aggressive/totalAssets*100).toFixed(0)}% (target: ${tgt.aggressive}%)</span>
+                    <span>🔴 Speculative: ${(bd.speculative/totalAssets*100).toFixed(0)}% (target: ${tgt.speculative}%)</span>
+                </div>
+            </div>`;
+        }
+
+        rebalanceData.recommendations.forEach(r => {
+            rebalHTML += `<div style="margin-bottom:10px; padding:10px; background:rgba(0,0,0,0.15); border-left:3px solid ${r.color}; border-radius:4px;">
+                <div style="font-weight:800; font-size:12px; color:${r.color};">${r.icon} ${r.title}</div>
+                <div style="font-size:11px; color:rgba(255,255,255,0.6); margin-top:4px; line-height:1.5;">${r.message}</div>
+                ${r.action ? `<div style="margin-top:6px; font-size:10px; font-weight:700; color:${r.color}; text-transform:uppercase;">Action: ${r.action}</div>` : ''}
+            </div>`;
+        });
+        rebalContent.innerHTML = rebalHTML;
+    }
 
     // Memory
     engineMemory = {
@@ -1189,7 +1832,11 @@ function calculateStrategy() {
         hasMedIns, hasTermIns, emFundMonths, blendedCAGR,
         liquidAssets, astIlliquid, fiCorpusBase,
         netWorth: totalAssets - totalLiabilities,
-        surplus: sumSurplus
+        surplus: sumSurplus,
+        // Risk Profile
+        riskProfile: riskProfile.label,
+        riskLevel: riskProfile.level,
+        extractedGoals
     };
 
     // ==== FIRE WEATHER ENGINE ====
@@ -1205,7 +1852,7 @@ function calculateStrategy() {
     }
 
     // ==== FIRE WEALTH OPTIMIZER ====
-    runWealthOptimizer(astCash, totalAssets, dArr, totalExp);
+    runWealthOptimizer(astCash, totalAssets, dArr, totalExp, income);
 
     // ==== FIRE DIVERSIFICATION METER (Library Tab) ====
     if (typeof updateDiversificationMeter === 'function') updateDiversificationMeter();
@@ -1348,7 +1995,7 @@ function calculateStrategy() {
     
     // Novelty Style Graph DOM rendering
     if (trendData.length > 0) {
-        document.getElementById('nw-total-wealth').innerText = formatCurrency(trendData[trendData.length-1].wealth);
+        if (_sid('nw-total-wealth')) _sid('nw-total-wealth').innerText = formatCurrency(trendData[trendData.length-1].wealth);
         
         let maxW = Math.max(...trendData.map(d => d.wealth));
         if (maxW === 0) maxW = 1; // div by zero safety
@@ -1382,7 +2029,7 @@ function calculateStrategy() {
         }
     }
 
-    document.getElementById('monthly-allocator-body').innerHTML = allocHTML;
+    if (_sid('monthly-allocator-body')) _sid('monthly-allocator-body').innerHTML = allocHTML;
 
     // ══ POP THE COMPUTE BUTTON BACK ══
     if (ctaBtn) ctaBtn.classList.remove('computing');
@@ -1417,6 +2064,28 @@ function calculateStrategy() {
 
     switchTab('dash');
     if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    } catch(err) {
+        console.error('calculateStrategy error:', err);
+        showSuccessToast('Something went wrong — please fill in your numbers and try again.', '⚠️');
+    } finally {
+        // ── STATE COMPLETION: Hide guard backdrop + restore button ──
+        isComputing = false; // State back to false — allow next computation
+
+        // Hide backdrop to show celebration/dashboard underneath
+        if (backdrop) backdrop.classList.add('hidden');
+
+        // Restore button to default state whether calculation succeeded or failed
+        if (ctaBtn)     ctaBtn.classList.remove('computing');
+        if (ctaDefault) ctaDefault.style.display = 'flex';
+        if (ctaLoading) ctaLoading.style.display = 'none';
+
+        // ── DOM CLEANUP: Ensure no stale references remain ──
+        // (The hidden class uses display: none, so the element stays in DOM but is invisible)
+        // This is safer than removing/remounting which can cause state loss
+    }
+
+    })); // end requestAnimationFrame + setTimeout
 }
 
 // --- TAB 3: DYNAMIC CRISIS SIMULATOR (WITH CELEBRATION PROTOCOL) ---
@@ -1424,21 +2093,45 @@ const delay = ms => new Promise(res => setTimeout(res, ms));
 
 async function runCrisisSimulator() {
     if(engineMemory.totalAssets === undefined) return;
-    const logBox = document.getElementById('timeline-log'); 
+    const logBox = document.getElementById('timeline-log');
     logBox.innerHTML = '<div id="gif-overlay" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); flex-direction:column; align-items:center; z-index:10; background:rgba(255,255,255,0.95); padding:30px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.2); width:80%; text-align:center;"><div style="font-size:60px; margin-bottom:10px;">🎉</div><div id="gif-txt" style="font-size:16px; font-weight:800; color:#1e293b;"></div></div>';
-    
-    if(!engineMemory.p1) {
-        logBox.innerHTML += `<div style="padding:40px; text-align:center; color:var(--accent-red); font-weight:bold;">Simulator Locked: Fill your Emergency Fund & clear Bad Debt first.</div>`;
-        return;
-    }
 
-    // === FIX: Start from the full corpus (cash + equity + pf + gold), not just equity ===
+    // ══ SIMULATOR NOW WORKS WITH DEBT & INCOMPLETE EMERGENCY FUND ══
+    // Shows realistic "what-if" scenarios
     let corpus = engineMemory.totalAssets || 0; // Use ALL assets as starting point
     let surplus = engineMemory.sumSurplus;
     let stepUpPercent = engineMemory.stepUpPercent || 0;
     let monthlyRate = (12.0 / 100) / 12; // Base equity return
 
-    logBox.innerHTML += `<div class="log-entry"><div class="log-header">Month 1 • Starting Point</div><div class="log-body">Safety net is secure. Starting with existing corpus of <strong>${formatCurrency(corpus)}</strong>. Investing <strong>${formatCurrency(surplus)}/month</strong> with ${stepUpPercent}% annual step-up.</div></div>`;
+    // ── Track Emergency Fund (FD Shield) Separately ──
+    const emFundTarget = (engineMemory.income || 50000) * 6; // 6 months salary
+    let emFundCurrent = engineMemory.astCash || 0; // Start with liquid cash
+    let emFundDepletion = 0; // Track how much was used in crisis
+
+    // ── Track Debt ──
+    let totalDebt = engineMemory.totalLiabilities || 0;
+    let monthlyDebtEMI = (engineMemory.dArr || []).reduce((sum, d) => sum + d.e, 0);
+    let debtPayoffMonth = 0; // When debt is cleared
+
+    // ── Adjust surplus for debt ──
+    const investableSurplus = Math.max(0, surplus - monthlyDebtEMI);
+
+    // Display scenario header
+    let scenarioWarning = '';
+    if (!engineMemory.p1) {
+        scenarioWarning = `<div style="background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.3); border-radius:8px; padding:12px; margin-bottom:16px; font-size:12px; color:rgba(255,255,255,0.7); line-height:1.6;">
+            ⚠️ <strong>Realistic Scenario:</strong> Your emergency fund is incomplete (${((emFundCurrent/emFundTarget)*100).toFixed(0)}% of target) and/or you have ${monthlyDebtEMI > 0 ? 'debt.' : 'issues.'} This simulation shows what happens during a market crash in this realistic situation. The crisis will tap into your emergency fund first.
+        </div>`;
+    }
+
+    logBox.innerHTML += scenarioWarning + `<div class="log-entry"><div class="log-header">Month 1 • Starting Scenario</div><div class="log-body">
+        <strong>Assets:</strong> ${formatCurrency(corpus)} |
+        <strong>Emergency Fund:</strong> ${formatCurrency(emFundCurrent)} / ${formatCurrency(emFundTarget)} |
+        <strong>Debt:</strong> ${formatCurrency(totalDebt)} (₹${monthlyDebtEMI}/mo EMI) |
+        <strong>Monthly Investable Surplus:</strong> ${formatCurrency(investableSurplus)}/mo (after debt repayment)
+        <br/>
+        <em>Market scenario: Normal bull market first, then 25% crash at month 48, then recovery. Debt EMI paid continuously.</em>
+    </div></div>`;
 
     // Skip milestones already reached
     let unlocked5L = corpus >= 500000;
@@ -1459,20 +2152,48 @@ async function runCrisisSimulator() {
     await delay(1000);
 
     for(let i=2; i<=144; i++) {
-        // Compound
-        corpus = (corpus * (1 + monthlyRate)) + surplus;
+        // ── Step 1: Debt Repayment (Priority 1) ──
+        if (totalDebt > 0 && investableSurplus > 0) {
+            // Aggressively pay down debt each month
+            const debtPaydown = monthlyDebtEMI;
+            totalDebt = Math.max(0, totalDebt - debtPaydown);
+            if (totalDebt === 0 && debtPayoffMonth === 0) {
+                debtPayoffMonth = i;
+            }
+        }
+
+        // ── Step 2: Rebuild Emergency Fund (Priority 2) ──
+        // Before investing, rebuild emergency fund if it's below target
+        let emFundFill = 0;
+        if (emFundCurrent < emFundTarget && investableSurplus > 0) {
+            emFundFill = Math.min(investableSurplus * 0.5, emFundTarget - emFundCurrent); // Use 50% of surplus to refill
+            emFundCurrent += emFundFill;
+        }
+
+        // ── Step 3: Compound & Invest remaining surplus ──
+        const investableAmount = Math.max(0, investableSurplus - emFundFill);
+        corpus = (corpus * (1 + monthlyRate)) + investableAmount;
         
         // --- CRISIS DETECTED (Month 48) ---
         if(i === 48 && !hasCrashed) {
             hasCrashed = true;
             corpus = corpus * 0.75; // 25% drop!
-            document.getElementById('gif-txt').innerHTML = `<span style="color:#ef4444; font-size:20px;">🚨 MARKET CRASH DETECTED! 🚨</span><br><br>The stock market just dropped by 25%.<br><br><div style="font-size:28px; font-weight:900; color:#ef4444;">Wealth Dropped to: ${formatCurrency(corpus)}</div><br>But do not panic. Your SIP of <span style="font-weight:bold;">${formatCurrency(surplus)}/mo</span> will now buy mutual funds at a massive 25% discount. Stay disciplined!`;
+
+            // During crisis, emergency fund gets partially depleted
+            emFundDepletion = emFundCurrent * 0.30; // Lose 30% of emergency fund in crisis (job loss, medical)
+            emFundCurrent = Math.max(0, emFundCurrent - emFundDepletion);
+
+            const crisisMsg = emFundDepletion > 0 ?
+                `Your emergency fund dropped by ${formatCurrency(emFundDepletion)} due to unexpected expenses (health emergency, job layoff). This is exactly why you need it!` :
+                `Your emergency fund remained intact since it was already complete.`;
+
+            document.getElementById('gif-txt').innerHTML = `<span style="color:#ef4444; font-size:20px;">🚨 MARKET CRASH + JOB CRISIS! 🚨</span><br><br>Stock market dropped 25% AND you face a personal crisis.<br><br><div style="font-size:28px; font-weight:900; color:#ef4444;">Investment Wealth: ${formatCurrency(corpus)}</div><br>Emergency Fund Status: ${formatCurrency(emFundCurrent)} remaining<br><br>${crisisMsg}<br><br>This is the real test. Your SIP stops temporarily to cover expenses. The good news: when the market rebounds, you will have bought at the lowest prices!`;
             document.getElementById('gif-overlay').style.display = 'flex';
-            await delay(6500);
+            await delay(7500);
             document.getElementById('gif-overlay').style.display = 'none';
 
             let e = document.createElement('div'); e.className = 'log-entry';
-            e.innerHTML = `<div class="log-header" style="color:#ef4444;">Month ${i} • MARKET CRASH (-25%)</div><div class="log-body">Wealth crashed to <span class="log-val" style="color:#ef4444;">${formatCurrency(corpus)}</span>. You kept investing ${formatCurrency(surplus)}/mo at lower prices.</div>`;
+            e.innerHTML = `<div class="log-header" style="color:#ef4444;">Month ${i} • DOUBLE CRISIS: Market Crash + Personal Emergency</div><div class="log-body">Investment Wealth crashed to <span class="log-val" style="color:#ef4444;">${formatCurrency(corpus)}</span>. Emergency Fund depleted by ${formatCurrency(emFundDepletion)}, now at ${formatCurrency(emFundCurrent)}. SIP paused temporarily to rebuild emergency funds. Your discipline in building the FD shield is now paying off!</div>`;
             logBox.appendChild(e); logBox.scrollTop = logBox.scrollHeight;
             await delay(1000);
             continue;
@@ -1520,6 +2241,20 @@ async function runCrisisSimulator() {
             }
         }
 
+        // EMERGENCY FUND REBUILD MILESTONE
+        if(emFundCurrent >= emFundTarget && i > 50 && emFundDepletion > 0 && !engineMemory._emFundRebuildMsg) {
+            engineMemory._emFundRebuildMsg = true;
+            document.getElementById('gif-txt').innerHTML = `🛡️ EMERGENCY FUND RESTORED! 🛡️<br><br>Your 6-month safety net is complete again.<br><br><div style="font-size:24px; font-weight:900; color:#10b981;">Emergency Shield: ${formatCurrency(emFundCurrent)}</div><br>You survived the crisis and rebuilt. Now you can invest more aggressively!`;
+            document.getElementById('gif-overlay').style.display = 'flex';
+            await delay(5000);
+            document.getElementById('gif-overlay').style.display = 'none';
+
+            let e = document.createElement('div'); e.className = 'log-entry log-milestone';
+            e.innerHTML = `<div class="log-header" style="color:#10b981;">Month ${i} • EMERGENCY FUND REBUILT</div><div class="log-body">Your 6-month safety net is back at ${formatCurrency(emFundCurrent)}. You recovered from the crisis! Now investments can accelerate. Total wealth: ${formatCurrency(corpus)}.</div>`;
+            logBox.appendChild(e); logBox.scrollTop = logBox.scrollHeight;
+            await delay(1000);
+        }
+
         // Annual Step up
         if(i % 12 === 0 && stepUpPercent > 0) {
             surplus = surplus * (1 + (stepUpPercent / 100));
@@ -1535,8 +2270,14 @@ async function runCrisisSimulator() {
         else if (corpus >= 500000) { allocEquity = surplus * 0.80; allocBonds = surplus * 0.20; }
 
         let breakdownHTML = `
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Expenses / EMI Paid:</span><span>${formatCurrency(expB)}</span></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Total Invested (SIP):</span><span style="color:var(--accent-green)">${formatCurrency(surplus)}</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Monthly Income (Surplus):</span><span style="color:#10b981; font-weight:bold;">${formatCurrency(surplus)}</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Debt EMI Paid:</span><span style="color:${totalDebt > 0 ? '#ef4444' : '#10b981'}">${formatCurrency(monthlyDebtEMI)}</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Emergency Fund Top-up:</span><span style="color:#22d3ee;">${formatCurrency(emFundFill)}</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Available to Invest:</span><span style="color:var(--accent-green); font-weight:bold;">${formatCurrency(investableAmount)}</span></div>
+            <div style="margin-top:6px; font-weight:600; color:#334155;">Emergency Fund Status:</div>
+            <div style="display:flex; justify-content:space-between; margin-left:10px; font-size:11px;"><span>Current: ${formatCurrency(emFundCurrent)} / Target: ${formatCurrency(emFundTarget)}</span><span>${emFundCurrent >= emFundTarget ? '✅ COMPLETE' : `${Math.round((emFundCurrent/emFundTarget)*100)}% done`}</span></div>
+            ${totalDebt > 0 ? `<div style="margin-top:6px; font-weight:600; color:#334155;">Debt Status:</div>
+            <div style="display:flex; justify-content:space-between; margin-left:10px; font-size:11px;"><span>Outstanding: ${formatCurrency(totalDebt)}</span><span>${debtPayoffMonth > 0 ? `Cleared at Month ${debtPayoffMonth}` : 'In progress'}</span></div>` : ''}
             <div style="margin-top:6px; font-weight:600; color:#334155;">Investment Split:</div>
             <div style="display:flex; justify-content:space-between; margin-left:10px;"><span>• Mutual Funds (Nifty & Midcap):</span><span>${formatCurrency(allocEquity)}</span></div>
         `;
@@ -1550,6 +2291,24 @@ async function runCrisisSimulator() {
         eMonth.onclick = function() { this.classList.toggle('expanded'); };
         logBox.appendChild(eMonth); logBox.scrollTop = logBox.scrollHeight;
         await delay(30);
+
+        // DEBT PAYOFF MILESTONE
+        if(debtPayoffMonth > 0 && i === debtPayoffMonth && totalDebt === 0) {
+            document.getElementById('gif-txt').innerHTML = `🎉 DEBT FREEDOM! 🎉<br><br>You've paid off all your loans!<br><br><div style="font-size:28px; font-weight:900; color:#10b981;">Monthly Cash Flow Increased</div><br>Your ₹${monthlyDebtEMI}/mo EMI is now freed up. This entire amount can go to investments. Compounding just accelerated!`;
+            document.getElementById('gif-overlay').style.display = 'flex';
+            await delay(5000);
+            document.getElementById('gif-overlay').style.display = 'none';
+
+            let e = document.createElement('div'); e.className = 'log-entry log-milestone';
+            e.innerHTML = `<div class="log-header" style="color:#10b981;">Month ${i} • DEBT FREEDOM!</div><div class="log-body">All loans cleared! You now have an extra ₹${monthlyDebtEMI}/mo to invest. Wealth is at ${formatCurrency(corpus)}. The compounding machine just got supercharged.</div>`;
+            logBox.appendChild(e); logBox.scrollTop = logBox.scrollHeight;
+            await delay(1000);
+
+            // Increase investable surplus for remaining months
+            surplus += monthlyDebtEMI;
+            monthlyDebtEMI = 0;
+            continue;
+        }
 
         // MILESTONE CHECK 5 LAKH -> BONDS
         if(corpus >= 500000 && !unlocked5L) {
@@ -1739,8 +2498,8 @@ function generateExcelReport() {
     rows.push(['', '', '', '']);
 
     rows.push(['=== MY SAFETY NET ===', '', '', '']);
-    rows.push(['Emergency fund I need (₹)', fmt((m.totalExp || 0) * (m.emFundMonths || 6)), '', '']);
-    rows.push(['Months of expenses covered', (m.emFundMonths || 6) + ' months', '', '']);
+    rows.push(['Emergency fund I need (₹)', fmt((m.income || 0) * 6), '', '']);
+    rows.push(['Months of salary covered', '6 months of salary', '', '']);
     rows.push(['Health insurance active?', m.hasMedIns ? 'Yes ✓' : 'No — please get one!', '', '']);
     rows.push(['Term life insurance active?', m.hasTermIns ? 'Yes ✓' : 'No — please get one!', '', '']);
     rows.push(['', '', '', '']);
