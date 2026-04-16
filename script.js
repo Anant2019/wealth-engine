@@ -201,6 +201,159 @@ function validateRiskAllocation(riskProfile, totalAssets) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// TAX ALPHA ENGINE
+// Identifies tax-saving opportunities based on portfolio composition
+// Returns array of { icon, title, message, color } alert objects
+// ══════════════════════════════════════════════════════════════════════════════
+
+function generateTaxAlpha(totalAssets, astEq, astCash, income) {
+    const alerts = [];
+
+    // Section 80C: ELSS / PPF / EPF
+    let hasPPF = false, hasEPF = false, hasELSS = false;
+    let ppfValue = 0, epfValue = 0, elssValue = 0;
+    document.querySelectorAll('.dy-account').forEach(r => {
+        const type = r.querySelector('.a-t') ? r.querySelector('.a-t').value : '';
+        const bal = parseFloat(r.querySelector('.a-p') ? r.querySelector('.a-p').value : 0) || 0;
+        if (type === 'ppf') { hasPPF = true; ppfValue += bal; }
+        if (type === 'epf') { hasEPF = true; epfValue += bal; }
+        if (type === 'mutual_fund') { hasELSS = true; elssValue += bal; } // Proxy for ELSS
+    });
+
+    // 80C Alert
+    if (!hasPPF && !hasEPF && income > 0) {
+        alerts.push({
+            icon: '🏛️',
+            title: 'Section 80C: Save ₹46,800 in Tax',
+            message: 'You may not be using your full ₹1.5L Section 80C deduction. Invest in PPF (safe, 7.1% tax-free), ELSS Mutual Funds (best returns), or top up EPF. This alone saves ₹46,800/year in tax at the 30% bracket.',
+            color: '#10B981'
+        });
+    }
+
+    // Long-Term Capital Gains alert for equity
+    if (astEq > 100000) {
+        alerts.push({
+            icon: '📊',
+            title: 'LTCG Harvest: Keep Equity Gains Under ₹1 Lakh/Year',
+            message: `You have ${formatCurrency(astEq)} in equity. Gains up to ₹1 Lakh/year from equity are tax-free (LTCG exemption). If you book profits, plan your redemptions across financial years to minimize your 10% LTCG tax liability.`,
+            color: '#6366F1'
+        });
+    }
+
+    // NPS for additional 80CCD(1B) deduction
+    let hasNPS = false;
+    document.querySelectorAll('.dy-account').forEach(r => {
+        const type = r.querySelector('.a-t') ? r.querySelector('.a-t').value : '';
+        if (type === 'nps') hasNPS = true;
+    });
+    if (!hasNPS && income >= 50000) {
+        alerts.push({
+            icon: '🧾',
+            title: 'NPS: Extra ₹15,600 Tax Savings via 80CCD(1B)',
+            message: 'NPS (National Pension System) gives an additional ₹50,000 tax deduction over and above 80C. At the 30% bracket, this saves ₹15,600 extra per year. Open an NPS account at any bank or online at enps.nsdl.com.',
+            color: '#F59E0B'
+        });
+    }
+
+    // FD interest tax alert
+    if (astCash > 500000) {
+        alerts.push({
+            icon: '🏦',
+            title: 'FD Interest is Fully Taxable — Consider Debt MFs',
+            message: `Your savings/FD balance of ${formatCurrency(astCash)} earns interest that is added to your income and taxed at your slab rate (up to 30%). Debt Mutual Funds held 3+ years are taxed at 20% with indexation benefit — a significant saving. Consider moving some to Debt MFs.`,
+            color: '#EF4444'
+        });
+    }
+
+    return alerts;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// REBALANCING ENGINE
+// Compares current allocation vs target for risk profile
+// Returns { recommendations, assetBreakdown, targets }
+// ══════════════════════════════════════════════════════════════════════════════
+
+function generateRebalancingPlan(riskProfile, totalAssets) {
+    const recommendations = [];
+
+    // Build asset breakdown by risk category
+    let safe = 0, moderate = 0, aggressive = 0, speculative = 0;
+    document.querySelectorAll('.dy-account').forEach(r => {
+        const type = r.querySelector('.a-t') ? r.querySelector('.a-t').value : '';
+        const bal = parseFloat(r.querySelector('.a-p') ? r.querySelector('.a-p').value : 0) || 0;
+        if (['savings', 'fd', 'rd', 'po_schemes', 'ppf', 'epf', 'nps', 'endowment'].includes(type)) safe += bal;
+        else if (['mutual_debt', 'corp_bonds', 'sgb', 'gold_physical', 'mutual_fund'].includes(type)) moderate += bal;
+        else if (['stocks_in', 'stocks_us', 'etf', 'reit', 'stocks_mid'].includes(type)) aggressive += bal;
+        else if (['stocks_small', 'crypto', 'p2p', 'ulip'].includes(type)) speculative += bal;
+    });
+
+    const assetBreakdown = { safe, moderate, aggressive, speculative };
+
+    // Target allocations by risk profile
+    const targetMap = {
+        conservative:    { safe: 60, moderate: 30, aggressive: 10, speculative: 0 },
+        moderate:        { safe: 40, moderate: 30, aggressive: 25, speculative: 5 },
+        aggressive:      { safe: 20, moderate: 25, aggressive: 40, speculative: 15 },
+        very_aggressive: { safe: 10, moderate: 15, aggressive: 45, speculative: 30 }
+    };
+    const targets = targetMap[riskProfile.level] || targetMap.moderate;
+
+    if (totalAssets === 0) return { recommendations, assetBreakdown, targets };
+
+    // Compare current vs target and generate recommendations
+    const safePct        = (safe / totalAssets) * 100;
+    const moderatePct    = (moderate / totalAssets) * 100;
+    const aggressivePct  = (aggressive / totalAssets) * 100;
+    const speculativePct = (speculative / totalAssets) * 100;
+
+    if (safePct > targets.safe + 15) {
+        const excess = safe - (totalAssets * targets.safe / 100);
+        recommendations.push({
+            icon: '🔄',
+            title: `Too Much in Safe Assets (${safePct.toFixed(0)}% vs target ${targets.safe}%)`,
+            message: `You have ${formatCurrency(excess)} more in FDs/savings than your risk profile recommends. This is costing you returns. Consider moving some to Nifty 50 Index Funds for better long-term growth.`,
+            color: '#3B82F6',
+            action: `Move ${formatCurrency(Math.min(excess, 50000))} to a Nifty 50 Index Fund SIP`
+        });
+    }
+
+    if (safePct < targets.safe - 15) {
+        const deficit = (totalAssets * targets.safe / 100) - safe;
+        recommendations.push({
+            icon: '🛡️',
+            title: `Insufficient Safety Net (${safePct.toFixed(0)}% vs target ${targets.safe}%)`,
+            message: `Your safe assets are below your risk profile's minimum recommendation. Build up your FD and liquid savings before increasing equity exposure. This protects you during market downturns.`,
+            color: '#EF4444',
+            action: `Move ${formatCurrency(Math.min(deficit, 100000))} to an FD or Liquid Mutual Fund`
+        });
+    }
+
+    if (speculativePct > targets.speculative + 10) {
+        const excess = speculative - (totalAssets * targets.speculative / 100);
+        recommendations.push({
+            icon: '⚠️',
+            title: `High Speculative Exposure (${speculativePct.toFixed(0)}% vs target ${targets.speculative}%)`,
+            message: `Your "${riskProfile.label}" profile recommends max ${targets.speculative}% in speculative assets (crypto, small cap, P2P). You currently have ${speculativePct.toFixed(0)}%. Consider trimming ${formatCurrency(excess)} to reduce volatility risk.`,
+            color: '#F59E0B',
+            action: `Reduce speculative assets by ${formatCurrency(excess)}`
+        });
+    }
+
+    if (recommendations.length === 0 && totalAssets > 0) {
+        recommendations.push({
+            icon: '✅',
+            title: 'Portfolio is Well-Balanced',
+            message: `Your current allocation is aligned with your "${riskProfile.label}" risk profile. Continue your SIPs and review again when your portfolio grows by 20% or your life situation changes.`,
+            color: '#10B981',
+            action: null
+        });
+    }
+
+    return { recommendations, assetBreakdown, targets };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // SMART GOAL ALLOCATION ENGINE
 // Splits investment across FD, Bonds, MF, Equity based on timeline
 // WITHOUT damaging corpus — smarter returns with appropriate risk
@@ -483,6 +636,297 @@ function togglePrivacy() {
     }
 }
 
+// ==================== LOCAL STORAGE PERSISTENCE ====================
+// Save all user input to browser storage so they don't have to re-enter
+
+function saveAllData() {
+    const userData = {};
+
+    // Personal info
+    userData.name = document.getElementById('u-name')?.value || '';
+    userData.age = document.getElementById('u-age')?.value || '';
+    userData.income = document.getElementById('u-income')?.value || '';
+    userData.sip = document.getElementById('u-sip')?.value || '';
+    userData.stepup = document.getElementById('u-stepup')?.value || '10';
+
+    // Expenses
+    userData.rent = document.getElementById('u-rent')?.value || '';
+    userData.groceries = document.getElementById('u-groceries')?.value || '';
+    userData.cc = document.getElementById('u-cc')?.value || '';
+    userData.life = document.getElementById('u-life')?.value || '';
+
+    // Insurance
+    userData.med = document.getElementById('u-med')?.value || 'yes';
+    userData.term = document.getElementById('u-term')?.value || 'yes';
+
+    // Risk Profile
+    userData.riskQ1 = document.getElementById('u-risk-q1')?.value || '3';
+    userData.riskQ2 = document.getElementById('u-risk-q2')?.value || '2';
+    userData.riskQ3 = document.getElementById('u-risk-q3')?.value || '3';
+    userData.riskQ4 = document.getElementById('u-risk-q4')?.value || '3';
+
+    // Accounts (Assets)
+    const accounts = [];
+    document.querySelectorAll('.dy-account').forEach(row => {
+        accounts.push({
+            type: row.querySelector('.a-t')?.value || '',
+            name: row.querySelector('.a-n')?.value || '',
+            value: row.querySelector('.a-p')?.value || '',
+            rate: row.querySelector('.a-r')?.value || ''
+        });
+    });
+    userData.accounts = accounts;
+
+    // Debts
+    const debts = [];
+    document.querySelectorAll('.dy-debt').forEach(row => {
+        debts.push({
+            name: row.querySelector('.d-n')?.value || '',
+            principal: row.querySelector('.d-p')?.value || '',
+            rate: row.querySelector('.d-r')?.value || '',
+            emi: row.querySelector('.d-e')?.value || ''
+        });
+    });
+    userData.debts = debts;
+
+    // Goals
+    const goals = [];
+    document.querySelectorAll('.dy-goal').forEach(row => {
+        goals.push({
+            name: row.querySelector('.g-name')?.value || '',
+            target: row.querySelector('.g-tgt')?.value || '',
+            years: row.querySelector('.g-yrs')?.value || ''
+        });
+    });
+    userData.goals = goals;
+
+    // Save to localStorage
+    localStorage.setItem('aarthSutraData', JSON.stringify(userData));
+    showSuccessToast('✅ Your data saved! You can close the app anytime.', '💾');
+}
+
+function loadAllData() {
+    const saved = localStorage.getItem('aarthSutraData');
+
+    // Prevent auto-save from firing while we're programmatically populating fields
+    window._isLoadingData = true;
+
+    if (!saved) {
+        // No saved data — add default portfolio rows so the page isn't empty
+        setupDefaultPortfolio();
+        const gc = document.getElementById('goal-container');
+        if (gc && gc.children.length === 0) addGoal();
+        const dc = document.getElementById('debt-container');
+        if (dc && dc.children.length === 0) addDebt();
+        window._isLoadingData = false;
+        return;
+    }
+
+    try {
+        const userData = JSON.parse(saved);
+
+        // Load personal info
+        if (userData.name) document.getElementById('u-name').value = userData.name;
+        if (userData.age) document.getElementById('u-age').value = userData.age;
+        if (userData.income) document.getElementById('u-income').value = userData.income;
+        if (userData.sip) document.getElementById('u-sip').value = userData.sip;
+        if (userData.stepup) document.getElementById('u-stepup').value = userData.stepup;
+
+        // Load expenses
+        if (userData.rent) document.getElementById('u-rent').value = userData.rent;
+        if (userData.groceries) document.getElementById('u-groceries').value = userData.groceries;
+        if (userData.cc) document.getElementById('u-cc').value = userData.cc;
+        if (userData.life) document.getElementById('u-life').value = userData.life;
+
+        // Load insurance
+        document.getElementById('u-med').value = userData.med || 'yes';
+        document.getElementById('u-term').value = userData.term || 'yes';
+
+        // Load risk profile
+        if (userData.riskQ1) document.getElementById('u-risk-q1').value = userData.riskQ1;
+        if (userData.riskQ2) document.getElementById('u-risk-q2').value = userData.riskQ2;
+        if (userData.riskQ3) document.getElementById('u-risk-q3').value = userData.riskQ3;
+        if (userData.riskQ4) document.getElementById('u-risk-q4').value = userData.riskQ4;
+
+        // Load accounts — use hasOwnProperty so that a saved empty array (user deleted all)
+        // is respected instead of falling back to defaults
+        const accountContainer = document.getElementById('account-container');
+        if (userData.hasOwnProperty('accounts')) {
+            accountContainer.innerHTML = '';
+            userData.accounts.forEach(acc => {
+                addAccount(acc.type, acc.name, parseFloat(acc.value) || 0, parseFloat(acc.rate) || null);
+            });
+            // If user deliberately has 0 assets saved, leave it empty (respect their choice)
+        } else {
+            // Old save format without accounts key — add defaults
+            setupDefaultPortfolio();
+        }
+
+        // Load debts — use lastElementChild (skips text nodes) instead of lastChild
+        const debtContainer = document.getElementById('debt-container');
+        if (userData.hasOwnProperty('debts')) {
+            debtContainer.innerHTML = '';
+            userData.debts.forEach(debt => {
+                addDebt();
+                const lastDebtRow = debtContainer.lastElementChild;
+                if (lastDebtRow) {
+                    lastDebtRow.querySelector('.d-n').value = debt.name || '';
+                    lastDebtRow.querySelector('.d-p').value = debt.principal || '';
+                    lastDebtRow.querySelector('.d-r').value = debt.rate || '';
+                    lastDebtRow.querySelector('.d-e').value = debt.emi || '';
+                }
+            });
+            if (userData.debts.length === 0) addDebt(); // always show at least one empty row
+        } else {
+            addDebt();
+        }
+
+        // Load goals — use lastElementChild (skips text nodes) instead of lastChild
+        const goalContainer = document.getElementById('goal-container');
+        if (userData.hasOwnProperty('goals')) {
+            goalContainer.innerHTML = '';
+            userData.goals.forEach(goal => {
+                addGoal();
+                const lastGoalRow = goalContainer.lastElementChild;
+                if (lastGoalRow) {
+                    lastGoalRow.querySelector('.g-name').value = goal.name || '';
+                    lastGoalRow.querySelector('.g-tgt').value = goal.target || '';
+                    lastGoalRow.querySelector('.g-yrs').value = goal.years || '';
+                }
+            });
+            if (userData.goals.length === 0) addGoal(); // always show at least one empty row
+        } else {
+            addGoal();
+        }
+
+        showSuccessToast('✅ Your saved data loaded!', '📂');
+        updateInsuranceImpact();
+    } catch(e) {
+        console.error('Error loading data:', e);
+        // On parse failure fall back to defaults so the page isn't blank
+        setupDefaultPortfolio();
+        const gc = document.getElementById('goal-container');
+        if (gc && gc.children.length === 0) addGoal();
+        const dc = document.getElementById('debt-container');
+        if (dc && dc.children.length === 0) addDebt();
+    } finally {
+        window._isLoadingData = false;
+    }
+}
+
+function clearAllData() {
+    if (confirm('⚠️ Are you sure? This will delete all your saved data. This cannot be undone.')) {
+        localStorage.removeItem('aarthSutraData');
+        location.reload();
+    }
+}
+
+// ==================== FORM VALIDATION ====================
+function validateForm() {
+    const errors = [];
+    const errorFields = [];
+
+    // Clear all previous error states
+    document.querySelectorAll('.form-group.error').forEach(fg => fg.classList.remove('error'));
+
+    // Required fields - Step 1
+    const nameField = document.getElementById('u-name');
+    const ageField = document.getElementById('u-age');
+    if (!nameField || !nameField.value.trim()) {
+        errors.push({ field: 'u-name', label: 'Your Name', step: 1 });
+        errorFields.push('u-name');
+    }
+    if (!ageField || !ageField.value) {
+        errors.push({ field: 'u-age', label: 'Your Current Age', step: 1 });
+        errorFields.push('u-age');
+    }
+
+    // Required fields - Step 2
+    const incomeField = document.getElementById('u-income');
+    const sipField = document.getElementById('u-sip');
+    if (!incomeField || !incomeField.value) {
+        errors.push({ field: 'u-income', label: 'Monthly In-Hand Income', step: 2 });
+        errorFields.push('u-income');
+    }
+    if (!sipField || !sipField.value) {
+        errors.push({ field: 'u-sip', label: 'Monthly Investment Amount', step: 2 });
+        errorFields.push('u-sip');
+    }
+
+    // Required fields - Step 3
+    const rentField = document.getElementById('u-rent');
+    const groceriesField = document.getElementById('u-groceries');
+    const ccField = document.getElementById('u-cc');
+    const lifeField = document.getElementById('u-life');
+    if (!rentField || !rentField.value) {
+        errors.push({ field: 'u-rent', label: 'Rent & Utilities', step: 3 });
+        errorFields.push('u-rent');
+    }
+    if (!groceriesField || !groceriesField.value) {
+        errors.push({ field: 'u-groceries', label: 'Food & Essentials', step: 3 });
+        errorFields.push('u-groceries');
+    }
+    if (!ccField || !ccField.value) {
+        errors.push({ field: 'u-cc', label: 'Existing EMIs & Bills', step: 3 });
+        errorFields.push('u-cc');
+    }
+    if (!lifeField || !lifeField.value) {
+        errors.push({ field: 'u-life', label: 'Lifestyle & Entertainment', step: 3 });
+        errorFields.push('u-life');
+    }
+
+    // Required fields - Step 4 (Insurance)
+    const medField = document.getElementById('u-med');
+    const termField = document.getElementById('u-term');
+    if (!medField || !medField.value) {
+        errors.push({ field: 'u-med', label: 'Health Insurance', step: 4 });
+        errorFields.push('u-med');
+    }
+    if (!termField || !termField.value) {
+        errors.push({ field: 'u-term', label: 'Term Life Insurance', step: 4 });
+        errorFields.push('u-term');
+    }
+
+    // Add error class to all error fields
+    errorFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            const fg = field.closest('.form-group');
+            if (fg) fg.classList.add('error');
+        }
+    });
+
+    // Display error container
+    const errorContainer = document.getElementById('validation-error-container');
+    const errorList = document.getElementById('validation-error-list');
+
+    if (errors.length > 0) {
+        if (errorList) {
+            errorList.innerHTML = errors.map(err => `
+                <li>
+                    <strong>Step ${err.step}:</strong> ${err.label}
+                    <button type="button" onclick="document.getElementById('${err.field}').focus(); document.getElementById('${err.field}').scrollIntoView({behavior: 'smooth', block: 'center'});">
+                        Go to field →
+                    </button>
+                </li>
+            `).join('');
+        }
+
+        if (errorContainer) {
+            errorContainer.classList.add('show');
+            // Scroll to error container
+            errorContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        return false;
+    } else {
+        if (errorContainer) {
+            errorContainer.classList.remove('show');
+        }
+        return true;
+    }
+}
+
 // ==================== SURVIVAL RUNWAY ====================
 function calcSurvivalRunway(astCash, totalExp) {
     const runwayMonths = totalExp > 0 ? Math.floor(astCash / totalExp) : 0;
@@ -648,17 +1092,22 @@ document.addEventListener('DOMContentLoaded', function() {
     // Welcome modal — check if first visit
     checkFirstVisit();
 
-    // Setup default portfolio rows if containers are empty
-    setupDefaultPortfolio();
-    const gc = document.getElementById('goal-container');
-    if (gc && gc.children.length === 0) addGoal();
-    const dc = document.getElementById('debt-container');
-    if (dc && dc.children.length === 0) addDebt();
-
     // Wire debt total updates
     document.addEventListener('input', function(e) {
         if (e.target.classList.contains('d-p')) updateDebtTotal();
     });
+
+    // Auto-save data on any input change (debounced)
+    // isLoading flag prevents auto-save firing during programmatic data load
+    let autoSaveTimer;
+    document.addEventListener('input', function(e) {
+        if (window._isLoadingData) return; // Don't auto-save during load
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(saveAllData, 1000); // Save 1 second after last input
+    });
+
+    // Load saved data first — defaults are only added if nothing was saved
+    loadAllData();
 
     // Initial insurance display
     updateInsuranceImpact();
