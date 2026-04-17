@@ -936,10 +936,6 @@ function validateForm() {
         errors.push({ field: 'u-income', label: 'Monthly In-Hand Income', step: 2 });
         errorFields.push('u-income');
     }
-    if (!sipField || !sipField.value) {
-        errors.push({ field: 'u-sip', label: 'Monthly Investment Amount', step: 2 });
-        errorFields.push('u-sip');
-    }
 
     // Required fields - Step 3
     const rentField = document.getElementById('u-rent');
@@ -1209,6 +1205,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial insurance display
     updateInsuranceImpact();
 
+    // Update profile topbar initial whenever name field changes
+    const nameField = document.getElementById('u-name');
+    if (nameField) {
+        nameField.addEventListener('input', refreshProfileTopbar);
+    }
+    refreshProfileTopbar(); // run once on load
+
     // Restore last active tab
     const lastTab = (() => { try { return localStorage.getItem('aarth_active_tab') || 'intake'; } catch(e) { return 'intake'; } })();
 
@@ -1218,9 +1221,18 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
             calculateStrategy(true); // silentMode = don't switch to dash
             switchTab(lastTab);      // restore the tab user was on before refresh
+            refreshProfileTopbar();  // ensure initial is correct after data load
         }, 200);
     }
 });
+
+/** Refresh the profile avatar initial in the topbar */
+function refreshProfileTopbar() {
+    const el = document.getElementById('profile-topbar-initial');
+    if (!el) return;
+    const name = (document.getElementById('u-name')?.value || '').trim();
+    el.textContent = name ? name[0].toUpperCase() : '?';
+}
 
 // ==================== PILLAR MODALS ====================
 const PILLAR_DATA = {
@@ -1491,18 +1503,26 @@ function updateFISlider(sipVal) {
     const fiInsight = document.getElementById('fi-insight');
 
     const rateLabel   = (engineMemory.blendedCAGR || 12).toFixed(1) + '% CAGR';
-    const stepUpLabel = stepUpPct > 0 ? ` + ${engineMemory.stepUpPercent}% annual step-up` : '';
-    const corpusLabel = corpusStart > 0 ? ` Starting corpus: <strong>${formatCurrency(corpusStart)}</strong>.` : '';
+    const stepUpLabel = stepUpPct > 0 ? ` + ${engineMemory.stepUpPercent}% step-up/yr` : '';
+    const gapAmt      = Math.max(0, fiTarget - corpusStart);
+
+    // Populate the three stat pills
+    const corpusPillEl = document.getElementById('fi-corpus-val');
+    const targetPillEl = document.getElementById('fi-target-val');
+    const gapPillEl    = document.getElementById('fi-gap-val');
+    if (corpusPillEl) corpusPillEl.textContent = corpusStart > 0 ? formatCurrency(corpusStart) : '₹0 (add portfolio)';
+    if (targetPillEl) targetPillEl.textContent = formatCurrency(fiTarget);
+    if (gapPillEl)    gapPillEl.textContent    = gapAmt > 0 ? formatCurrency(gapAmt) : '✅ Already there!';
 
     if (months >= 1199) {
         if (fiDateEl) { fiDateEl.textContent = 'Needs higher SIP'; fiDateEl.style.color = '#ef4444'; }
-        if (fiInsight) fiInsight.innerHTML = `At <strong>${rateLabel}${stepUpLabel}</strong>, your SIP may not outpace expenses in time. Try increasing your monthly investment.`;
+        if (fiInsight) fiInsight.innerHTML = `At <strong>${rateLabel}${stepUpLabel}</strong>, this SIP won't reach the FI target in time. Try increasing your monthly investment.`;
     } else {
         if (fiDateEl) { fiDateEl.textContent = fiYear + ' (Age ' + fiAge + ')'; fiDateEl.style.color = '#34d399'; }
         if (fiInsight) fiInsight.innerHTML =
-            `Investing <strong>${formatCurrency(sipVal)}/month</strong>${stepUpLabel} at <strong>${rateLabel}</strong> ` +
-            `for <strong>${(months / 12).toFixed(1)} years</strong> builds <strong>${formatCurrency(fiTarget)}</strong> ` +
-            `(25× annual expenses).${corpusLabel}`;
+            `<strong>${formatCurrency(sipVal)}/mo</strong>${stepUpLabel} at <strong>${rateLabel}</strong> ` +
+            `for <strong>${(months / 12).toFixed(1)} yrs</strong> — starting from your current corpus of <strong>${formatCurrency(corpusStart)}</strong>, ` +
+            `you reach <strong>${formatCurrency(fiTarget)}</strong> (25× expenses).`;
     }
     } catch(e) { console.warn('updateFISlider error:', e); }
 }
@@ -1568,6 +1588,7 @@ function switchTab(t) {
         'simulator': 'pg-sim',
         'lib': 'pg-lib',
         'ai': 'pg-ai',
+        'child': 'pg-child',
         'profile': 'pg-profile'
     };
 
@@ -1599,6 +1620,7 @@ function switchTab(t) {
     // Auto-calculating strategy when user manually navigates to Blueprint tab
     // silentMode=true so it doesn't re-trigger another switchTab('dash') recursively
     if (t === 'dash') calculateStrategy(true);
+    if (t === 'simulator') setTimeout(j2Setup, 60);
     
     setTimeout(() => lucide.createIcons(), 50);
 }
@@ -1958,9 +1980,14 @@ function calculateStrategy(silentMode = false) {
 
     // Cashflow
     const income       = numVal('u-income');
-    const sip          = numVal('u-sip');
     const stepUpPercent= numVal('u-stepup');
     const totalExp     = numVal('u-rent') + numVal('u-groceries') + numVal('u-cc') + numVal('u-life');
+    // Auto-derive investable surplus: income minus expenses (floored at 0)
+    const autoSurplus  = Math.max(0, income - totalExp);
+    // Keep hidden u-sip in sync so downstream reads stay consistent
+    const sipEl = document.getElementById('u-sip');
+    if (sipEl) sipEl.value = autoSurplus;
+    const sip = autoSurplus;
 
     // Insurance flags affect emergency fund requirement
     const hasMedIns  = strVal('u-med')  === 'yes';
@@ -3437,3 +3464,1622 @@ async function handleSendTab() {
     await handleSend(text);
     window.chatHistory = originalHistory;
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CHILD PLANNING ENGINE
+// City-tier adjusted costs, SSY / PPF / ELSS / Index SIP recommendations
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Education cost tables (today's cost in ₹)
+const CHILD_EDU_COSTS = {
+    tier1: { eng: 2500000, med: 8000000, general: 800000, mba: 2500000 },
+    tier2: { eng: 1200000, med: 5000000, general: 400000, mba: 800000 },
+    tier3: { eng: 600000,  med: 3000000, general: 200000, mba: 400000 }
+};
+
+const CHILD_MARRIAGE_COSTS = { tier1: 2500000, tier2: 1500000, tier3: 800000 };
+
+// Scheme constants
+const SSY_RATE      = 8.2  / 100;  // SSY p.a. (EEE, girl ≤10, deposit for 15 yrs, matures at 21)
+const PPF_RATE      = 7.1  / 100;  // PPF p.a. (EEE, lock-in 15 yrs)
+const ELSS_RATE     = 12.0 / 100;  // ELSS equity CAGR (80C + 3 yr lock)
+const INDEX_RATE    = 12.0 / 100;  // Index fund CAGR
+const DEBT_FD_RATE  = 6.5  / 100;  // FD / Liquid fund (short-term)
+const EDU_INFLATION = 8.0  / 100;  // Education inflation p.a.
+const MAX_SSY_MONTH = 12500;       // ₹1.5L/year = ₹12,500/month
+const MAX_PPF_MONTH = 12500;       // ₹1.5L/year = ₹12,500/month
+
+/** Future value of a lump-sum */
+function fvLump(pv, rate, years) {
+    return pv * Math.pow(1 + rate, years);
+}
+
+/** Future value of monthly SIP — proper monthly compounding */
+function fvMonthlySIP(monthlyAmt, annualRate, months) {
+    if (months <= 0 || monthlyAmt <= 0) return 0;
+    const r = annualRate / 12;
+    if (r === 0) return monthlyAmt * months;
+    return monthlyAmt * ((Math.pow(1 + r, months) - 1) / r) * (1 + r);
+}
+
+/** Required monthly SIP to reach a future corpus (monthly compounding) */
+function reqMonthlySIP(target, annualRate, months) {
+    if (months <= 0 || target <= 0) return 0;
+    const r = annualRate / 12;
+    if (r === 0) return target / months;
+    return target / (((Math.pow(1 + r, months) - 1) / r) * (1 + r));
+}
+
+/** Future value of an annual SIP (end-of-year) — kept for legacy */
+function fvAnnualSIP(annualAmt, rate, years) {
+    if (rate === 0) return annualAmt * years;
+    return annualAmt * ((Math.pow(1 + rate, years) - 1) / rate) * (1 + rate);
+}
+
+/**
+ * Horizon-based allocation: returns fraction of budget for each bucket.
+ * Short horizon → more debt/liquid; long horizon → more equity.
+ */
+function getHorizonAllocation(years) {
+    if (years < 3)  return { equity: 0.00, ppf: 0.00, debt: 1.00 };
+    if (years < 5)  return { equity: 0.20, ppf: 0.45, debt: 0.35 };
+    if (years < 8)  return { equity: 0.40, ppf: 0.45, debt: 0.15 };
+    if (years < 12) return { equity: 0.55, ppf: 0.40, debt: 0.05 };
+    return             { equity: 0.65, ppf: 0.35, debt: 0.00 };
+}
+
+/** Fmt a monthly amount cleanly */
+function fmtM(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
+
+/** Add a child row dynamically */
+function addChildRow() {
+    const c = document.getElementById('child-container');
+    if (!c) return;
+    const id = 'child_' + Date.now();
+    const div = document.createElement('div');
+    div.className = 'dy-row dy-child';
+    div.id = id;
+    div.innerHTML = `
+        <div class="dy-row-fields" style="flex-wrap:wrap; gap:10px;">
+            <div class="form-group" style="flex:1; min-width:130px;">
+                <label>Child's Name</label>
+                <input type="text" class="child-name" placeholder="e.g. Aarav" value="">
+            </div>
+            <div class="form-group" style="flex:1; min-width:110px;">
+                <label>Gender</label>
+                <select class="child-gender">
+                    <option value="boy">👦 Boy</option>
+                    <option value="girl">👧 Girl</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex:1; min-width:100px;">
+                <label>Current Age</label>
+                <input type="number" class="child-age" placeholder="e.g. 3" value="3" min="0" max="17">
+            </div>
+            <div class="form-group" style="flex:1; min-width:150px;">
+                <label>Education Goal</label>
+                <select class="child-edu">
+                    <option value="eng">🛠️ Engineering (UG)</option>
+                    <option value="med">🩺 Medicine (MBBS)</option>
+                    <option value="general">📚 General Graduate</option>
+                    <option value="mba">💼 MBA / Management</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex:1; min-width:150px; display:flex; flex-direction:column; justify-content:flex-end;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; padding: 10px 0 6px;">
+                    <input type="checkbox" class="child-marriage" checked style="width:16px;height:16px;accent-color:#a855f7;">
+                    Include Marriage Planning
+                </label>
+            </div>
+            <div style="display:flex; align-items:flex-end; padding-bottom:2px;">
+                <button class="del-row-btn" onclick="document.getElementById('${id}').remove()" title="Remove this child">
+                    <i data-lucide="trash-2"></i>
+                </button>
+            </div>
+        </div>`;
+    c.appendChild(div);
+    lucide.createIcons();
+}
+
+/** Main child planning computation — improved with monthly compounding + horizon allocation */
+function computeChildPlan() {
+    const tier    = (document.getElementById('child-city-tier')?.value) || 'tier2';
+    const budget  = parseFloat(document.getElementById('child-budget')?.value) || 10000;
+    const rows    = document.querySelectorAll('.dy-child');
+    const results = document.getElementById('child-results');
+
+    if (!results) return;
+
+    if (rows.length === 0) {
+        results.style.display = 'block';
+        results.innerHTML = `<div class="app-card" style="text-align:center; padding:24px; color:rgba(255,255,255,0.5);">
+            👶 Please add at least one child above, then tap <strong>Plan My Child's Future</strong>.
+        </div>`;
+        return;
+    }
+
+    const eduCosts     = CHILD_EDU_COSTS[tier];
+    const marriageCost = CHILD_MARRIAGE_COSTS[tier];
+
+    let cardsHTML = '';
+    let grandTotalRequired = 0, grandTotalBudget = budget * rows.length;
+
+    rows.forEach(row => {
+        const name        = row.querySelector('.child-name')?.value?.trim() || 'Your Child';
+        const gender      = row.querySelector('.child-gender')?.value || 'boy';
+        const ageNow      = parseFloat(row.querySelector('.child-age')?.value) || 0;
+        const eduType     = row.querySelector('.child-edu')?.value || 'eng';
+        const inclMarr    = row.querySelector('.child-marriage')?.checked ?? true;
+        const isGirl      = gender === 'girl';
+        const genderEmoji = isGirl ? '👧' : '👦';
+
+        // ── Timelines ──
+        const eduStartAge  = eduType === 'mba' ? 22 : 18;
+        const yearsToEdu   = Math.max(1, eduStartAge - ageNow);
+        const monthsToEdu  = yearsToEdu * 12;
+        const marriageAge  = isGirl ? 28 : 30;
+        const yearsToMarr  = Math.max(1, marriageAge - ageNow);
+        const monthsToMarr = yearsToMarr * 12;
+
+        // ── Inflated target costs ──
+        const todayCost   = eduCosts[eduType];
+        const inflatedEdu = fvLump(todayCost, EDU_INFLATION, yearsToEdu);
+        const inflatedMarr = inclMarr ? fvLump(marriageCost, EDU_INFLATION, yearsToMarr) : 0;
+        const totalTarget  = inflatedEdu + inflatedMarr;
+
+        // ── SSY eligibility ──
+        // Girl ≤ 10 yrs: deposit allowed for 15 years, account matures at 21
+        const ssyEligible   = isGirl && ageNow <= 10;
+        const ssyDepositMon = ssyEligible ? Math.min(15 * 12, (21 - ageNow) * 12) : 0;
+        const ssyGrowthMon  = ssyEligible ? Math.max(0, (21 - ageNow) * 12 - ssyDepositMon) : 0;
+
+        // ── Scheme allocation ──
+        // Budget split: 70% for education, 30% for marriage (if included)
+        const eduBudget  = inclMarr ? budget * 0.70 : budget;
+        const marrBudget = inclMarr ? budget * 0.30 : 0;
+
+        const alloc = getHorizonAllocation(yearsToEdu);
+        let schemes = [];
+        let ssyMonthly = 0, ppfMonthly = 0, elssMonthly = 0, debtMonthly = 0, marrElssMonthly = 0;
+        let ssyCorpus = 0, ppfCorpus = 0, elssCorpus = 0, debtCorpus = 0, marrElssCorpus = 0;
+
+        let eduLeft = eduBudget;
+
+        // 1️⃣ SSY — priority for eligible girls (best EEE rate, fully guaranteed)
+        if (ssyEligible && eduLeft > 0) {
+            ssyMonthly = Math.min(MAX_SSY_MONTH, eduLeft);
+            // FV of monthly deposits for deposit period
+            const depositCorpus = fvMonthlySIP(ssyMonthly, SSY_RATE, ssyDepositMon);
+            // Then grows without new deposits until maturity (compounded annually simplified)
+            ssyCorpus = ssyGrowthMon > 0
+                ? depositCorpus * Math.pow(1 + SSY_RATE, ssyGrowthMon / 12)
+                : depositCorpus;
+            eduLeft -= ssyMonthly;
+            schemes.push({
+                name: 'Sukanya Samriddhi Yojana (SSY)', rate: '8.2%', tax: 'EEE — Zero Tax',
+                monthly: ssyMonthly, corpus: ssyCorpus, color: '#ec4899', icon: '🌸',
+                tag: '🏅 Best for girl child',
+                note: `Deposit ${fmtM(ssyMonthly)}/mo for ${Math.round(ssyDepositMon/12)} yrs · Matures at age 21 · Backed by Govt of India`
+            });
+        }
+
+        // 2️⃣ PPF — stable EEE, good for medium-long horizon
+        if (eduLeft > 0 && alloc.ppf > 0) {
+            ppfMonthly = Math.min(MAX_PPF_MONTH, Math.round(eduBudget * alloc.ppf));
+            ppfMonthly = Math.min(ppfMonthly, eduLeft);
+            ppfCorpus  = fvMonthlySIP(ppfMonthly, PPF_RATE, monthsToEdu);
+            eduLeft   -= ppfMonthly;
+            schemes.push({
+                name: 'PPF (Public Provident Fund)', rate: '7.1%', tax: 'EEE — Zero Tax',
+                monthly: ppfMonthly, corpus: ppfCorpus, color: '#3b82f6', icon: '🏛️',
+                tag: '✅ Tax-free safe returns',
+                note: `${fmtM(ppfMonthly)}/mo · 80C benefit up to ₹1.5L/yr · Can extend in 5-yr blocks after 15 yrs`
+            });
+        }
+
+        // 3️⃣ ELSS / Index — equity growth for education (if horizon > 5 yrs)
+        if (eduLeft > 0 && alloc.equity > 0 && yearsToEdu >= 5) {
+            elssMonthly = Math.round(eduLeft * (alloc.equity / (alloc.equity + alloc.debt + 0.001)));
+            elssMonthly = Math.min(elssMonthly, eduLeft);
+            elssCorpus  = fvMonthlySIP(elssMonthly, ELSS_RATE, monthsToEdu);
+            eduLeft    -= elssMonthly;
+            schemes.push({
+                name: 'ELSS / Index Fund SIP', rate: '12% (est.)', tax: '10% LTCG on gains > ₹1L',
+                monthly: elssMonthly, corpus: elssCorpus, color: '#10b981', icon: '📈',
+                tag: '🚀 High growth engine',
+                note: `${fmtM(elssMonthly)}/mo · ELSS = 80C + equity upside · 3-yr lock-in only`
+            });
+        }
+
+        // 4️⃣ Debt / Liquid FD — remaining or short-horizon bucket
+        if (eduLeft > 0) {
+            debtMonthly = eduLeft;
+            debtCorpus  = fvMonthlySIP(debtMonthly, DEBT_FD_RATE, monthsToEdu);
+            eduLeft      = 0;
+            if (yearsToEdu < 5) {
+                schemes.push({
+                    name: 'Fixed Deposit / Liquid Fund', rate: '6.5%', tax: 'Taxable at slab',
+                    monthly: debtMonthly, corpus: debtCorpus, color: '#f59e0b', icon: '💰',
+                    tag: '🛡️ Capital safety',
+                    note: `${fmtM(debtMonthly)}/mo · Short horizon → capital protection matters more than growth`
+                });
+            } else {
+                schemes.push({
+                    name: 'Fixed Deposit (Residual)', rate: '6.5%', tax: 'Taxable at slab',
+                    monthly: debtMonthly, corpus: debtCorpus, color: '#f59e0b', icon: '💰',
+                    tag: '🛡️ Residual safety buffer',
+                    note: `${fmtM(debtMonthly)}/mo · Remaining funds in stable FD as safety margin`
+                });
+            }
+        }
+
+        // 5️⃣ Marriage fund — separate equity SIP (longer horizon, all equity)
+        if (inclMarr && marrBudget > 0) {
+            marrElssMonthly = marrBudget;
+            marrElssCorpus  = fvMonthlySIP(marrElssMonthly, INDEX_RATE, monthsToMarr);
+            schemes.push({
+                name: 'Marriage Fund — Index SIP', rate: '12% (est.)', tax: '10% LTCG on gains > ₹1L',
+                monthly: marrElssMonthly, corpus: marrElssCorpus, color: '#a855f7', icon: '💍',
+                tag: '💜 Marriage corpus',
+                note: `${fmtM(marrElssMonthly)}/mo · ${yearsToMarr} yr horizon · Inflation-adjusted target: ${formatCurrency(inflatedMarr)}`
+            });
+        }
+
+        // ── Totals ──
+        const eduProjected  = ssyCorpus + ppfCorpus + elssCorpus + debtCorpus;
+        const marrProjected = marrElssCorpus;
+        const totalProjected = eduProjected + marrProjected;
+        const isEduOnTrack   = eduProjected  >= inflatedEdu;
+        const isMarrOnTrack  = !inclMarr || marrProjected >= inflatedMarr;
+        const isOnTrack      = isEduOnTrack && isMarrOnTrack;
+
+        // Required min monthly SIP for education (blended rate based on horizon)
+        const blendedRate  = alloc.equity * ELSS_RATE + alloc.ppf * PPF_RATE + alloc.debt * DEBT_FD_RATE;
+        const reqEduMonSIP = reqMonthlySIP(inflatedEdu, blendedRate, monthsToEdu);
+        const reqMarrMonSIP = inclMarr ? reqMonthlySIP(inflatedMarr, INDEX_RATE, monthsToMarr) : 0;
+        const reqTotalSIP  = reqEduMonSIP + reqMarrMonSIP;
+        grandTotalRequired += reqTotalSIP;
+
+        // Coverage pct
+        const eduPct  = Math.min(100, Math.round((eduProjected / inflatedEdu) * 100));
+        const marrPct = inclMarr && inflatedMarr > 0 ? Math.min(100, Math.round((marrProjected / inflatedMarr) * 100)) : 100;
+
+        // Tax saving from 80C instruments
+        const tax80C = Math.min(150000, (ssyMonthly + ppfMonthly + elssMonthly) * 12);
+        const taxSaved = Math.round(tax80C * 0.30); // assume 30% slab
+
+        // Scheme card HTML
+        const schemeCards = schemes.map(s => `
+            <div class="child-scheme-card" style="border-left:3px solid ${s.color};">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
+                    <span style="font-size:18px;">${s.icon}</span>
+                    <div style="flex:1;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <span style="font-weight:600; font-size:13px; color:#fff;">${s.name}</span>
+                            <span style="font-size:10px; color:${s.color}; background:${s.color}18; padding:2px 8px; border-radius:10px;">${s.tag}</span>
+                        </div>
+                        <div style="font-size:11px; color:rgba(255,255,255,0.4); margin-top:2px;">${s.rate} · ${s.tax}</div>
+                    </div>
+                </div>
+                <div style="font-size:12px; color:rgba(255,255,255,0.65); margin-bottom:8px; line-height:1.5;">${s.note}</div>
+                <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                    <div><div style="font-size:10px; color:rgba(255,255,255,0.4);">Monthly SIP</div><div style="color:${s.color}; font-weight:800; font-size:16px;">${fmtM(s.monthly)}</div></div>
+                    <div><div style="font-size:10px; color:rgba(255,255,255,0.4);">Projected Corpus</div><div style="color:#fff; font-weight:700; font-size:14px;">${formatCurrency(s.corpus)}</div></div>
+                </div>
+            </div>`).join('');
+
+        // Gap callouts
+        const eduGapAmt  = Math.max(0, inflatedEdu - eduProjected);
+        const marrGapAmt = inclMarr ? Math.max(0, inflatedMarr - marrProjected) : 0;
+        const gapHtml = (!isEduOnTrack || !isMarrOnTrack) ? `
+            <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+                ${!isEduOnTrack ? `<div style="padding:8px 12px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:8px; font-size:12px; color:#ef4444;">
+                    📚 Education gap: <strong>${formatCurrency(eduGapAmt)}</strong> — increase education SIP by <strong>${fmtM(reqEduMonSIP - eduBudget)}/mo</strong> to fully cover it.
+                </div>` : ''}
+                ${inclMarr && !isMarrOnTrack ? `<div style="padding:8px 12px; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.2); border-radius:8px; font-size:12px; color:#a855f7;">
+                    💍 Marriage gap: <strong>${formatCurrency(marrGapAmt)}</strong> — increase marriage SIP by <strong>${fmtM(reqMarrMonSIP - marrBudget)}/mo</strong>.
+                </div>` : ''}
+            </div>` : `<div style="margin-top:8px; padding:8px 12px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:8px; font-size:12px; color:#10b981;">
+                ✅ Your current budget fully covers ${name}'s ${inclMarr ? 'education + marriage' : 'education'} — you're on track!
+            </div>`;
+
+        cardsHTML += `
+        <div class="child-result-card">
+
+            <!-- Header -->
+            <div class="child-result-header">
+                <div style="font-size:36px; line-height:1;">${genderEmoji}</div>
+                <div style="flex:1;">
+                    <div style="font-size:19px; font-weight:800; color:#fff;">${name}</div>
+                    <div style="font-size:12px; color:rgba(255,255,255,0.45); margin-top:2px;">
+                        ${isGirl ? 'Girl' : 'Boy'} · Age ${ageNow} · ${eduType === 'eng' ? 'Engineering (UG)' : eduType === 'med' ? 'Medicine (MBBS)' : eduType === 'mba' ? 'MBA' : 'General Graduate'} · Education in <strong style="color:#fff;">${yearsToEdu} yrs</strong>
+                    </div>
+                </div>
+                <div class="child-track-badge" style="background:${isOnTrack ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'}; color:${isOnTrack ? '#10b981' : '#ef4444'}; border:1px solid ${isOnTrack ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'};">
+                    ${isOnTrack ? '✅ On Track' : '⚠️ Gap Exists'}
+                </div>
+            </div>
+
+            <!-- Targets vs Projected -->
+            <div class="child-cost-row">
+                <div class="child-cost-item">
+                    <div class="child-cost-label">Education Cost (Today)</div>
+                    <div class="child-cost-val">${formatCurrency(todayCost)}</div>
+                </div>
+                <div class="child-cost-item">
+                    <div class="child-cost-label">Target with 8% Inflation</div>
+                    <div class="child-cost-val" style="color:#f59e0b;">${formatCurrency(inflatedEdu)}</div>
+                </div>
+                <div class="child-cost-item">
+                    <div class="child-cost-label">Education Corpus Built</div>
+                    <div class="child-cost-val" style="color:${isEduOnTrack ? '#10b981' : '#ef4444'};">${formatCurrency(eduProjected)}</div>
+                </div>
+                ${inclMarr ? `
+                <div class="child-cost-item">
+                    <div class="child-cost-label">Marriage Corpus Built</div>
+                    <div class="child-cost-val" style="color:${isMarrOnTrack ? '#10b981' : '#a855f7'};">${formatCurrency(marrProjected)}</div>
+                </div>
+                <div class="child-cost-item">
+                    <div class="child-cost-label">Marriage Target</div>
+                    <div class="child-cost-val" style="color:#a855f7;">${formatCurrency(inflatedMarr)}</div>
+                </div>` : ''}
+            </div>
+
+            <!-- Progress Bars -->
+            <div style="margin:12px 0; display:flex; flex-direction:column; gap:8px;">
+                <div>
+                    <div style="display:flex; justify-content:space-between; font-size:11px; color:rgba(255,255,255,0.45); margin-bottom:4px;">
+                        <span>📚 Education Coverage</span><span style="color:${isEduOnTrack ? '#10b981' : '#f59e0b'};">${eduPct}%</span>
+                    </div>
+                    <div style="height:7px; background:rgba(255,255,255,0.07); border-radius:4px; overflow:hidden;">
+                        <div style="height:100%; width:${eduPct}%; background:${eduPct >= 100 ? '#10b981' : eduPct >= 70 ? '#f59e0b' : '#ef4444'}; border-radius:4px;"></div>
+                    </div>
+                </div>
+                ${inclMarr ? `<div>
+                    <div style="display:flex; justify-content:space-between; font-size:11px; color:rgba(255,255,255,0.45); margin-bottom:4px;">
+                        <span>💍 Marriage Coverage</span><span style="color:${isMarrOnTrack ? '#10b981' : '#a855f7'};">${marrPct}%</span>
+                    </div>
+                    <div style="height:7px; background:rgba(255,255,255,0.07); border-radius:4px; overflow:hidden;">
+                        <div style="height:100%; width:${marrPct}%; background:${marrPct >= 100 ? '#10b981' : '#a855f7'}; border-radius:4px;"></div>
+                    </div>
+                </div>` : ''}
+            </div>
+
+            ${ssyEligible ? `<div class="child-ssy-badge">🌸 <strong>SSY Eligible!</strong> ${name} qualifies for Sukanya Samriddhi Yojana — the highest government-guaranteed rate at 8.2% p.a., fully tax-free (EEE). Open at any Post Office or SBI branch with ${name}'s birth certificate.</div>` : ''}
+
+            <!-- Scheme Recommendations -->
+            <div style="font-size:11px; font-weight:700; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:0.6px; margin:14px 0 8px;">📊 Your Recommended Monthly Plan</div>
+            <div class="child-schemes-grid">${schemeCards}</div>
+
+            <!-- SIP Summary + Gap -->
+            <div class="child-sip-callout">
+                <div style="display:flex; flex-wrap:wrap; gap:20px; justify-content:center; margin-bottom:12px;">
+                    <div>
+                        <div style="font-size:11px; color:rgba(255,255,255,0.4);">Min. Monthly for Education</div>
+                        <div style="font-size:20px; font-weight:800; color:#a855f7;">${fmtM(reqEduMonSIP)}</div>
+                    </div>
+                    ${inclMarr ? `<div>
+                        <div style="font-size:11px; color:rgba(255,255,255,0.4);">Min. Monthly for Marriage</div>
+                        <div style="font-size:20px; font-weight:800; color:#7c3aed;">${fmtM(reqMarrMonSIP)}</div>
+                    </div>` : ''}
+                    <div>
+                        <div style="font-size:11px; color:rgba(255,255,255,0.4);">Total Min. Monthly Needed</div>
+                        <div style="font-size:20px; font-weight:800; color:#fff;">${fmtM(reqTotalSIP)}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px; color:rgba(255,255,255,0.4);">Your Budget</div>
+                        <div style="font-size:20px; font-weight:800; color:${budget >= reqTotalSIP ? '#10b981' : '#ef4444'};">${fmtM(budget)}</div>
+                    </div>
+                </div>
+                <div style="font-size:11px; color:rgba(255,255,255,0.35); margin-bottom:10px;">Blended return: ~${(blendedRate*100).toFixed(1)}% · ${yearsToEdu} yr horizon · 8% edu inflation</div>
+                ${gapHtml}
+            </div>
+
+            <!-- Tax Saving Bonus -->
+            ${tax80C > 0 ? `<div style="margin-top:10px; padding:10px 14px; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.2); border-radius:10px; font-size:12px; color:rgba(255,255,255,0.6); display:flex; gap:10px; align-items:center;">
+                <span style="font-size:20px;">💡</span>
+                <span>Annual <strong style="color:#10b981;">80C deduction: ${formatCurrency(tax80C)}</strong> from SSY + PPF + ELSS — saves you up to <strong style="color:#10b981;">₹${taxSaved.toLocaleString('en-IN')}/yr</strong> in tax (at 30% slab).</span>
+            </div>` : ''}
+
+        </div>`;
+    });
+
+    results.style.display = 'block';
+    results.innerHTML = `
+        <div style="font-size:13px; font-weight:700; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">📊 Child Planning Results</div>
+        ${cardsHTML}
+        <div style="margin-top:16px; padding:14px 16px; background:rgba(168,85,247,0.07); border:1px solid rgba(168,85,247,0.2); border-radius:10px; font-size:12px; color:rgba(255,255,255,0.45); line-height:1.7;">
+            💡 <strong>Assumptions:</strong> Returns are estimates — ELSS/Index at 12% CAGR, PPF at 7.1%, SSY at 8.2%, FD at 6.5%. Education inflation at 8% p.a. Marriage cost inflation at 8% p.a. SSY and PPF rates are revised quarterly by the government. Review your plan every 2 years. LTCG tax of 10% applies on equity gains above ₹1L per year.
+        </div>`;
+
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Auto-add one child row if container is empty when tab opens ──
+document.addEventListener('DOMContentLoaded', () => {
+    const childNav = document.getElementById('nav-child');
+    if (childNav) {
+        childNav.addEventListener('click', () => {
+            const c = document.getElementById('child-container');
+            if (c && c.children.length === 0) addChildRow();
+        });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LIFE JOURNEY SIMULATOR  —  Canvas-based, 60fps, parallax world
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Scene palettes ────────────────────────────────────────────
+const J2_SCENES = {
+  'city-night':    { skyT:'#020617', skyB:'#1a1035', gndT:'#1f2937', gndB:'#0f172a', fogColor:'rgba(99,102,241,0.08)' },
+  'city-dawn':     { skyT:'#1e1b4b', skyB:'#4338ca', gndT:'#374151', gndB:'#1f2937', fogColor:'rgba(99,102,241,0.06)' },
+  'suburb-morning':{ skyT:'#0c4a6e', skyB:'#0284c7', gndT:'#166534', gndB:'#14532d', fogColor:'rgba(16,185,129,0.05)' },
+  'suburb-day':    { skyT:'#1d4ed8', skyB:'#60a5fa', gndT:'#16a34a', gndB:'#15803d', fogColor:'rgba(59,130,246,0.05)' },
+  'park':          { skyT:'#0369a1', skyB:'#38bdf8', gndT:'#15803d', gndB:'#166534', fogColor:'rgba(56,189,248,0.05)' },
+  'park-golden':   { skyT:'#78350f', skyB:'#f59e0b', gndT:'#15803d', gndB:'#166534', fogColor:'rgba(245,158,11,0.10)' },
+  'nature':        { skyT:'#1e3a8a', skyB:'#3b82f6', gndT:'#16a34a', gndB:'#15803d', fogColor:'rgba(96,165,250,0.04)' },
+  'nature-golden': { skyT:'#9a3412', skyB:'#f97316', gndT:'#15803d', gndB:'#14532d', fogColor:'rgba(251,146,60,0.08)' },
+  'beach':         { skyT:'#0369a1', skyB:'#7dd3fc', gndT:'#fef08a', gndB:'#ca8a04', fogColor:'rgba(125,211,252,0.08)' }
+};
+
+// ── Dynamic stage builder — reads real engineMemory ───────────
+function buildJ2Stages() {
+    const m   = (typeof engineMemory !== 'undefined' && engineMemory.totalAssets !== undefined) ? engineMemory : null;
+    const age0   = parseInt(document.getElementById('u-age')?.value) || 28;
+    const year0  = new Date().getFullYear();
+    const corpus0 = m ? (m.fiCorpusBase || m.totalAssets || 0) : 0;
+    const sip0    = m ? Math.max(0, m.sip || m.sumSurplus || 0) : 5000;
+    const cagr    = ((m?.blendedCAGR) || 12) / 100;
+    const stepUp  = ((m?.stepUpPercent) || 0) / 100;
+    const mr      = cagr / 12;
+    const exp     = (m?.totalExp)  || 50000;
+    const income  = (m?.income)    || 100000;
+    const fireTarget = exp * 12 * 25;
+
+    function wealthAt(n) {
+        if (n === 0) return corpus0;
+        let c = corpus0, s = sip0;
+        for (let i = 1; i <= n; i++) {
+            if (i > 1 && (i - 1) % 12 === 0 && stepUp > 0) s *= (1 + stepUp);
+            c = c * (1 + mr) + s;
+        }
+        return Math.max(0, c);
+    }
+    function sipAt(n) {
+        let s = sip0;
+        const years = Math.floor(n / 12);
+        for (let i = 0; i < years; i++) s *= (1 + stepUp);
+        return s;
+    }
+    function monthTo(target) {
+        if (corpus0 >= target) return 0;
+        if (sip0 <= 0 && mr <= 0) return 720;
+        let c = corpus0, s = sip0;
+        for (let i = 1; i <= 720; i++) {
+            if (i > 1 && (i - 1) % 12 === 0 && stepUp > 0) s *= (1 + stepUp);
+            c = c * (1 + mr) + s;
+            if (c >= target) return i;
+        }
+        return 720;
+    }
+    function fiPct(w) { return fireTarget > 0 ? Math.min(100, Math.round(w / fireTarget * 100)) : 0; }
+
+    // Key milestone months
+    const M0 = 0;
+    const M1 = monthTo(Math.max(exp * 6, corpus0 + 50000));
+    const M2 = monthTo(Math.max(corpus0 * 3, 1000000));
+    const M3 = monthTo(Math.max(corpus0 * 6, 5000000));
+    const M4 = monthTo(Math.max(corpus0 * 12, 10000000));
+    const M5 = monthTo(fireTarget * 0.25);
+    const M6 = monthTo(fireTarget * 0.50);
+    const M7 = monthTo(fireTarget * 0.75);
+    const M8 = monthTo(fireTarget);
+
+    function mk(months, extra) {
+        const w = wealthAt(months);
+        const s = months === 0 ? sip0 : sipAt(months);
+        return { ...extra, wealth: Math.round(w), invest: Math.round(s), fiPct: fiPct(w),
+                 age: age0 + Math.floor(months / 12), year: year0 + Math.floor(months / 12), months };
+    }
+
+    return [
+      mk(M0, {
+        id:0, emoji: corpus0 < 50000 ? '😤' : '🌱',
+        title: corpus0 < 50000 ? 'The Rat Race' : 'Journey Begins',
+        desc:  corpus0 < 50000 ? 'Salary gone by the 10th. Every month feels the same.'
+                               : `You already have ${j2Fmt(corpus0)} working for you.`,
+        tag: corpus0 < 50000 ? 'Rat Race' : 'Building',
+        color:'#ef4444', scene:'city-night', mood: corpus0 < 50000 ? 'stressed' : 'neutral',
+        shirt:'#374151', phoneColor:'#ef4444',
+        events:[`💰 Net worth: ${j2Fmt(corpus0)}`, `📈 SIP: ${j2Fmt(sip0)}/mo`,
+                `🎯 FI target: ${j2Fmt(fireTarget)}`, `🏦 Income: ${j2Fmt(income)}/mo`]
+      }),
+      mk(M1, {
+        id:1, emoji:'🛡️', title:'Foundation Secured',
+        desc:'6-month emergency fund done. Term insurance active. Real start.',
+        tag:'Foundation', color:'#10b981', scene:'city-dawn', mood:'confident',
+        shirt:'#065f46', phoneColor:'#34d399',
+        events:[`🛡️ Emergency fund: ${j2Fmt(exp*6)}`, `📈 SIP: ${j2Fmt(sipAt(M1))}/mo`,
+                `💰 Portfolio: ${j2Fmt(wealthAt(M1))}`, `🎯 FI: ${fiPct(wealthAt(M1))}% done`]
+      }),
+      mk(M2, {
+        id:2, emoji:'📈', title:`${j2Fmt(wealthAt(M2))} Saved!`,
+        desc:'Double digits. Compounding starting to feel very real.',
+        tag:'Momentum', color:'#06b6d4', scene:'suburb-morning', mood:'confident',
+        shirt:'#1d4ed8', phoneColor:'#38bdf8',
+        events:[`💰 Portfolio: ${j2Fmt(wealthAt(M2))}`, `📈 SIP: ${j2Fmt(sipAt(M2))}/mo`,
+                `🎯 FI: ${fiPct(wealthAt(M2))}% done`, `⏰ ${Math.floor(M2/12)} yrs of investing`]
+      }),
+      mk(M3, {
+        id:3, emoji:'💍', title:'Life & Wealth Both Growing',
+        desc:'Big milestones. Compound snowball is really rolling now.',
+        tag:'New Chapter', color:'#a855f7', scene:'suburb-day', mood:'happy',
+        shirt:'#6d28d9', phoneColor:'#a855f7', hasPartner:true,
+        events:[`💰 Portfolio: ${j2Fmt(wealthAt(M3))}`, `📈 SIP: ${j2Fmt(sipAt(M3))}/mo`,
+                `🎯 FI: ${fiPct(wealthAt(M3))}% done`, `😄 Life is genuinely good`]
+      }),
+      mk(M4, {
+        id:4, emoji:'🎉', title: wealthAt(M4) >= 10000000 ? 'First ₹1 CRORE!' : `${j2Fmt(wealthAt(M4))} Milestone!`,
+        desc:'8 digits. Compounding took over. You did this.',
+        tag:'Milestone!', color:'#f59e0b', scene:'park-golden', mood:'ecstatic',
+        shirt:'#92400e', phoneColor:'#fde68a', hasPartner:true, celebrate:true,
+        hasBaby: M4 > 48,
+        events:[`🏆 NET WORTH: ${j2Fmt(wealthAt(M4))}`, `🚀 SIP: ${j2Fmt(sipAt(M4))}/mo`,
+                `🎯 FI: ${fiPct(wealthAt(M4))}% complete`, `📱 Portfolio check = pure joy`]
+      }),
+      mk(M5, {
+        id:5, emoji:'🚀', title:'25% Financially Free',
+        desc:'One quarter of your freedom fund locked in. Momentum is everything.',
+        tag:'25% FI', color:'#3b82f6', scene:'park', mood:'happy',
+        shirt:'#1d4ed8', phoneColor:'#93c5fd', hasPartner:true,
+        events:[`💰 Corpus: ${j2Fmt(wealthAt(M5))}`, `🎯 Target: ${j2Fmt(fireTarget)}`,
+                `📊 25% there — keep going!`, `📈 SIP: ${j2Fmt(sipAt(M5))}/mo`]
+      }),
+      mk(M6, {
+        id:6, emoji:'🏠', title:'50% Financially Free',
+        desc:'Halfway. The second half compounds faster. Feel the acceleration.',
+        tag:'50% FI', color:'#10b981', scene:'nature', mood:'happy',
+        shirt:'#064e3b', phoneColor:'#6ee7b7', hasPartner:true,
+        events:[`💰 Corpus: ${j2Fmt(wealthAt(M6))}`, `⚡ Returns ≈ your salary now`,
+                `🎯 Halfway to freedom!`, `📈 SIP: ${j2Fmt(sipAt(M6))}/mo`]
+      }),
+      mk(M7, {
+        id:7, emoji:'🎓', title:'75% Financially Free',
+        desc:'The finish line is in sight. Three-quarters done.',
+        tag:'75% FI', color:'#fb923c', scene:'nature-golden', mood:'happy',
+        shirt:'#c2410c', phoneColor:'#fed7aa', hasPartner:true,
+        events:[`💰 Corpus: ${j2Fmt(wealthAt(M7))}`, `🔥 Returns > your expenses`,
+                `🎯 Only 25% left!`, `📈 SIP: ${j2Fmt(sipAt(M7))}/mo`]
+      }),
+      mk(M8, {
+        id:8, emoji:'🌅', title:'FINANCIALLY FREE!',
+        desc:`25× expenses reached. Work is OPTIONAL. You own your time.`,
+        tag:'FREE! 🎉', color:'#06b6d4', scene:'beach', mood:'free',
+        shirt:'#0891b2', phoneColor:'#67e8f9',
+        hasPartner:true, sunglasses:true, celebrate:true,
+        events:[`☀️ CORPUS: ${j2Fmt(fireTarget)} ✅`, `😎 Work is OPTIONAL forever`,
+                `☕ No alarm clock needed`, `🌍 Age ${age0+Math.floor(M8/12)} — YOU DID IT!`]
+      }),
+    ];
+}
+
+function j2Fmt(n) {
+    if (n >= 10000000) return '₹' + (n/10000000).toFixed(1) + ' Cr';
+    if (n >= 100000)   return '₹' + (n/100000).toFixed(1) + ' L';
+    if (n >= 1000)     return '₹' + (n/1000).toFixed(0) + 'K';
+    if (n > 0)         return '₹' + Math.round(n).toLocaleString('en-IN');
+    return '₹0';
+}
+
+// ── Chapter names ──────────────────────────────────────────────
+const J2_CHAPTERS = [
+    'The Rat Race', 'The Foundation', 'The Momentum',
+    'Life Gets Bigger', 'The Milestone', 'Quarter Free',
+    'Halfway There', 'Almost Free', 'Financial Freedom'
+];
+
+// ── Personal narration builder ─────────────────────────────────
+function buildNarration(stage, m) {
+    const rawName  = (m?.name || '').trim();
+    const n        = rawName ? rawName.split(' ')[0] : 'You';
+    const yr       = stage.year, age = stage.age;
+    const corpus   = j2Fmt(stage.wealth);
+    const sip      = j2Fmt(stage.invest);
+    const exp      = m?.totalExp || 50000;
+    const expFmt   = j2Fmt(exp);
+    const income   = j2Fmt(m?.income || 0);
+    const cagr     = m?.blendedCAGR || 12;
+    const ft       = j2Fmt(exp * 12 * 25);
+    const fiPct    = stage.fiPct || 0;
+    const passive  = j2Fmt(Math.round(stage.wealth * cagr / 100 / 12));
+
+    switch (stage.id) {
+        case 0:
+            return stage.wealth < 100000
+                ? `It's ${yr}. ${n}, you're ${age} years old.\n\nEvery month plays out the same way. The salary comes in. EMIs go out. Groceries. Rent. That random expense you didn't plan for. By the 20th, you're checking your balance and hoping the number says something different.\n\nIt doesn't.\n\nBut today you do something different. You open a calculator. You type in your monthly expenses — ${expFmt}. You multiply by 300.\n\n*${ft}.*\n\nThat's your escape number. The point where your money makes more than you spend — every month, forever. You stare at it for a long time.\n\n*"Could I actually get there?"*\n\nYes. Starting right now.`
+                : `It's ${yr}. ${n}, you're ${age} years old.\n\nYou've already done something most people never do — you started. ${corpus} invested. ${sip} going in every month without fail.\n\nYour freedom number is ${ft}. That's 25 times your annual expenses — the point where work becomes optional, not mandatory.\n\nEvery rupee you invest doesn't just sit there. It earns. Then earns on those earnings. Then earns on *that*. The machine is already moving.\n\nThis is the story of how you get there.`;
+
+        case 1:
+            return `${n}. Age ${age}.\n\nThe emergency fund is done.\n\n${j2Fmt(exp * 6)} — six months of your life, pre-funded and protected. The term insurance is signed. The health cover is active.\n\nFor the first time in years, you're not one bad event away from financial disaster. No single job loss, medical bill, or broken car can destroy you.\n\nSIP: ${sip}/month. At ${cagr}% compounding, what looks modest today becomes something extraordinary over time.\n\nThe foundation is set. The real game begins here.`;
+
+        case 2:
+            return `${n}. Age ${age}.\n\n${corpus}.\n\nYou remember when that number felt impossible. When saving felt like pouring water into a bucket that always had a hole in it. Then one day, without ceremony, the portfolio crossed a number that made you stop and look twice.\n\nYour SIP has grown to ${sip}/month. The annual step-up is working quietly in the background. You barely notice the transfers going out anymore.\n\nThat's exactly the point. You've built the habit. Month after month, automatically, without decision fatigue.\n\n*That's* when you know it's real.`;
+
+        case 3:
+            return `${n}. Age ${age}.\n\nLife changed.\n\nMaybe it's a partner. Maybe it's new clarity about what you want. Either way, you're playing a bigger game now.\n\nPortfolio: ${corpus}. Monthly investment: ${sip}. The snowball is rolling.\n\nThe conversations are different now. Plans stretch further. You talk about 10-year goals the way you used to talk about weekend plans. You find yourself looking at compound interest calculators for fun.\n\nYou're ${fiPct}% of the way to financial freedom. And for the first time, that number feels reachable — not just theoretical.`;
+
+        case 4:
+            return `${n}. Age ${age}.\n\nYou remember exactly where you were when it happened.\n\nA Tuesday morning. Maybe you were still in bed. You opened the app out of habit. The number read ${corpus}. You refreshed it. Still there. You put the phone down. Picked it up. *Still there.*\n\nEight digits. Your portfolio crossed one crore.\n\nYou called someone — a parent, a friend. They said congratulations. You smiled, hung up, and sat very still for a few minutes. Just you and the number.\n\nThis is the proof. The thing you once thought was for other, luckier people. It's yours. You built this.\n\nYou're ${fiPct}% financially free. The mountain looks completely different from halfway up.`;
+
+        case 5:
+            return `${n}. Age ${age}.\n\nOne quarter of your financial freedom fund is locked in.\n\n${corpus} is working for you right now — growing while you sleep, compounding while you're stuck in traffic, multiplying while you're on that work call you didn't want to take.\n\nYour money generates roughly ${passive}/month on its own. Not enough to live on — yet. But it's the engine breathing.\n\nHere's what most people don't know: the second 25% comes faster than the first. Compounding is not linear. It accelerates. The curve is bending in your favour.\n\nKeep going.`;
+
+        case 6:
+            return `${n}. Age ${age}.\n\nHalfway.\n\n${corpus} working. Your passive income is approaching what used to feel like an aspirational salary.\n\nThere's a moment — it happens somewhere around here — when the math shifts beneath your feet. You look at your portfolio's monthly return. You look at your monthly expenses — ${expFmt}. The gap between them is narrowing fast.\n\nYou still work. But it feels different now. Less like survival. More like choice. There's a quiet confidence you carry now that's hard to explain to people who aren't on this path.\n\nThe second half goes faster. You're in it.`;
+
+        case 7:
+            return `${n}. Age ${age}.\n\nThree-quarters done.\n\n${corpus} invested and growing. Your portfolio now generates more passive income each month than your expenses — ${expFmt}. Some months, it exceeds them.\n\nThe question you used to ask yourself late at night — *"Can I actually do this? Is this really possible for someone like me?"* — that question has quietly gone silent.\n\nReplaced by something warmer. More certain. You already know the answer.\n\nBecause you're already living the proof.\n\nOne more chapter.`;
+
+        case 8:
+            return `${n}. Age ${age}.\n\nThe number reads ${corpus}.\n\nYour monthly expenses are ${expFmt}. Your portfolio, at a safe 4% withdrawal, generates more than that. Every month. For the rest of your life.\n\nYou don't need to work anymore.\n\nThis morning, the alarm didn't go off. You woke up anyway — early, clear-headed, with nowhere to be and no one to report to. You made coffee slowly. You sat by the window and watched the light change colour.\n\nFor the first time since you were a child, the entire day was yours to decide.\n\nThe rat race is over.\n\nNot because you escaped it. *Because you outgrew it.*`;
+
+        default:
+            return `${n}. Age ${age}. Net worth: ${corpus}.`;
+    }
+}
+
+// ── Runtime state ─────────────────────────────────────────────
+let J2_STAGES = [];
+let j2Stage = 0, j2Playing = false, j2Timer = null, j2RAF = null;
+let j2Frame = 0, j2Particles = [];
+let j2WealthDisp = 0, j2WealthTarget = 0; // smooth wealth counter
+let j2ChapterAlpha = 0, j2ChapterLabel = ''; // chapter title overlay
+
+// ══ SETUP ═════════════════════════════════════════════════════
+function j2Setup() {
+    J2_STAGES = buildJ2Stages();
+    const canvas = document.getElementById('j2-canvas');
+    if (!canvas) return;
+    if (j2RAF) { cancelAnimationFrame(j2RAF); j2RAF = null; }
+    const wrap = canvas.parentElement;
+    canvas.width  = wrap.clientWidth || 360;
+    canvas.height = 320;
+
+    const dotsEl = document.getElementById('j2-dots');
+    if (dotsEl) dotsEl.innerHTML = J2_STAGES.map((s,i) =>
+        `<span class="j2-dot" id="j2d-${i}" onclick="j2GoTo(${i})" title="${s.title}">${s.emoji}</span>`
+    ).join('');
+
+    j2WealthDisp = J2_STAGES[0].wealth;
+    j2GoTo(0);
+    j2RAF = requestAnimationFrame(j2Animate);
+}
+
+// ══ ANIMATION LOOP ════════════════════════════════════════════
+function j2Animate() {
+    j2Frame++;
+    const canvas = document.getElementById('j2-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const stage = J2_STAGES[j2Stage] || J2_STAGES[0];
+    const scene = J2_SCENES[stage.scene];
+
+    // ── Sky gradient ──
+    const skyG = ctx.createLinearGradient(0, 0, 0, h * 0.68);
+    skyG.addColorStop(0, scene.skyT);
+    skyG.addColorStop(1, scene.skyB);
+    ctx.fillStyle = skyG;
+    ctx.fillRect(0, 0, w, h * 0.68);
+
+    // ── Scene backgrounds ──
+    j2DrawBg(ctx, w, h, stage);
+
+    // ── Ground ──
+    const gnd = h * 0.68;
+    const gG = ctx.createLinearGradient(0, gnd, 0, h);
+    gG.addColorStop(0, scene.gndT);
+    gG.addColorStop(1, scene.gndB);
+    ctx.fillStyle = gG;
+    ctx.fillRect(0, gnd, w, h - gnd);
+
+    // Ground detail strip
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fillRect(0, gnd, w, 3);
+
+    // ── Animated path dashes ──
+    ctx.save();
+    ctx.strokeStyle = stage.scene === 'beach' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([20, 20]);
+    ctx.lineDashOffset = -(j2Frame * 1.6 % 40);
+    ctx.beginPath();
+    ctx.moveTo(0, gnd + (h - gnd) * 0.55);
+    ctx.lineTo(w, gnd + (h - gnd) * 0.55);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // ── Characters ──
+    const charX = w * 0.28;
+    const t = j2Frame * (stage.mood === 'free' ? 0.055 : stage.mood === 'ecstatic' ? 0.115 : 0.085);
+
+    if (stage.hasPartner) {
+        j2DrawPerson(ctx, charX + 62, gnd, t + Math.PI, {
+            shirtColor:'#be185d', mood:stage.mood, scale:0.87, female:true
+        });
+    }
+    j2DrawPerson(ctx, charX, gnd, t, {
+        shirtColor:stage.shirt, mood:stage.mood,
+        phoneColor:stage.phoneColor, hasBaby:stage.hasBaby,
+        sunglasses:stage.sunglasses, scale:1
+    });
+
+    // ── Name tag above character ──
+    const userName = ((typeof engineMemory!=='undefined' && engineMemory?.name)||'').split(' ')[0].toUpperCase();
+    if (userName) {
+        ctx.save();
+        ctx.font = 'bold 9px "Inter",sans-serif';
+        const ntw = ctx.measureText(userName).width;
+        const ntx = charX - ntw/2 - 7, nty = gnd - 112;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        j2RndRect(ctx, ntx, nty, ntw+14, 16, 5);
+        ctx.fillStyle = 'rgba(255,255,255,0.88)';
+        ctx.fillText(userName, ntx+7, nty+11);
+        // Arrow down
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.beginPath(); ctx.moveTo(charX-4,nty+16); ctx.lineTo(charX+4,nty+16); ctx.lineTo(charX,nty+22); ctx.fill();
+        ctx.restore();
+    }
+
+    // ── Particles ──
+    if (stage.celebrate) j2SpawnParticles(w, h * 0.55, stage.color);
+    j2DrawParticles(ctx, h);
+
+    // ── HUD overlay ──
+    j2DrawHUD(ctx, w, h, stage);
+
+    // ── Chapter title cinematic overlay ──
+    if (j2ChapterAlpha > 0) {
+        j2ChapterAlpha = Math.max(0, j2ChapterAlpha - 0.028);
+        // fade in 0→1 when alpha in [3,2], hold at 1 in [2,1], fade out 1→0 in [1,0]
+        const fade = j2ChapterAlpha > 2 ? (3 - j2ChapterAlpha)
+                   : j2ChapterAlpha > 1 ? 1
+                   : j2ChapterAlpha;
+        if (fade > 0.01) {
+            ctx.save();
+            ctx.globalAlpha = fade * 0.82;
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(0, 0, w, h);
+            ctx.globalAlpha = fade;
+            ctx.textAlign = 'center';
+            const parts = j2ChapterLabel.split(':');
+            const chNum  = (parts[0] || '').trim();
+            const chName = (parts[1] || j2ChapterLabel).trim();
+            // Chapter number
+            ctx.fillStyle = 'rgba(165,180,252,0.75)';
+            ctx.font = '500 11px "Inter",sans-serif';
+            ctx.fillText(chNum.toUpperCase(), w/2, h*0.43);
+            // Divider line
+            ctx.strokeStyle = 'rgba(165,180,252,0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(w/2-40,h*0.43+6); ctx.lineTo(w/2+40,h*0.43+6); ctx.stroke();
+            // Chapter title
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 22px "Inter",sans-serif';
+            ctx.fillText(chName, w/2, h*0.43+34);
+            ctx.textAlign = 'left';
+            ctx.restore();
+        }
+    }
+
+    j2RAF = requestAnimationFrame(j2Animate);
+}
+
+// ══ BACKGROUNDS ══════════════════════════════════════════════
+function j2DrawBg(ctx, w, h, stage) {
+    const sc  = stage.scene;
+    const gnd = h * 0.68;
+    const f   = j2Frame;
+
+    // ─── CITY NIGHT ──────────────────────────────────────────
+    if (sc === 'city-night' || sc === 'city-dawn') {
+        // Stars (night only)
+        if (sc === 'city-night') {
+            const stars = [[0.05,0.04],[0.13,0.11],[0.22,0.06],[0.35,0.02],[0.47,0.14],[0.58,0.07],
+                           [0.66,0.03],[0.74,0.17],[0.83,0.09],[0.91,0.05],[0.97,0.14],[0.29,0.19],[0.52,0.22]];
+            stars.forEach(([rx,ry]) => {
+                const a = 0.3 + Math.sin(f*0.025 + rx*13)*0.35;
+                ctx.globalAlpha = a;
+                ctx.fillStyle = 'white';
+                ctx.beginPath(); ctx.arc(rx*w, ry*gnd, 1.3, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+            // Moon
+            ctx.save();
+            ctx.shadowColor = '#fde68a'; ctx.shadowBlur = 24;
+            ctx.fillStyle = '#fef9c3';
+            ctx.beginPath(); ctx.arc(w*0.82, h*0.10, 18, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = J2_SCENES['city-night'].skyT;
+            ctx.beginPath(); ctx.arc(w*0.85, h*0.08, 15, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
+        // Dawn gradient accent
+        if (sc === 'city-dawn') {
+            const dawnG = ctx.createLinearGradient(0, gnd*0.55, 0, gnd);
+            dawnG.addColorStop(0, 'rgba(251,146,60,0)');
+            dawnG.addColorStop(1, 'rgba(251,146,60,0.18)');
+            ctx.fillStyle = dawnG;
+            ctx.fillRect(0, gnd*0.55, w, gnd*0.45);
+        }
+        // Buildings (far layer — darker, shorter)
+        const farBldgs = [[0.0,0.30,0.055],[0.09,0.22,0.05],[0.18,0.35,0.06],[0.30,0.20,0.045],
+                          [0.42,0.32,0.055],[0.53,0.18,0.05],[0.63,0.28,0.06],[0.72,0.22,0.05],[0.82,0.30,0.06],[0.92,0.24,0.05]];
+        farBldgs.forEach(([rx,rh,rw]) => {
+            const bh = gnd*rh, bw = w*rw, bx = rx*w;
+            ctx.fillStyle = sc==='city-night' ? '#050d1a' : '#0f172a';
+            ctx.fillRect(bx, gnd-bh, bw, bh);
+        });
+        // Buildings (near layer — prominent)
+        const bldgs = [[0.02,0.55,0.08],[0.12,0.62,0.07],[0.22,0.48,0.09],[0.34,0.68,0.065],
+                       [0.44,0.52,0.085],[0.56,0.45,0.08],[0.67,0.60,0.075],[0.77,0.42,0.095],[0.87,0.57,0.08],[0.95,0.64,0.065]];
+        bldgs.forEach(([rx,rh,rw]) => {
+            const bh = gnd*rh, bw = w*rw, bx = rx*w;
+            const bColor = sc==='city-night' ? '#0f172a' : '#1e293b';
+            ctx.fillStyle = bColor;
+            ctx.fillRect(bx, gnd-bh, bw, bh);
+            // Roof details
+            ctx.fillStyle = sc==='city-night' ? '#1e293b' : '#334155';
+            ctx.fillRect(bx+bw*0.1, gnd-bh-4, bw*0.8, 4);
+            // Antenna
+            ctx.strokeStyle = sc==='city-night' ? '#374151' : '#475569';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(bx+bw*0.55, gnd-bh-4); ctx.lineTo(bx+bw*0.55, gnd-bh-14); ctx.stroke();
+            // Windows
+            const cols = Math.floor(bw/11);
+            const rows = Math.floor(bh/16);
+            for (let r=0; r<rows; r++) {
+                for (let c=0; c<cols; c++) {
+                    const lit = Math.sin(bx*4.1+r*6.3+c*2.7) > (sc==='city-night'?0.0:0.55);
+                    if (!lit) continue;
+                    const flicker = sc==='city-night' ? 0.55+Math.sin(f*0.015+bx+r*3+c)*0.2 : 0.5;
+                    ctx.fillStyle = `rgba(255,220,80,${flicker})`;
+                    ctx.fillRect(bx+c*11+2, gnd-bh+r*16+4, 7, 9);
+                }
+            }
+        });
+        // Neon signs (night only)
+        if (sc === 'city-night') {
+            const signs = [[0.16,'₹ GROW',w*0.115,gnd*0.42,'#10b981'],[0.50,'INVEST',w*0.50,gnd*0.38,'#a855f7'],[0.78,'FREE?',w*0.775,gnd*0.45,'#06b6d4']];
+            signs.forEach(([_rx, txt, sx, sy, clr]) => {
+                const glow = 0.6 + Math.sin(f*0.04 + sx)*0.4;
+                ctx.save(); ctx.globalAlpha = glow;
+                ctx.shadowColor = clr; ctx.shadowBlur = 12;
+                ctx.fillStyle = clr;
+                ctx.font = 'bold 10px "JetBrains Mono"';
+                ctx.fillText(txt, sx, sy);
+                ctx.restore();
+            });
+        }
+        // Moving car lights
+        const carProg = (f * 0.8 % (w + 80)) - 40;
+        if (sc === 'city-night') {
+            // Headlights (moving right)
+            ctx.save(); ctx.shadowColor='#fef9c3'; ctx.shadowBlur=8;
+            ctx.fillStyle='#fef9c3';
+            ctx.beginPath(); ctx.ellipse(carProg+14, gnd+6, 6, 3, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(carProg, gnd+6, 6, 3, 0, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+            // Tail lights (moving left)
+            const car2 = w - ((f * 0.6 % (w + 60)) - 30);
+            ctx.save(); ctx.shadowColor='#ef4444'; ctx.shadowBlur=8;
+            ctx.fillStyle='#ef4444';
+            ctx.beginPath(); ctx.ellipse(car2, gnd+18, 5, 2.5, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(car2+12, gnd+18, 5, 2.5, 0, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
+        // Street lights
+        [[0.2, w*0.20],[0.5, w*0.50],[0.8, w*0.80]].forEach(([_, sx]) => {
+            ctx.strokeStyle='#94a3b8'; ctx.lineWidth=2;
+            ctx.beginPath(); ctx.moveTo(sx, gnd); ctx.lineTo(sx, gnd-55); ctx.lineTo(sx+14,gnd-55); ctx.stroke();
+            ctx.save(); ctx.shadowColor=sc==='city-night'?'#fbbf24':'rgba(251,191,36,0.3)'; ctx.shadowBlur=sc==='city-night'?18:6;
+            ctx.fillStyle=sc==='city-night'?'#fef3c7':'#fef9c3';
+            ctx.beginPath(); ctx.ellipse(sx+14, gnd-55, 6, 4, 0, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        });
+
+    // ─── SUBURB / PARK ───────────────────────────────────────
+    } else if (sc.startsWith('suburb') || sc === 'park' || sc === 'park-golden') {
+        // Sun
+        const sunX = sc==='park-golden' ? w*0.80 : w*0.72;
+        const sunY = sc==='park-golden' ? h*0.11 : h*0.09;
+        const pulse = 1 + Math.sin(f*0.018)*0.035;
+        const sunClr = sc==='park-golden' ? '#f59e0b' : '#fde68a';
+        ctx.save(); ctx.shadowColor=sunClr; ctx.shadowBlur=45;
+        ctx.fillStyle=sunClr;
+        ctx.beginPath(); ctx.arc(sunX, sunY, 24*pulse, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+        // Sun halo
+        ctx.save(); ctx.globalAlpha=0.12;
+        ctx.fillStyle=sunClr;
+        ctx.beginPath(); ctx.arc(sunX, sunY, 40*pulse, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+        // Clouds
+        [[0.08,0.10,60,17],[0.32,0.07,80,15],[0.58,0.13,55,14],[0.80,0.06,65,16]].forEach(([rx,ry,cw,ch],i) => {
+            const ox = Math.sin(f*0.004+i*2)*10;
+            ctx.fillStyle = sc==='park-golden' ? 'rgba(255,200,100,0.75)' : 'rgba(255,255,255,0.85)';
+            j2Cloud(ctx, rx*w+ox, ry*h, cw, ch);
+        });
+        // Birds (animated)
+        for (let b=0; b<4; b++) {
+            const bx = ((f*0.5 + b*w*0.25) % (w+40)) - 20;
+            const by = h*0.08 + Math.sin(f*0.03+b*1.5)*h*0.04;
+            const wing = Math.sin(f*0.15+b)*0.5;
+            ctx.strokeStyle='rgba(30,30,30,0.45)'; ctx.lineWidth=1.5;
+            ctx.beginPath();
+            ctx.moveTo(bx-7, by); ctx.quadraticCurveTo(bx-3.5, by-4+wing*3, bx, by);
+            ctx.quadraticCurveTo(bx+3.5, by-4+wing*3, bx+7, by); ctx.stroke();
+        }
+        // Houses
+        const houses = sc==='park'||sc==='park-golden'
+            ? [[0.05,0.30,0.09],[0.80,0.28,0.10]]
+            : [[0.03,0.34,0.10],[0.50,0.30,0.09],[0.80,0.35,0.10]];
+        houses.forEach(([rx,rh,rw]) => {
+            const bh=gnd*rh, bw=w*rw, bx=rx*w;
+            ctx.fillStyle='#475569'; ctx.fillRect(bx, gnd-bh, bw, bh);
+            // Roof
+            const roofClr = sc==='park-golden' ? '#b45309' : '#dc2626';
+            ctx.fillStyle=roofClr;
+            ctx.beginPath(); ctx.moveTo(bx-5,gnd-bh); ctx.lineTo(bx+bw/2,gnd-bh-bh*0.42); ctx.lineTo(bx+bw+5,gnd-bh); ctx.fill();
+            ctx.fillStyle='#92400e'; ctx.fillRect(bx+bw*0.38, gnd-bh*0.40, bw*0.24, bh*0.40); // door
+            // Windows (warm glow)
+            ctx.fillStyle='rgba(253,224,71,0.7)';
+            ctx.fillRect(bx+bw*0.10, gnd-bh*0.68, bw*0.22, bh*0.22);
+            ctx.fillRect(bx+bw*0.68, gnd-bh*0.68, bw*0.22, bh*0.22);
+            // Smoke from chimney
+            ctx.strokeStyle='rgba(200,200,200,0.35)'; ctx.lineWidth=3; ctx.lineCap='round';
+            const sx = bx+bw*0.75, sy = gnd-bh;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.quadraticCurveTo(sx+Math.sin(f*0.02)*5-2, sy-12, sx+Math.sin(f*0.02)*8, sy-22);
+            ctx.stroke();
+        });
+        // Trees (with subtle sway)
+        const treePos = sc==='park'||sc==='park-golden'
+            ? [[0.20,0.30,13],[0.24,0.27,11],[0.46,0.28,14],[0.52,0.24,10],[0.65,0.30,13],[0.72,0.26,11],[0.92,0.28,13]]
+            : [[0.20,0.28,13],[0.26,0.25,10],[0.47,0.30,14],[0.70,0.28,12],[0.93,0.26,13]];
+        treePos.forEach(([rx,rh,r],i) => {
+            const sway = Math.sin(f*0.012+i*0.8)*2;
+            j2Tree(ctx, rx*w+sway, gnd, gnd*rh, r);
+        });
+        // Park: fountain
+        if (sc==='park' || sc==='park-golden') {
+            const fx2=w*0.55, fy=gnd-2;
+            ctx.fillStyle='#0369a1'; j2RndRect(ctx, fx2-16, fy-6, 32, 8, 4);
+            for (let d=0; d<5; d++) {
+                const ang = (d/5)*Math.PI + Math.sin(f*0.04)*0.15;
+                const dropH = 16 + Math.sin(f*0.06+d)*4;
+                ctx.save(); ctx.globalAlpha=0.55;
+                ctx.strokeStyle='#7dd3fc'; ctx.lineWidth=1.5;
+                ctx.beginPath();
+                ctx.moveTo(fx2+Math.cos(ang)*4, fy-6);
+                ctx.quadraticCurveTo(fx2+Math.cos(ang)*12, fy-6-dropH, fx2+Math.cos(ang)*20, fy-2);
+                ctx.stroke(); ctx.restore();
+            }
+        }
+
+    // ─── NATURE ──────────────────────────────────────────────
+    } else if (sc.startsWith('nature')) {
+        const sunClr = sc==='nature-golden' ? '#fb923c' : '#fde68a';
+        const sunX2 = w*0.68, sunY2 = h*0.10;
+        ctx.save(); ctx.shadowColor=sunClr; ctx.shadowBlur=55;
+        ctx.fillStyle=sunClr;
+        ctx.beginPath(); ctx.arc(sunX2, sunY2, 30+Math.sin(f*0.015)*1.5, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+        // Clouds
+        [[0.06,0.05,65,15],[0.40,0.08,85,17],[0.75,0.04,60,13]].forEach(([rx,ry,cw,ch],i) => {
+            const ox = Math.sin(f*0.003+i*3)*12;
+            ctx.fillStyle = sc==='nature-golden' ? 'rgba(255,160,60,0.70)' : 'rgba(255,255,255,0.78)';
+            j2Cloud(ctx, rx*w+ox, ry*h, cw, ch);
+        });
+        // Mountains (far — lighter)
+        ctx.fillStyle = sc==='nature-golden' ? 'rgba(120,50,10,0.5)' : 'rgba(30,58,138,0.45)';
+        [[0.00,0.48],[0.15,0.36],[0.30,0.44],[0.45,0.34],[0.58,0.43],[0.70,0.38],[0.83,0.46],[0.95,0.37],[1.00,0.50]].forEach(([rx,ry],i,arr) => {
+            if (i < arr.length-1) {
+                const [nx,ny] = arr[i+1];
+                ctx.beginPath();
+                ctx.moveTo(rx*w, gnd); ctx.lineTo((rx+nx)/2*w, gnd*ry); ctx.lineTo(nx*w, gnd); ctx.fill();
+            }
+        });
+        // Mountains (near — solid)
+        ctx.fillStyle = sc==='nature-golden' ? '#431407' : '#1e3a5f';
+        [[0.00,0.60],[0.20,0.42],[0.40,0.54],[0.58,0.38],[0.75,0.50],[0.90,0.44],[1.00,0.58]].forEach(([rx,ry],i,arr) => {
+            if (i < arr.length-1) {
+                const [nx,ny] = arr[i+1];
+                ctx.beginPath();
+                ctx.moveTo(rx*w, gnd); ctx.lineTo((rx+nx)/2*w, gnd*ry); ctx.lineTo(nx*w, gnd); ctx.fill();
+            }
+        });
+        // Snow caps
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        [[0.20,0.42],[0.58,0.38],[0.90,0.44]].forEach(([rx,ry]) => {
+            ctx.beginPath(); ctx.arc(rx*w + (0-rx)*w*0.05, gnd*ry, 10, 0, Math.PI*2); ctx.fill();
+        });
+        // Tree line
+        for (let i=0; i<20; i++) {
+            const tx = (i/19)*w;
+            const th = gnd*0.20 + Math.sin(i*1.8)*gnd*0.06;
+            j2Tree(ctx, tx, gnd, th, 8+i%4*2);
+        }
+        // River (animated)
+        ctx.save(); ctx.globalAlpha=0.55;
+        ctx.strokeStyle = sc==='nature-golden' ? '#fb923c' : '#60a5fa';
+        ctx.lineWidth=3;
+        ctx.beginPath();
+        for (let x2=0; x2<=w; x2+=4) {
+            const ry = gnd+8 + Math.sin((x2/w)*Math.PI*3 + f*0.03)*5;
+            x2===0 ? ctx.moveTo(x2, ry) : ctx.lineTo(x2, ry);
+        }
+        ctx.stroke(); ctx.restore();
+
+    // ─── BEACH ───────────────────────────────────────────────
+    } else if (sc === 'beach') {
+        // Big sun + rays
+        const sunPulse = 1+Math.sin(f*0.016)*0.03;
+        ctx.save(); ctx.shadowColor='#f97316'; ctx.shadowBlur=60;
+        ctx.fillStyle='#fde68a';
+        ctx.beginPath(); ctx.arc(w*0.5, h*0.09, 34*sunPulse, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+        for (let r=0; r<10; r++) {
+            const a = (r/10)*Math.PI*2 + f*0.004;
+            ctx.save(); ctx.globalAlpha=0.18+Math.sin(f*0.02+r)*0.08;
+            ctx.strokeStyle='#fde68a'; ctx.lineWidth=2.5;
+            ctx.beginPath();
+            ctx.moveTo(w*0.5+Math.cos(a)*40, h*0.09+Math.sin(a)*40);
+            ctx.lineTo(w*0.5+Math.cos(a)*65, h*0.09+Math.sin(a)*65);
+            ctx.stroke(); ctx.restore();
+        }
+        // Clouds
+        [[0.12,0.16,70,16],[0.68,0.12,60,14]].forEach(([rx,ry,cw,ch],i) => {
+            const ox = Math.sin(f*0.003+i*4)*14;
+            ctx.fillStyle='rgba(255,255,255,0.82)';
+            j2Cloud(ctx, rx*w+ox, ry*h, cw, ch);
+        });
+        // Horizon glow
+        const hG = ctx.createLinearGradient(0, gnd*0.7, 0, gnd);
+        hG.addColorStop(0, 'rgba(251,191,36,0)'); hG.addColorStop(1, 'rgba(251,191,36,0.12)');
+        ctx.fillStyle=hG; ctx.fillRect(0, gnd*0.7, w, gnd*0.3);
+        // Ocean bands
+        for (let band=0; band<4; band++) {
+            const by = gnd*(0.70 + band*0.075);
+            const bG2 = ctx.createLinearGradient(0, by, 0, by+gnd*0.075);
+            const alpha = 0.6-band*0.08;
+            bG2.addColorStop(0, `rgba(2,132,199,${alpha})`);
+            bG2.addColorStop(1, `rgba(3,105,161,${alpha*0.7})`);
+            ctx.fillStyle=bG2; ctx.fillRect(0, by, w, gnd*0.075+2);
+        }
+        // Animated wave lines
+        for (let wave=0; wave<4; wave++) {
+            ctx.strokeStyle=`rgba(125,211,252,${0.45-wave*0.09})`;
+            ctx.lineWidth=1.8;
+            ctx.beginPath();
+            for (let x=0; x<=w; x+=3) {
+                const wy = gnd*(0.72+wave*0.07) + Math.sin((x/w)*Math.PI*5 + f*0.09 - wave*1.4)*4;
+                x===0 ? ctx.moveTo(x,wy) : ctx.lineTo(x,wy);
+            }
+            ctx.stroke();
+        }
+        // Distant boat
+        const bx3 = w*(0.55 + Math.sin(f*0.008)*0.04);
+        const by3 = gnd*0.82;
+        ctx.fillStyle='rgba(30,30,60,0.6)';
+        ctx.beginPath(); ctx.ellipse(bx3, by3, 18, 5, 0, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle='rgba(30,30,60,0.5)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(bx3, by3-5); ctx.lineTo(bx3, by3-18); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(bx3, by3-18); ctx.lineTo(bx3+16, by3-8); ctx.closePath(); ctx.stroke();
+        // Hammock
+        const hx=w*0.5, hy=gnd-38;
+        ctx.strokeStyle='#a16207'; ctx.lineWidth=2.5;
+        ctx.beginPath(); ctx.moveTo(hx-58, hy-14); ctx.quadraticCurveTo(hx, hy+12, hx+58, hy-14); ctx.stroke();
+        ctx.strokeStyle='rgba(161,98,7,0.4)'; ctx.lineWidth=1;
+        for (let r2=0; r2<5; r2++) {
+            const rx2 = hx-58+r2*(116/4), ry2 = hy-14 + (r2===0||r2===4?0: (r2===2?26:12));
+            ctx.beginPath(); ctx.moveTo(rx2, ry2); ctx.lineTo(hx-58+r2*(116/4), hy-38); ctx.stroke();
+        }
+        // Palm trees
+        [0.1, 0.90].forEach((rx, side) => j2Palm(ctx, rx*w, gnd, gnd*0.38, side===1));
+        // Sand texture (light dots)
+        ctx.save(); ctx.globalAlpha=0.10;
+        ctx.fillStyle='#fef9c3';
+        for (let d=0; d<30; d++) {
+            const dx = (d * 137.5 % 1) * w, dy = gnd + (d * 71.3 % 1) * (h-gnd)*0.7;
+            ctx.beginPath(); ctx.arc(dx, dy, 1.5, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+    }
+}
+
+// ── Helper drawers ─────────────────────────────────────────────
+function j2Cloud(ctx, cx, cy, cw, ch) {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, cw/2, ch/2, 0, 0, Math.PI*2);
+    ctx.ellipse(cx-cw*0.3, cy+ch*0.1, cw*0.32, ch*0.45, 0, 0, Math.PI*2);
+    ctx.ellipse(cx+cw*0.3, cy+ch*0.1, cw*0.3, ch*0.42, 0, 0, Math.PI*2);
+    ctx.ellipse(cx-cw*0.55, cy+ch*0.2, cw*0.22, ch*0.38, 0, 0, Math.PI*2);
+    ctx.ellipse(cx+cw*0.55, cy+ch*0.2, cw*0.22, ch*0.35, 0, 0, Math.PI*2);
+    ctx.fill();
+}
+
+function j2Tree(ctx, x, gnd, h, r) {
+    const sway = Math.sin(j2Frame*0.012 + x*0.01)*1.5;
+    ctx.save(); ctx.translate(x, gnd);
+    // Trunk
+    ctx.fillStyle='#7c4a1e';
+    j2RndRect(ctx, -r*0.22, -h*0.38, r*0.44, h*0.38, 2);
+    // Foliage layers
+    ctx.translate(sway, 0);
+    ctx.fillStyle='#166534';
+    ctx.beginPath(); ctx.ellipse(0, -h*0.38-r*0.85, r*1.1, r*1.3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#15803d';
+    ctx.beginPath(); ctx.ellipse(0, -h*0.38-r*1.7, r*0.85, r*1.05, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#16a34a';
+    ctx.beginPath(); ctx.ellipse(0, -h*0.38-r*2.4, r*0.6, r*0.75, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+}
+
+function j2Palm(ctx, x, gnd, h, flip) {
+    ctx.save(); ctx.translate(x, gnd);
+    // Trunk (curved)
+    ctx.strokeStyle='#a16207'; ctx.lineWidth=9; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(flip?-24:24, -h*0.5, flip?-12:12, -h);
+    ctx.stroke();
+    // Trunk rings
+    ctx.strokeStyle='rgba(180,130,50,0.4)'; ctx.lineWidth=1;
+    for (let i=1; i<7; i++) {
+        const ty = -h*(i/7), tx = (flip?-1:1)*h*(i/7)*0.15;
+        ctx.beginPath(); ctx.moveTo(tx-7, ty); ctx.lineTo(tx+7, ty); ctx.stroke();
+    }
+    const topX = flip?-12:12, topY = -h;
+    // Leaves
+    const leafAngles = flip?[0.5,0.1,-0.3,-0.7,-1.1,-1.5]:[-0.5,-0.1,0.3,0.7,1.1,1.5];
+    leafAngles.forEach((a,i) => {
+        const la = a - Math.PI/2 + Math.sin(j2Frame*0.01+i)*0.03;
+        const len = 58+i*2;
+        ctx.save(); ctx.globalAlpha=0.9;
+        ctx.strokeStyle = i%2===0 ? '#166534' : '#15803d';
+        ctx.lineWidth=4; ctx.lineCap='round';
+        ctx.beginPath();
+        ctx.moveTo(topX, topY);
+        ctx.quadraticCurveTo(topX+Math.cos(la)*30, topY+Math.sin(la)*30,
+                             topX+Math.cos(la)*len, topY+Math.sin(la)*len);
+        ctx.stroke(); ctx.restore();
+    });
+    // Coconuts
+    ctx.fillStyle='#92400e';
+    ctx.beginPath(); ctx.arc(topX+5, topY+6, 5.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(topX-5, topY+9, 5, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+}
+
+// ── Character ──────────────────────────────────────────────────
+function j2DrawPerson(ctx, cx, gndY, t, opts) {
+    const { shirtColor='#4f46e5', mood='neutral', phoneColor='#10b981',
+            hasBaby=false, sunglasses=false, scale:s=1, female=false } = opts;
+
+    const stressed  = mood==='stressed';
+    const happy     = mood==='happy'||mood==='ecstatic'||mood==='free';
+    const free      = mood==='free';
+    const ecstatic  = mood==='ecstatic';
+
+    const amp  = ecstatic?0.44:stressed?0.20:0.33;
+    const bob  = Math.abs(Math.sin(t))*3.5*s;
+    const legA = Math.sin(t)*amp;
+    const armA = -legA*0.75;
+
+    ctx.save();
+    ctx.translate(cx, gndY-bob);
+
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.20)';
+    ctx.beginPath(); ctx.ellipse(0, 0, 18*s, 4.5*s, 0, 0, Math.PI*2); ctx.fill();
+
+    // Legs
+    j2Limb(ctx, -9*s, -20*s, legA, 30*s, 11*s, '#1e1b4b');
+    j2Limb(ctx, 9*s, -20*s, -legA, 30*s, 11*s, '#1e1b4b');
+    // Shoes
+    ctx.fillStyle='#111827';
+    const lsx=-9*s+Math.sin(legA)*30*s, lsy=-20*s+Math.cos(legA)*30*s;
+    const rsx=9*s+Math.sin(-legA)*30*s, rsy=-20*s+Math.cos(-legA)*30*s;
+    ctx.beginPath(); ctx.ellipse(lsx, lsy, 10*s, 4.5*s, legA, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(rsx, rsy, 10*s, 4.5*s, -legA, 0, Math.PI*2); ctx.fill();
+
+    // Body
+    ctx.fillStyle=shirtColor;
+    j2RndRect(ctx, -15*s, -62*s, 30*s, 34*s, 6*s);
+    // Collar / lapel detail
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    ctx.beginPath(); ctx.moveTo(-7*s,-62*s); ctx.lineTo(0,-52*s); ctx.lineTo(7*s,-62*s); ctx.fill();
+    // Pocket detail
+    ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1*s;
+    j2RndRect(ctx, -12*s, -55*s, 10*s, 8*s, 2*s);
+
+    // Arms
+    const phoneHand = !hasBaby && !free;
+    j2Limb(ctx, -15*s, -58*s, armA, 24*s, 9*s, '#fde8d8');
+    j2Limb(ctx, 15*s, -58*s, -armA, 24*s, 9*s, '#fde8d8');
+
+    // Phone
+    if (phoneHand) {
+        const phx=15*s+Math.sin(-armA)*24*s, phy=-58*s+Math.cos(-armA)*24*s;
+        ctx.fillStyle='#1a1a2e'; j2RndRect(ctx, phx+3*s, phy-6*s, 10*s, 15*s, 2*s);
+        ctx.fillStyle=phoneColor; j2RndRect(ctx, phx+4.5*s, phy-4.5*s, 7*s, 10*s, 1.5*s);
+        // Screen content (tiny chart bars when not stressed)
+        if (!stressed) {
+            ctx.fillStyle='rgba(255,255,255,0.7)';
+            [0,2,4].forEach((bx,bi) => {
+                const bh = (bi+1)*2*s;
+                ctx.fillRect(phx+5.5*s+bx*s, phy+5.5*s-bh*s, 1.5*s, bh*s);
+            });
+        }
+        if (stressed) {
+            ctx.fillStyle='#ef4444';
+            ctx.beginPath(); ctx.arc(phx+13*s, phy-6*s, 3*s, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    // Baby
+    if (hasBaby) {
+        const bax=-15*s+Math.sin(armA)*14*s, bay=-58*s+Math.cos(armA)*14*s-4*s;
+        ctx.fillStyle='#fde8d8'; ctx.beginPath(); ctx.arc(bax, bay-7*s, 8*s, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle='#fcd34d'; ctx.fillRect(bax-7*s, bay-16*s, 14*s, 6*s);
+        ctx.fillStyle='rgba(0,0,0,0.55)';
+        ctx.beginPath(); ctx.arc(bax-2*s, bay-8*s, 1.2*s, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bax+2*s, bay-8*s, 1.2*s, 0, Math.PI*2); ctx.fill();
+        // tiny smile
+        ctx.strokeStyle='#b07050'; ctx.lineWidth=1.2*s;
+        ctx.beginPath(); ctx.arc(bax, bay-5*s, 3*s, 0.2, Math.PI-0.2); ctx.stroke();
+    }
+
+    // Coffee cup (free stage)
+    if (free) {
+        const cx2=15*s+Math.sin(-armA)*18*s, cy2=-58*s+Math.cos(-armA)*18*s;
+        ctx.fillStyle='#7c4a1e'; j2RndRect(ctx, cx2, cy2-6*s, 10*s, 12*s, 2.5*s);
+        ctx.fillStyle='rgba(255,255,255,0.9)'; j2RndRect(ctx, cx2+1*s, cy2-5*s, 8*s, 4*s, 1*s);
+        ctx.strokeStyle='rgba(255,255,255,0.45)'; ctx.lineWidth=1.5;
+        [0, 3].forEach(ox => {
+            ctx.beginPath();
+            ctx.moveTo(cx2+4*s+ox, cy2-8*s);
+            ctx.quadraticCurveTo(cx2+2*s+ox, cy2-12*s, cx2+4*s+ox, cy2-16*s); ctx.stroke();
+        });
+    }
+
+    // Head
+    j2DrawHead(ctx, 0, -78*s, s, { stressed, happy, female, sunglasses, ecstatic, free });
+    ctx.restore();
+}
+
+function j2DrawHead(ctx, x, y, s, opts) {
+    const { stressed, happy, female, sunglasses, ecstatic, free } = opts;
+
+    // Hair back
+    ctx.fillStyle=female?'#7c2d12':'#1a1a3e';
+    ctx.beginPath(); ctx.ellipse(x, y, 17*s, 20*s, 0, 0, Math.PI*2); ctx.fill();
+    if (female) {
+        ctx.fillStyle='#7c2d12';
+        ctx.beginPath(); ctx.moveTo(x+15*s,y); ctx.quadraticCurveTo(x+24*s,y+16*s,x+10*s,y+27*s); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x-15*s,y); ctx.quadraticCurveTo(x-24*s,y+16*s,x-10*s,y+27*s); ctx.fill();
+    }
+    // Face
+    ctx.fillStyle='#fde8d8';
+    ctx.beginPath(); ctx.ellipse(x, y, 15*s, 17*s, 0, 0, Math.PI*2); ctx.fill();
+    // Cheeks
+    if (happy||free||ecstatic) {
+        ctx.fillStyle='rgba(236,72,153,0.22)';
+        ctx.beginPath(); ctx.ellipse(x-10*s,y+5*s,5.5*s,3.5*s,0,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(x+10*s,y+5*s,5.5*s,3.5*s,0,0,Math.PI*2); ctx.fill();
+    }
+    // Hair front
+    ctx.fillStyle=female?'#7c2d12':'#1a1a3e';
+    ctx.beginPath();
+    ctx.moveTo(x-15*s,y-5*s);
+    ctx.quadraticCurveTo(x-11*s,y-22*s,x,y-20*s);
+    ctx.quadraticCurveTo(x+11*s,y-22*s,x+15*s,y-5*s);
+    ctx.quadraticCurveTo(x+8*s,y-14*s,x,y-12*s);
+    ctx.quadraticCurveTo(x-8*s,y-14*s,x-15*s,y-5*s);
+    ctx.fill();
+    // Eyebrows
+    ctx.strokeStyle='#1a1a3e'; ctx.lineWidth=2*s; ctx.lineCap='round';
+    if (stressed) {
+        ctx.beginPath(); ctx.moveTo(x-12*s,y-11*s); ctx.lineTo(x-3*s,y-8*s); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+3*s,y-8*s); ctx.lineTo(x+12*s,y-11*s); ctx.stroke();
+    } else {
+        ctx.beginPath(); ctx.moveTo(x-12*s,y-11*s); ctx.quadraticCurveTo(x-6*s,y-15*s,x-1*s,y-12*s); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+1*s,y-12*s); ctx.quadraticCurveTo(x+6*s,y-15*s,x+12*s,y-11*s); ctx.stroke();
+    }
+    // Sunglasses / eyes
+    if (sunglasses) {
+        ctx.fillStyle='rgba(0,0,0,0.78)';
+        j2RndRect(ctx, x-14*s,y-7*s, 12*s, 9*s, 3.5*s);
+        j2RndRect(ctx, x+2*s, y-7*s, 12*s, 9*s, 3.5*s);
+        ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2*s;
+        ctx.beginPath(); ctx.moveTo(x-2*s,y-4*s); ctx.lineTo(x+2*s,y-4*s); ctx.stroke();
+        ctx.strokeStyle='#475569'; ctx.lineWidth=1.5*s;
+        ctx.beginPath(); ctx.moveTo(x-14*s,y-3*s); ctx.lineTo(x-17*s,y-2*s); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+14*s,y-3*s); ctx.lineTo(x+17*s,y-2*s); ctx.stroke();
+    } else {
+        ctx.fillStyle='white';
+        ctx.beginPath(); ctx.ellipse(x-6.5*s,y,5*s,6*s,0,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(x+6.5*s,y,5*s,6*s,0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle=female?'#7c3aed':'#3730a3';
+        ctx.beginPath(); ctx.ellipse(x-6.5*s,y+0.5*s,3.2*s,4.2*s,0,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(x+6.5*s,y+0.5*s,3.2*s,4.2*s,0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='#0f0e1a';
+        ctx.beginPath(); ctx.arc(x-6.5*s,y+0.5*s,2*s,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x+6.5*s,y+0.5*s,2*s,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='white';
+        ctx.beginPath(); ctx.arc(x-5*s,y-1.4*s,1.5*s,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x+8*s,y-1.4*s,1.5*s,0,Math.PI*2); ctx.fill();
+        if (ecstatic) {
+            ctx.fillStyle='#fbbf24';
+            for (let p=0; p<5; p++) {
+                const pa=(p/5)*Math.PI*2, pr=3*s;
+                const px=x-6.5*s+Math.cos(pa)*pr, py=y+Math.sin(pa)*pr;
+                ctx.beginPath(); ctx.arc(px,py,1.3*s,0,Math.PI*2); ctx.fill();
+                const px2=x+6.5*s+Math.cos(pa)*pr;
+                ctx.beginPath(); ctx.arc(px2,py,1.3*s,0,Math.PI*2); ctx.fill();
+            }
+        }
+    }
+    // Nose
+    ctx.strokeStyle='rgba(160,100,60,0.5)'; ctx.lineWidth=1.2*s;
+    ctx.beginPath(); ctx.moveTo(x-1.5*s,y-2*s); ctx.lineTo(x-2.5*s,y+3*s); ctx.lineTo(x+2.5*s,y+3*s); ctx.stroke();
+    // Mouth
+    ctx.strokeStyle='#b07050'; ctx.lineWidth=2*s; ctx.lineCap='round';
+    ctx.beginPath();
+    if (stressed)          { ctx.moveTo(x-5*s,y+12*s); ctx.quadraticCurveTo(x,y+9*s, x+5*s,y+12*s); }
+    else if (ecstatic||free){ ctx.moveTo(x-8*s,y+9*s); ctx.quadraticCurveTo(x,y+17*s,x+8*s,y+9*s); }
+    else if (happy)        { ctx.moveTo(x-6*s,y+9*s); ctx.quadraticCurveTo(x,y+14*s,x+6*s,y+9*s); }
+    else                   { ctx.moveTo(x-4*s,y+10*s); ctx.quadraticCurveTo(x,y+13*s,x+4*s,y+10*s); }
+    ctx.stroke();
+    // Teeth (happy/ecstatic)
+    if (happy||ecstatic||free) {
+        ctx.fillStyle='white'; ctx.save(); ctx.beginPath();
+        if (ecstatic||free) { ctx.moveTo(x-8*s,y+9*s); ctx.quadraticCurveTo(x,y+17*s,x+8*s,y+9*s); }
+        else { ctx.moveTo(x-6*s,y+9*s); ctx.quadraticCurveTo(x,y+14*s,x+6*s,y+9*s); }
+        ctx.closePath(); ctx.clip(); ctx.fillRect(x-8*s, y+9*s, 16*s, 6*s); ctx.restore();
+    }
+}
+
+function j2Limb(ctx, x, y, angle, length, width, color) {
+    ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
+    ctx.fillStyle=color;
+    j2RndRect(ctx, -width/2, 0, width, length, width/2);
+    ctx.restore();
+}
+
+function j2RndRect(ctx, x, y, w, h, r) {
+    r = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath(); ctx.fill();
+}
+
+// ── Particles ──────────────────────────────────────────────────
+function j2SpawnParticles(w, maxY, color) {
+    if (j2Particles.length < 80 && Math.random() < 0.4) {
+        const colors = [color,'#fde68a','#f9a8d4','#a5f3fc','#bbf7d0','#c4b5fd','#fff'];
+        j2Particles.push({
+            x: Math.random()*w, y: maxY,
+            vx: (Math.random()-0.5)*4, vy: -(2.5+Math.random()*4.5),
+            color: colors[Math.floor(Math.random()*colors.length)],
+            size: 3+Math.random()*6, life:1, decay:0.011+Math.random()*0.009,
+            rot: Math.random()*Math.PI, rotV:(Math.random()-0.5)*0.18,
+            shape: Math.random() < 0.5 ? 'rect' : 'circle'
+        });
+    }
+}
+function j2DrawParticles(ctx, h) {
+    j2Particles = j2Particles.filter(p => p.life > 0);
+    j2Particles.forEach(p => {
+        p.x+=p.vx; p.y+=p.vy; p.vy+=0.13; p.rot+=p.rotV; p.life-=p.decay;
+        ctx.save(); ctx.globalAlpha=p.life; ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.fillStyle=p.color;
+        if (p.shape==='circle') { ctx.beginPath(); ctx.arc(0,0,p.size/2,0,Math.PI*2); ctx.fill(); }
+        else ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size);
+        ctx.restore();
+    });
+}
+
+// ── HUD — real data, FI progress bar ──────────────────────────
+function j2DrawHUD(ctx, w, h, stage) {
+    // Smooth wealth counter
+    j2WealthTarget = stage.wealth;
+    j2WealthDisp += (j2WealthTarget - j2WealthDisp) * 0.06;
+    const dispW = Math.round(j2WealthDisp);
+
+    // ── NET WORTH pill (top-left) ──
+    const wLabel = j2Fmt(dispW);
+    ctx.fillStyle='rgba(0,0,0,0.62)';
+    j2RndRect(ctx, 10, 10, 150, 44, 10);
+    ctx.fillStyle='rgba(255,255,255,0.45)';
+    ctx.font=`bold 9px "JetBrains Mono",monospace`;
+    ctx.fillText('NET WORTH', 20, 24);
+    ctx.fillStyle='#34d399';
+    ctx.font=`bold 16px "JetBrains Mono",monospace`;
+    ctx.fillText(wLabel, 20, 44);
+
+    // ── Age + Year pill (top-right) ──
+    const ageTxt = `Age ${stage.age} · ${stage.year}`;
+    const aTw = ctx.measureText(ageTxt).width;
+    ctx.fillStyle='rgba(0,0,0,0.62)';
+    j2RndRect(ctx, w-aTw-28, 10, aTw+18, 30, 8);
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    ctx.font=`bold 12px "Inter",sans-serif`;
+    ctx.fillText(ageTxt, w-aTw-19, 30);
+
+    // ── SIP badge (top-right, below age) ──
+    if (stage.invest > 0) {
+        const sipTxt = `SIP ${j2Fmt(stage.invest)}/mo`;
+        const sTw = ctx.measureText(sipTxt).width;
+        ctx.fillStyle='rgba(79,70,229,0.75)';
+        j2RndRect(ctx, w-sTw-28, 48, sTw+18, 26, 7);
+        ctx.fillStyle='rgba(255,255,255,0.9)';
+        ctx.font=`bold 11px "Inter",sans-serif`;
+        ctx.fillText(sipTxt, w-sTw-19, 65);
+    }
+
+    // ── FI Progress bar (bottom of canvas) ──
+    const barX=10, barY=h-28, barW=w-20, barH=14;
+    const pct = stage.fiPct || 0;
+    // Track
+    ctx.fillStyle='rgba(0,0,0,0.50)';
+    j2RndRect(ctx, barX, barY, barW, barH, 7);
+    // Fill gradient
+    if (pct > 0) {
+        const barFill = Math.max(barH, barW * pct / 100);
+        const grad = ctx.createLinearGradient(barX, 0, barX+barFill, 0);
+        grad.addColorStop(0, '#6366f1');
+        grad.addColorStop(0.5, '#10b981');
+        grad.addColorStop(1, '#06b6d4');
+        ctx.fillStyle = grad;
+        ctx.save(); ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(barX,barY,Math.min(barFill,barW),barH,7) : j2RndRect(ctx,barX,barY,Math.min(barFill,barW),barH,7);
+        ctx.fill(); ctx.restore();
+        // Glow pulse on the fill edge
+        if (pct < 100) {
+            const edgeX = barX + barW*pct/100;
+            ctx.save();
+            ctx.shadowColor='#34d399'; ctx.shadowBlur=8;
+            ctx.fillStyle='rgba(52,211,153,0.7)';
+            ctx.beginPath(); ctx.arc(edgeX, barY+barH/2, 5, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
+    }
+    // Label inside bar
+    ctx.fillStyle='rgba(255,255,255,0.92)';
+    ctx.font=`bold 9px "JetBrains Mono",monospace`;
+    ctx.fillText(`FI ${pct}%  •  Target ${j2Fmt(stage.wealth > 0 ? (stage.wealth/(pct||1)*100) : 0)}`, barX+10, barY+10);
+
+    // ── Mood speech bubble ──
+    const moods = ['😤 Stressed!','💪 Building...','📈 Momentum!','😍 Life is good','🎉 MILESTONE!','🚀 25% FREE!','🏠 Halfway!','🔥 75% THERE!','🌅 I AM FREE!'];
+    const moodTxt = moods[j2Stage] || '';
+    const mw2 = ctx.measureText(moodTxt).width + 22;
+    const charX2 = w * 0.28;
+    const bx2 = Math.max(4, Math.min(w-mw2-4, charX2-mw2/2));
+    const bY2 = h - 52;
+    ctx.fillStyle='rgba(0,0,0,0.68)';
+    j2RndRect(ctx, bx2, bY2, mw2, 22, 6);
+    ctx.fillStyle='rgba(0,0,0,0.68)';
+    ctx.beginPath(); ctx.moveTo(charX2-5,bY2+22); ctx.lineTo(charX2+5,bY2+22); ctx.lineTo(charX2,bY2+28); ctx.fill();
+    ctx.fillStyle='white';
+    ctx.font='bold 11px "Inter",sans-serif';
+    ctx.fillText(moodTxt, bx2+11, bY2+15);
+}
+
+function j2FmtWealth(n) { return j2Fmt(n); }
+
+// ── Stage management ───────────────────────────────────────────
+function j2GoTo(idx) {
+    if (!J2_STAGES.length) return;
+    j2Stage = Math.max(0, Math.min(J2_STAGES.length-1, idx));
+    j2Particles = [];
+    const stage = J2_STAGES[j2Stage];
+    const m = (typeof engineMemory !== 'undefined') ? engineMemory : {};
+
+    document.querySelectorAll('.j2-dot').forEach((d,i) => {
+        d.classList.toggle('active', i===j2Stage);
+        d.classList.toggle('done', i<j2Stage);
+    });
+
+    // ── Stage badge on canvas ──
+    const stageOv = document.getElementById('j2-stage-label');
+    if (stageOv) stageOv.textContent = stage.emoji + '  ' + stage.tag;
+
+    // ── Age tag ──
+    const ageEl = document.getElementById('j2-age');
+    if (ageEl) ageEl.textContent = `Age ${stage.age} · ${stage.year}`;
+
+    // ── Story title ──
+    const titleEl = document.getElementById('j2-title');
+    if (titleEl) titleEl.textContent = stage.title;
+
+    // ── Chapter tag ──
+    const chTag = document.getElementById('sim-ch-tag');
+    const chName = J2_CHAPTERS[j2Stage] || stage.tag;
+    if (chTag) chTag.textContent = `Chapter ${j2Stage+1} · ${chName}`;
+
+    // ── Narrative text — the heart of the experience ──
+    const eventsEl = document.getElementById('j2-events');
+    if (eventsEl) {
+        const raw = buildNarration(stage, m);
+        eventsEl.innerHTML = raw
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+            .split('\n\n')
+            .filter(p => p.trim())
+            .map((p, i) => `<p class="sim-para" style="animation-delay:${i*0.09}s">${p}</p>`)
+            .join('');
+    }
+
+    // ── Metrics row ──
+    const nwEl  = document.getElementById('j2-nw');
+    const sipEl = document.getElementById('j2-sip-disp');
+    const pctEl = document.getElementById('j2-fi-pct');
+    const fillEl= document.getElementById('j2-fi-fill');
+    if (nwEl)   nwEl.textContent  = j2Fmt(stage.wealth);
+    if (sipEl)  sipEl.textContent = stage.invest > 0 ? j2Fmt(stage.invest)+'/mo' : '—';
+    if (pctEl)  pctEl.textContent = (stage.fiPct || 0) + '%';
+    if (fillEl) fillEl.style.width= (stage.fiPct || 0) + '%';
+
+    // ── Card accent colour ──
+    const card = document.getElementById('j2-card');
+    if (card) {
+        card.style.borderBottomColor = stage.color+'55';
+        card.style.borderLeftColor   = stage.color+'55';
+    }
+
+    // ── Trigger cinematic chapter overlay on canvas ──
+    j2ChapterAlpha = 3.0;
+    j2ChapterLabel = `Chapter ${j2Stage+1}: ${chName}`;
+
+    const pb = document.getElementById('j2-playbtn');
+    if (pb) pb.textContent = (j2Stage===J2_STAGES.length-1&&!j2Playing) ? '↩ Restart' : (j2Playing?'⏸ Pause':'▶  Play My Story');
+}
+
+function j2Toggle() {
+    if (!J2_STAGES.length) return;
+    if (j2Stage===J2_STAGES.length-1&&!j2Playing) j2Stage=-1;
+    if (j2Playing) {
+        j2Playing=false; clearInterval(j2Timer);
+        const pb=document.getElementById('j2-playbtn');
+        if(pb) pb.textContent='▶  Play My Story';
+    } else {
+        j2Playing=true;
+        const pb=document.getElementById('j2-playbtn');
+        if(pb) pb.textContent='⏸ Pause';
+        j2GoTo(j2Stage+1 < J2_STAGES.length ? j2Stage+1 : j2Stage);
+        j2Timer=setInterval(()=>{
+            if(j2Stage<J2_STAGES.length-1) j2GoTo(j2Stage+1);
+            else { j2Playing=false; clearInterval(j2Timer); const pb=document.getElementById('j2-playbtn'); if(pb) pb.textContent='↩ Restart'; }
+        }, 3200);
+    }
+}
+function j2Next() { j2GoTo(j2Stage+1); }
+function j2Prev() { j2GoTo(j2Stage-1); }
+
+// ── Init on tab open ──────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    ['nav-simulator'].forEach(id => {
+        const el=document.getElementById(id);
+        if(el) el.addEventListener('click', ()=>setTimeout(j2Setup,60));
+    });
+    window.addEventListener('resize', ()=>{
+        if(document.getElementById('pg-sim')?.classList.contains('on')) j2Setup();
+    });
+});

@@ -16,10 +16,25 @@
     <!-- ══ TOPBAR ══ -->
     <header class="topbar" id="main-topbar">
         <div class="topbar-left">
-            <h1 class="topbar-title">Aarth <span style="color:var(--cyan)">Sutra</span></h1>
+            <div class="brand-logo">
+                <svg class="brand-mark" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#818cf8"/>
+                            <stop offset="100%" stop-color="#06b6d4"/>
+                        </linearGradient>
+                    </defs>
+                    <polygon points="11,2 20,19 2,19" fill="none" stroke="url(#bg1)" stroke-width="1.8" stroke-linejoin="round"/>
+                    <line x1="6" y1="14" x2="16" y2="14" stroke="url(#bg1)" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <h1 class="topbar-title">Aarth<span class="brand-sutra">Sutra</span></h1>
+            </div>
         </div>
         <div class="topbar-right">
-            <span class="weather-badge" id="weather-badge">Initializing</span>
+            <button class="profile-topbar-btn" id="profile-topbar-btn" onclick="switchTab('profile')" title="My Profile">
+                <span class="profile-topbar-initial" id="profile-topbar-initial">?</span>
+                <i data-lucide="user-circle" style="width:16px;height:16px;opacity:0.7;"></i>
+            </button>
         </div>
     </header>
 
@@ -68,9 +83,9 @@
             <i data-lucide="book-open"></i>
             <span>Learn</span>
         </a>
-        <a href="javascript:void(0)" onclick="switchTab('profile')" class="nav-item" id="nav-profile">
-            <i data-lucide="user-circle"></i>
-            <span>Profile</span>
+        <a href="javascript:void(0)" onclick="switchTab('child')" class="nav-item" id="nav-child">
+            <i data-lucide="baby"></i>
+            <span>Child</span>
         </a>
     </nav>
 
@@ -118,11 +133,7 @@
                             <label>Monthly In-Hand Income (₹)</label>
                             <input type="number" id="u-income" placeholder="e.g. 150000" value="150000" oninput="updateInsuranceImpact()">
                         </div>
-                        <div class="form-group">
-                            <label>How Much Can You Invest Every Month? (₹)</label>
-                            <input type="number" id="u-sip" placeholder="e.g. 50000" value="50000">
-                            <div style="font-size:11px; color:rgba(255,255,255,0.5); margin-top:4px;">This is how much you want to invest in mutual funds, stocks, and FDs every month</div>
-                        </div>
+                        <input type="hidden" id="u-sip" value="50000">
                         <div class="form-group">
                             <label>Annual SIP Step-Up</label>
                             <select id="u-stepup">
@@ -388,7 +399,24 @@
                 <div class="accel-card" style="margin-bottom:0; flex:1; display:flex; flex-direction:column; justify-content:center;">
                     <div class="accel-fi-label">PROJECTED FINANCIAL INDEPENDENCE</div>
                     <div class="accel-fi-date" id="fi-date">Analyzing...</div>
-                    <div class="accel-slider-label">Try different monthly investment amounts — drag to see how fast you reach financial freedom</div>
+
+                    <!-- FI stat pills: corpus head-start + target -->
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin: 10px 0 14px;">
+                        <div class="fi-stat-pill" id="fi-corpus-pill" style="background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.25);">
+                            <span style="font-size:10px; color:rgba(255,255,255,0.4); display:block; margin-bottom:2px;">Your Head Start</span>
+                            <span id="fi-corpus-val" style="font-size:13px; font-weight:700; color:#818cf8;">—</span>
+                        </div>
+                        <div class="fi-stat-pill" style="background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.2);">
+                            <span style="font-size:10px; color:rgba(255,255,255,0.4); display:block; margin-bottom:2px;">FI Target (25× expenses)</span>
+                            <span id="fi-target-val" style="font-size:13px; font-weight:700; color:#34d399;">—</span>
+                        </div>
+                        <div class="fi-stat-pill" style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2);">
+                            <span style="font-size:10px; color:rgba(255,255,255,0.4); display:block; margin-bottom:2px;">Still to Build</span>
+                            <span id="fi-gap-val" style="font-size:13px; font-weight:700; color:#f59e0b;">—</span>
+                        </div>
+                    </div>
+
+                    <div class="accel-slider-label">Drag to try different monthly investment amounts</div>
                     <input type="range" class="accel-slider" id="fi-slider" min="5000" max="500000" step="5000" value="50000" oninput="updateFISlider(this.value)">
                     <div style="font-size: 17px; font-weight: 700; color:#6ee7b7; margin-bottom: 8px; font-family: var(--font-mono);" id="fi-slider-display">₹50,000 / month</div>
                     <div class="accel-insight" id="fi-insight" style="font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.5;">Adjust the slider to see how compounding accelerates your freedom date.</div>
@@ -577,22 +605,57 @@
              TAB 4: SIMULATOR (VAULT)
         ═══════════════════════════════════════ -->
         <section id="pg-sim" class="pg">
-            <div class="premium-card">
-                <div class="sim-header">
-                    <div>
-                        <h2 style="font-family: var(--font-display); font-size: 26px; color: var(--emerald-deep);">What If the Market Crashes?</h2>
-                        <p style="color: var(--slate-light); font-size: 14px;">See how your money would hold up during real past market crashes — and what would happen to your wealth.</p>
-                    </div>
-                    <button class="primary-btn" onclick="runCrisisSimulator()" style="width: auto; padding: 12px 24px;">
-                        <i data-lucide="play"></i> Run Simulation
-                    </button>
+
+            <!-- CINEMA CANVAS -->
+            <div class="sim-cinema-wrap">
+                <canvas id="j2-canvas"></canvas>
+                <div class="sim-stage-badge" id="j2-stage-label">😤 Rat Race</div>
+            </div>
+
+            <!-- CINEMATIC STORY CARD -->
+            <div class="sim-story-card" id="j2-card">
+                <div class="sim-story-header">
+                    <span class="sim-ch-tag" id="sim-ch-tag">Chapter 1 · The Rat Race</span>
+                    <span class="sim-age-tag" id="j2-age">Age 28 · 2026</span>
                 </div>
-                <div class="timeline-container" id="timeline-log">
-                    <div style="padding: 60px; text-align: center; color: var(--slate-light); font-style: italic; font-size: 14px;">
-                        Click 'Run Simulation' to model historical market crashes and recovery cycles.
+                <div class="sim-story-title" id="j2-title">The Rat Race Begins</div>
+                <div class="sim-story-body" id="j2-events">
+                    <p class="sim-para">Tap ▶ Play My Story to begin your financial journey.</p>
+                </div>
+                <div class="sim-story-metrics" id="sim-metrics">
+                    <div class="sim-metrics-row">
+                        <div class="sim-metric">
+                            <span>NET WORTH</span>
+                            <strong id="j2-nw">₹0</strong>
+                        </div>
+                        <div class="sim-metric">
+                            <span>MONTHLY SIP</span>
+                            <strong id="j2-sip-disp">—</strong>
+                        </div>
+                        <div class="sim-metric">
+                            <span>FI PROGRESS</span>
+                            <strong id="j2-fi-pct">0%</strong>
+                        </div>
+                    </div>
+                    <div class="sim-fi-track">
+                        <div class="sim-fi-fill" id="j2-fi-fill" style="width:0%"></div>
                     </div>
                 </div>
             </div>
+
+            <!-- CHAPTER TIMELINE -->
+            <div class="j-dots" id="j2-dots"></div>
+
+            <!-- CONTROLS -->
+            <div class="j-ctrl">
+                <button class="j-ctrl-btn" onclick="j2Prev()">‹</button>
+                <button class="j-ctrl-play" id="j2-playbtn" onclick="j2Toggle()">▶  Play My Story</button>
+                <button class="j-ctrl-btn" onclick="j2Next()">›</button>
+            </div>
+
+            <!-- hidden compat -->
+            <span id="j2-emoji" style="display:none"></span>
+
         </section>
 
         <!-- ═══════════════════════════════════════
@@ -678,7 +741,69 @@
         </section>
 
         <!-- ═══════════════════════════════════════
-             TAB 6: PROFILE
+             TAB 6: CHILD PLANNING
+        ═══════════════════════════════════════ -->
+        <section id="pg-child" class="pg">
+
+            <!-- Hero -->
+            <div class="child-hero">
+                <div style="font-size:40px; margin-bottom:8px;">👶</div>
+                <h2 class="intake-hero-title" style="font-size:22px;">Child Planning Engine</h2>
+                <p class="intake-hero-sub">Plan your child's education, marriage, and future — city-tier adjusted costs, government scheme eligibility, and the exact SIP you need every month.</p>
+            </div>
+
+            <!-- City Tier -->
+            <div class="intake-section">
+                <div class="intake-section-label"><i data-lucide="map-pin"></i> Your City Tier</div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Which city tier do you live in?</label>
+                        <select id="child-city-tier">
+                            <option value="tier1">Tier 1 — Mumbai, Delhi, Bangalore, Hyderabad, Chennai, Pune</option>
+                            <option value="tier2" selected>Tier 2 — Ahmedabad, Jaipur, Lucknow, Indore, Nagpur, Surat</option>
+                            <option value="tier3">Tier 3 — All other cities and towns</option>
+                        </select>
+                        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;">City tier affects education and marriage costs — Tier 1 is significantly more expensive</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Your Monthly Investment Capacity for Child (₹)</label>
+                        <input type="number" id="child-budget" placeholder="e.g. 10000" value="10000">
+                        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;">How much can you set aside every month specifically for your child?</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Children Input -->
+            <div class="intake-section" style="border-color:rgba(168,85,247,0.2);">
+                <div class="intake-section-header">
+                    <div class="intake-section-label" style="margin-bottom:0; color:#A855F7;"><i data-lucide="users"></i> Your Children</div>
+                </div>
+                <div id="child-container"></div>
+                <button class="add-row-btn" style="border-color:rgba(168,85,247,0.3);color:#A855F7;" onclick="addChildRow()">
+                    <i data-lucide="plus-circle"></i> Add a Child
+                </button>
+                <div class="portfolio-note" style="border-color:rgba(168,85,247,0.2);">💡 Add each child separately. For a planned/future child, set age to 0.</div>
+            </div>
+
+            <!-- Compute Button -->
+            <button class="compute-cta" onclick="computeChildPlan()" style="background: linear-gradient(135deg, #7c3aed, #a855f7);">
+                <div class="compute-cta-inner cta-default">
+                    <i data-lucide="baby"></i>
+                    <div class="compute-cta-text">
+                        <span class="compute-cta-title">Plan My Child's Future</span>
+                        <span class="compute-cta-sub">Education corpus · Government schemes · Monthly SIP · Marriage fund</span>
+                    </div>
+                    <i data-lucide="arrow-right"></i>
+                </div>
+            </button>
+
+            <!-- Results -->
+            <div id="child-results" style="display:none; margin-top:16px;"></div>
+
+        </section>
+
+        <!-- ═══════════════════════════════════════
+             TAB 7: PROFILE
         ═══════════════════════════════════════ -->
         <section id="pg-profile" class="pg">
 
