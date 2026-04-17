@@ -705,6 +705,42 @@ function saveAllData() {
     showSuccessToast('✅ Your data saved! You can close the app anytime.', '💾');
 }
 
+// Silent version — same save, no toast. Used for background auto-save on input.
+function saveAllDataSilent() {
+    const userData = {};
+    userData.name = document.getElementById('u-name')?.value || '';
+    userData.age = document.getElementById('u-age')?.value || '';
+    userData.income = document.getElementById('u-income')?.value || '';
+    userData.sip = document.getElementById('u-sip')?.value || '';
+    userData.stepup = document.getElementById('u-stepup')?.value || '10';
+    userData.rent = document.getElementById('u-rent')?.value || '';
+    userData.groceries = document.getElementById('u-groceries')?.value || '';
+    userData.cc = document.getElementById('u-cc')?.value || '';
+    userData.life = document.getElementById('u-life')?.value || '';
+    userData.med = document.getElementById('u-med')?.value || 'yes';
+    userData.term = document.getElementById('u-term')?.value || 'yes';
+    userData.riskQ1 = document.getElementById('u-risk-q1')?.value || '3';
+    userData.riskQ2 = document.getElementById('u-risk-q2')?.value || '2';
+    userData.riskQ3 = document.getElementById('u-risk-q3')?.value || '3';
+    userData.riskQ4 = document.getElementById('u-risk-q4')?.value || '3';
+    const accounts = [];
+    document.querySelectorAll('.dy-account').forEach(row => {
+        accounts.push({ type: row.querySelector('.a-t')?.value || '', name: row.querySelector('.a-n')?.value || '', value: row.querySelector('.a-p')?.value || '', rate: row.querySelector('.a-r')?.value || '' });
+    });
+    userData.accounts = accounts;
+    const debts = [];
+    document.querySelectorAll('.dy-debt').forEach(row => {
+        debts.push({ name: row.querySelector('.d-n')?.value || '', principal: row.querySelector('.d-p')?.value || '', rate: row.querySelector('.d-r')?.value || '', emi: row.querySelector('.d-e')?.value || '' });
+    });
+    userData.debts = debts;
+    const goals = [];
+    document.querySelectorAll('.dy-goal').forEach(row => {
+        goals.push({ name: row.querySelector('.g-name')?.value || '', target: row.querySelector('.g-tgt')?.value || '', years: row.querySelector('.g-yrs')?.value || '' });
+    });
+    userData.goals = goals;
+    try { localStorage.setItem('aarthSutraData', JSON.stringify(userData)); } catch(e) {}
+}
+
 function loadAllData() {
     const saved = localStorage.getItem('aarthSutraData');
 
@@ -799,7 +835,7 @@ function loadAllData() {
             addGoal();
         }
 
-        showSuccessToast('✅ Your saved data loaded!', '📂');
+        // No toast on load — silently restoring data is the expected behaviour
         updateInsuranceImpact();
     } catch(e) {
         console.error('Error loading data:', e);
@@ -819,6 +855,58 @@ function clearAllData() {
         localStorage.removeItem('aarthSutraData');
         location.reload();
     }
+}
+
+// ==================== SAVE PROMPT & VANISH ====================
+
+// Called when user clicks "Compute My Wealth Blueprint"
+function promptSaveAndCompute() {
+    // Reset stuck isComputing guard (can get stuck if page was force-refreshed mid-compute)
+    isComputing = false;
+
+    // Hide the compute backdrop in case it was stuck from a previous run
+    const backdrop = document.getElementById('compute-backdrop');
+    if (backdrop) backdrop.classList.add('hidden');
+
+    // Restore button state in case it was stuck
+    const ctaDefault = document.querySelector('.cta-default');
+    const ctaLoading = document.querySelector('.cta-loading');
+    if (ctaDefault) ctaDefault.style.display = 'flex';
+    if (ctaLoading) ctaLoading.style.display = 'none';
+
+    const overlay = document.getElementById('save-prompt-overlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+    } else {
+        // Fallback if modal not found
+        calculateStrategy();
+    }
+}
+
+function closeSavePrompt() {
+    const overlay = document.getElementById('save-prompt-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+function saveAndCompute() {
+    closeSavePrompt();
+    saveAllData();
+    calculateStrategy();
+}
+
+function computeWithoutSaving() {
+    closeSavePrompt();
+    calculateStrategy();
+}
+
+// Vanish: wipes every localStorage key this app uses, then reloads fresh
+function vanishAllData() {
+    if (!confirm('🔥 This will permanently erase all your data on this device. Are you absolutely sure?')) return;
+    ['aarthSutraData', 'aarth_user_name', 'aarth_api_key', 'aarth_visited', 'aarth_active_tab'].forEach(k => {
+        try { localStorage.removeItem(k); } catch(e) {}
+    });
+    showSuccessToast('Your data has vanished. Starting fresh.', '🌫️');
+    setTimeout(() => location.reload(), 1200);
 }
 
 // ==================== FORM VALIDATION ====================
@@ -1083,6 +1171,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Privacy starts OFF — user toggles manually
     document.body.classList.remove('privacy-on');
 
+    // Always make sure the save prompt is hidden on load (browser may restore DOM state)
+    const savePrompt = document.getElementById('save-prompt-overlay');
+    if (savePrompt) savePrompt.style.display = 'none';
+
     if (typeof lucide !== 'undefined') lucide.createIcons();
     const wmo = document.getElementById('withdraw-modal-overlay');
     if (wmo) wmo.addEventListener('click', function(e){ if(e.target === this) closeWithdrawModal(); });
@@ -1097,13 +1189,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.classList.contains('d-p')) updateDebtTotal();
     });
 
-    // Auto-save data on any input change (debounced)
-    // isLoading flag prevents auto-save firing during programmatic data load
+    // Silent auto-save on every input (no toast) — keeps data safe across refreshes.
     let autoSaveTimer;
     document.addEventListener('input', function(e) {
-        if (window._isLoadingData) return; // Don't auto-save during load
+        if (window._isLoadingData) return;
         clearTimeout(autoSaveTimer);
-        autoSaveTimer = setTimeout(saveAllData, 1000); // Save 1 second after last input
+        autoSaveTimer = setTimeout(saveAllDataSilent, 1500);
+    });
+
+    // Save immediately before the page unloads (refresh/close/navigate away).
+    // Doing this WITHOUT calling preventDefault so the browser shows NO confirmation dialog.
+    window.addEventListener('beforeunload', function() {
+        saveAllDataSilent();
     });
 
     // Load saved data first — defaults are only added if nothing was saved
@@ -1112,10 +1209,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial insurance display
     updateInsuranceImpact();
 
-    // Call initial calculation (skip if welcome overlay is open)
-    const overlay = document.getElementById('welcome-overlay');
-    if (!overlay || overlay.classList.contains('hidden')) {
-        setTimeout(calculateStrategy, 200);
+    // Restore last active tab
+    const lastTab = (() => { try { return localStorage.getItem('aarth_active_tab') || 'intake'; } catch(e) { return 'intake'; } })();
+
+    // Run initial calculation in silent mode (no tab switch), then restore tab
+    const welcomeOverlay = document.getElementById('welcome-overlay');
+    if (!welcomeOverlay || welcomeOverlay.classList.contains('hidden')) {
+        setTimeout(() => {
+            calculateStrategy(true); // silentMode = don't switch to dash
+            switchTab(lastTab);      // restore the tab user was on before refresh
+        }, 200);
     }
 });
 
@@ -1353,28 +1456,53 @@ function updateFISlider(sipVal) {
     sipVal = Number(sipVal);
     const dispEl = document.getElementById('fi-slider-display');
     if (dispEl) dispEl.innerText = formatCurrency(sipVal) + ' / month';
+
     const ageRaw = document.getElementById('u-age') ? document.getElementById('u-age').value : 28;
     const age = Number(ageRaw) || 28;
-    const totalAssets = engineMemory.totalAssets || 0;
-    const monthlyExp = engineMemory.totalExp || 50000;
-    const fiTarget = monthlyExp * 12 * 25;
-    const r = (12 / 100) / 12;
-    let corpus = totalAssets;
-    let months = 0;
+
+    // Use liquid corpus base (already computed by engine), not raw totalAssets
+    const corpusStart = engineMemory.fiCorpusBase || engineMemory.totalAssets || 0;
+    const monthlyExp  = engineMemory.totalExp || 50000;
+    const fiTarget    = monthlyExp * 12 * 25; // 25x rule
+
+    // Use the user's actual blended portfolio CAGR, not hardcoded 12%
+    const annualRate  = (engineMemory.blendedCAGR || 12) / 100;
+    const monthlyRate = annualRate / 12;
+
+    // Apply annual step-up if the user selected one
+    const stepUpPct = (engineMemory.stepUpPercent || 0) / 100;
+
+    let corpus     = corpusStart;
+    let currentSIP = sipVal;
+    let months     = 0;
+
     for (months = 0; months < 1200; months++) {
-        corpus = corpus * (1 + r) + sipVal;
+        // Step up SIP at the start of each new year (month 12, 24, 36 …)
+        if (months > 0 && months % 12 === 0 && stepUpPct > 0) {
+            currentSIP = currentSIP * (1 + stepUpPct);
+        }
+        corpus = corpus * (1 + monthlyRate) + currentSIP;
         if (corpus >= fiTarget) break;
     }
+
     const fiYear = new Date().getFullYear() + Math.floor(months / 12);
-    const fiAge = age + Math.floor(months / 12);
-    const fiDateEl = document.getElementById('fi-date');
+    const fiAge  = age + Math.floor(months / 12);
+    const fiDateEl  = document.getElementById('fi-date');
     const fiInsight = document.getElementById('fi-insight');
+
+    const rateLabel   = (engineMemory.blendedCAGR || 12).toFixed(1) + '% CAGR';
+    const stepUpLabel = stepUpPct > 0 ? ` + ${engineMemory.stepUpPercent}% annual step-up` : '';
+    const corpusLabel = corpusStart > 0 ? ` Starting corpus: <strong>${formatCurrency(corpusStart)}</strong>.` : '';
+
     if (months >= 1199) {
         if (fiDateEl) { fiDateEl.textContent = 'Needs higher SIP'; fiDateEl.style.color = '#ef4444'; }
-        if (fiInsight) fiInsight.innerHTML = 'At this rate, investments may not outpace expenses. Increase your monthly SIP significantly.';
+        if (fiInsight) fiInsight.innerHTML = `At <strong>${rateLabel}${stepUpLabel}</strong>, your SIP may not outpace expenses in time. Try increasing your monthly investment.`;
     } else {
         if (fiDateEl) { fiDateEl.textContent = fiYear + ' (Age ' + fiAge + ')'; fiDateEl.style.color = '#34d399'; }
-        if (fiInsight) fiInsight.innerHTML = 'Investing <strong>' + formatCurrency(sipVal) + '/month</strong> for <strong>' + (months/12).toFixed(1) + ' years</strong> will fund <strong>' + formatCurrency(fiTarget) + '</strong> FI corpus (25x rule). Each extra ' + formatCurrency(10000) + '/mo saves roughly ' + Math.floor(months * 0.015) + ' months of working life.';
+        if (fiInsight) fiInsight.innerHTML =
+            `Investing <strong>${formatCurrency(sipVal)}/month</strong>${stepUpLabel} at <strong>${rateLabel}</strong> ` +
+            `for <strong>${(months / 12).toFixed(1)} years</strong> builds <strong>${formatCurrency(fiTarget)}</strong> ` +
+            `(25× annual expenses).${corpusLabel}`;
     }
     } catch(e) { console.warn('updateFISlider error:', e); }
 }
@@ -1424,6 +1552,9 @@ function runWealthOptimizer(astCash, totalAssets, dArr, totalExp, income) {
 
 
 function switchTab(t) {
+    // Persist active tab so refresh restores it
+    try { localStorage.setItem('aarth_active_tab', t); } catch(e) {}
+
     document.querySelectorAll('.pg').forEach(p => {
         p.classList.remove('on');
         p.classList.add('off');
@@ -1436,8 +1567,25 @@ function switchTab(t) {
         'dash': 'pg-dash',
         'simulator': 'pg-sim',
         'lib': 'pg-lib',
-        'ai': 'pg-ai'
+        'ai': 'pg-ai',
+        'profile': 'pg-profile'
     };
+
+    // Refresh profile display when switching to it
+    if (t === 'profile') {
+        const nameEl = document.getElementById('profile-name-display');
+        if (nameEl) {
+            const n = (document.getElementById('u-name') || {}).value || '';
+            nameEl.textContent = n || 'Anonymous';
+        }
+        const statusEl = document.getElementById('profile-save-status');
+        if (statusEl) {
+            const hasSave = !!localStorage.getItem('aarthSutraData');
+            statusEl.innerHTML = hasSave
+                ? '✅ You have saved data on this device. It will load automatically next time you open the app.'
+                : '⚠️ No saved data yet. Hit <strong>Compute My Wealth Blueprint</strong> and choose to save.';
+        }
+    }
     
     const pg = document.getElementById(sectionMap[t]);
     const nav = document.getElementById('nav-' + t);
@@ -1448,8 +1596,9 @@ function switchTab(t) {
     }
     if (nav) nav.classList.add('active');
     
-    // Auto-calculating strategy when moving to Blueprint
-    if (t === 'dash') calculateStrategy();
+    // Auto-calculating strategy when user manually navigates to Blueprint tab
+    // silentMode=true so it doesn't re-trigger another switchTab('dash') recursively
+    if (t === 'dash') calculateStrategy(true);
     
     setTimeout(() => lucide.createIcons(), 50);
 }
@@ -1781,7 +1930,7 @@ function checkFirstVisit() {
 }
 
 // --- MASTER ALGORITHM (LADDER LOGIC & GOALS) ---
-function calculateStrategy() {
+function calculateStrategy(silentMode = false) {
     // Guard: prevent multiple simultaneous computations
     if (isComputing) return;
     isComputing = true;
@@ -2494,24 +2643,27 @@ function calculateStrategy() {
     const nwEl = document.getElementById('nw-total-wealth');
     if (nwEl) { nwEl.classList.remove('value-pop'); void nwEl.offsetWidth; nwEl.classList.add('value-pop'); }
 
-    // Determine celebration intensity
-    let milestone = null;
-    if (nw >= 100000000)       milestone = { e: '🏆', t: 'One Crore Club!', s: 'You have crossed ₹1 Crore in net worth. You are in the top 1% of India. Keep compounding.' };
-    else if (nw >= 10000000)   milestone = { e: '💎', t: '₹10 Lakh Milestone!', s: 'Double digits in lakhs. Most people never get here. You are building real generational wealth.' };
-    else if (nw >= 500000)     milestone = { e: '🚀', t: '₹5 Lakh Achieved!', s: 'Your money is now working for you. Every rupee invested multiplies. Stay consistent!' };
-    else if (nw >= 100000)     milestone = { e: '🌱', t: 'Journey Started!', s: 'Your first ₹1 Lakh in the journey. This seed will become a forest. Never stop planting.' };
-    else if (nw > 0 && isFirstRun) milestone = { e: '✨', t: 'Blueprint Ready!', s: 'Your personalised wealth plan is live. Small steps now = massive freedom later. Let\'s go!' };
+    // Celebrations & toasts — only fire when user explicitly clicked Compute, not on page-load auto-run
+    if (!silentMode) {
+        let milestone = null;
+        if (nw >= 100000000)       milestone = { e: '🏆', t: 'One Crore Club!', s: 'You have crossed ₹1 Crore in net worth. You are in the top 1% of India. Keep compounding.' };
+        else if (nw >= 10000000)   milestone = { e: '💎', t: '₹10 Lakh Milestone!', s: 'Double digits in lakhs. Most people never get here. You are building real generational wealth.' };
+        else if (nw >= 500000)     milestone = { e: '🚀', t: '₹5 Lakh Achieved!', s: 'Your money is now working for you. Every rupee invested multiplies. Stay consistent!' };
+        else if (nw >= 100000)     milestone = { e: '🌱', t: 'Journey Started!', s: 'Your first ₹1 Lakh in the journey. This seed will become a forest. Never stop planting.' };
+        else if (nw > 0 && isFirstRun) milestone = { e: '✨', t: 'Blueprint Ready!', s: 'Your personalised wealth plan is live. Small steps now = massive freedom later. Let\'s go!' };
 
-    if (milestone) {
-        launchConfetti(milestone.e === '🏆' ? 5000 : 3000);
-        setTimeout(() => showMilestonePop(milestone.e, milestone.t, milestone.s), 600);
-    } else if (nw > prevNW && !isFirstRun) {
-        showSuccessToast('Your plan is updated! Stay on track 💪', '📈');
-    } else if (isFirstRun) {
-        showSuccessToast('Blueprint ready! Scroll down to see your plan.', '🎯');
+        if (milestone) {
+            launchConfetti(milestone.e === '🏆' ? 5000 : 3000);
+            setTimeout(() => showMilestonePop(milestone.e, milestone.t, milestone.s), 600);
+        } else if (nw > prevNW && !isFirstRun) {
+            showSuccessToast('Your plan is updated! Stay on track 💪', '📈');
+        } else if (isFirstRun) {
+            showSuccessToast('Blueprint ready! Scroll down to see your plan.', '🎯');
+        }
     }
 
-    switchTab('dash');
+    // Only navigate to dash if user explicitly clicked Compute (not on page-load auto-run)
+    if (!silentMode) switchTab('dash');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
     } catch(err) {

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Validation Test</title>
+    <style>
+        body { font-family: Arial; background: #1a1a1a; color: white; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; background: #2a2a2a; border-radius: 8px; }
+        .test-btn { padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .test-btn:hover { background: #059669; }
+        .status { margin: 10px 0; padding: 10px; background: #333; border-left: 3px solid #10b981; }
+        .error { border-left-color: #ef4444; }
+        .pass { border-left-color: #10b981; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Validation Function Test</h1>
+
+    <div class="test-section">
+        <h2>Test 1: HTML Elements Exist</h2>
+        <button class="test-btn" onclick="testHTMLElements()">Run Test</button>
+        <div id="test1-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: validateForm() Function Exists</h2>
+        <button class="test-btn" onclick="testFunctionExists()">Run Test</button>
+        <div id="test2-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Validation with Empty Form</h2>
+        <button class="test-btn" onclick="testValidationEmpty()">Run Test</button>
+        <div id="test3-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: Check CSS Error Classes</h2>
+        <button class="test-btn" onclick="testCSSError()">Run Test</button>
+        <div id="test4-result"></div>
+    </div>
+
+    <script>
+        function testHTMLElements() {
+            const result = document.getElementById('test1-result');
+            const container = document.getElementById('validation-error-container');
+            const list = document.getElementById('validation-error-list');
+
+            if (container && list) {
+                result.innerHTML = '<div class="status pass">✅ Both error container and error list found in DOM</div>';
+            } else {
+                result.innerHTML = `<div class="status error">❌ Missing elements:<br>
+                    Container: ${container ? '✓' : '✗'}<br>
+                    List: ${list ? '✓' : '✗'}
+                </div>`;
+            }
+        }
+
+        function testFunctionExists() {
+            const result = document.getElementById('test2-result');
+            if (typeof validateForm === 'function') {
+                result.innerHTML = '<div class="status pass">✅ validateForm() function exists and is callable</div>';
+            } else {
+                result.innerHTML = '<div class="status error">❌ validateForm() function not found</div>';
+            }
+        }
+
+        function testValidationEmpty() {
+            const result = document.getElementById('test3-result');
+            try {
+                const isValid = validateForm();
+                const container = document.getElementById('validation-error-container');
+                const hasErrorClass = container?.classList.contains('show');
+
+                if (!isValid && hasErrorClass) {
+                    result.innerHTML = '<div class="status pass">✅ Validation correctly failed and error container shows</div>';
+                } else {
+                    result.innerHTML = `<div class="status error">❌ Unexpected result:<br>
+                        isValid: ${isValid}<br>
+                        hasErrorClass: ${hasErrorClass}
+                    </div>`;
+                }
+            } catch (err) {
+                result.innerHTML = `<div class="status error">❌ Error in validateForm():<br>${err.message}</div>`;
+            }
+        }
+
+        function testCSSError() {
+            const result = document.getElementById('test4-result');
+            const nameField = document.getElementById('u-name');
+            if (!nameField) {
+                result.innerHTML = '<div class="status error">❌ u-name field not found</div>';
+                return;
+            }
+
+            const formGroup = nameField.closest('.form-group');
+            if (!formGroup) {
+                result.innerHTML = '<div class="status error">❌ form-group parent not found</div>';
+                return;
+            }
+
+            // Add error class
+            formGroup.classList.add('error');
+
+            const hasError = formGroup.classList.contains('error');
+            const computedStyle = window.getComputedStyle(nameField);
+            const borderColor = computedStyle.borderColor;
+
+            formGroup.classList.remove('error');
+
+            if (hasError) {
+                result.innerHTML = `<div class="status pass">✅ Error class applies correctly<br>Border color when error applied: ${borderColor}</div>`;
+            } else {
+                result.innerHTML = '<div class="status error">❌ Error class not applied</div>';
+            }
+        }
+    </script>
+
+    <!-- Load the actual script to test -->
+    <script src="script.js?v=202604170003"></script>
+</body>
+</html>
