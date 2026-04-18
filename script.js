@@ -1226,12 +1226,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-/** Refresh the profile avatar initial in the topbar */
+/** Refresh the profile avatar in the topbar.
+ *  Name saved → coloured circle with initial, no icon.
+ *  No name    → hide circle, show user-circle icon. */
 function refreshProfileTopbar() {
-    const el = document.getElementById('profile-topbar-initial');
-    if (!el) return;
-    const name = (document.getElementById('u-name')?.value || '').trim();
-    el.textContent = name ? name[0].toUpperCase() : '?';
+    const initialEl = document.getElementById('profile-topbar-initial');
+    const iconEl    = document.querySelector('#profile-topbar-btn [data-lucide]');
+    if (!initialEl) return;
+
+    // Pull name from input OR from saved localStorage
+    let name = (document.getElementById('u-name')?.value || '').trim();
+    if (!name) {
+        try {
+            const saved = JSON.parse(localStorage.getItem('aarthSutraData') || '{}');
+            name = (saved.name || '').trim();
+        } catch(e) {}
+    }
+
+    if (name) {
+        // Show coloured initial circle
+        initialEl.textContent = name[0].toUpperCase();
+        initialEl.style.display = 'flex';
+        if (iconEl) iconEl.style.display = 'none';
+    } else {
+        // Show plain icon, hide circle
+        initialEl.style.display = 'none';
+        if (iconEl) iconEl.style.display = '';
+    }
 }
 
 // ==================== PILLAR MODALS ====================

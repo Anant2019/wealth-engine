@@ -277,8 +277,10 @@ body {
     -webkit-backdrop-filter: blur(24px);
     border-top: 1px solid var(--glass-border);
     display: flex;
-    align-items: stretch;
-    height: var(--nav-height);
+    align-items: flex-start;
+    /* Height grows to cover home indicator bar */
+    height: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+    /* Padding pushes tab icons up above the home indicator */
     padding-bottom: env(safe-area-inset-bottom, 0px);
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
 }
@@ -344,7 +346,7 @@ body {
 /* ===================== CONTENT AREA ===================== */
 .content-area {
     padding: 20px 16px;
-    padding-bottom: calc(var(--nav-height) + 20px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 24px);
     max-width: 860px;
     margin: 0 auto;
     width: 100%;
@@ -1612,7 +1614,7 @@ body.privacy-on td:not(:first-child) {
     background: #020408;
     color: var(--slate-mid);
     padding: 36px 20px;
-    padding-bottom: calc(var(--nav-height) + 36px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 36px);
     border-top: 1px solid var(--glass-border);
     font-size: 11px; line-height: 1.6; text-align: center;
 }
@@ -1637,7 +1639,7 @@ body.privacy-on td:not(:first-child) {
 
 /* --- Tablet --- */
 @media (max-width: 768px) {
-    .content-area { padding: 16px 12px; padding-bottom: calc(var(--nav-height) + 16px + env(safe-area-inset-bottom, 0px)); }
+    .content-area { padding: 16px 12px; padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 20px); }
 
     .topbar { padding: 0 16px; }
     .topbar-title { font-size: 19px; }
@@ -1694,7 +1696,7 @@ body.privacy-on td:not(:first-child) {
     .nav-item span { font-size: 8px; }
     .nav-item svg { width: 18px; height: 18px; }
 
-    .content-area { padding: 12px 10px; padding-bottom: calc(var(--nav-height) + 16px + env(safe-area-inset-bottom, 0px)); }
+    .content-area { padding: 12px 10px; padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 20px); }
 
     .app-card, .glass-card, .premium-card { padding: 16px 14px; border-radius: var(--r-lg); margin-bottom: 14px; }
 
