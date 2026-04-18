@@ -528,15 +528,25 @@
         <!-- ═══════════════════════════════════════
              TAB 3: AI INTELLIGENCE
         ═══════════════════════════════════════ -->
+        <!-- ═══════════════════════════════════════
+             HEALTH CHECK — WEALTH REPORT CARD
+        ═══════════════════════════════════════ -->
         <section id="pg-ai" class="pg">
             <div class="ai-tab-hero">
                 <div class="ai-tab-icon"><i data-lucide="sparkles"></i></div>
-                <h2 class="ai-tab-title">Your Money Guide</h2>
-                <p class="ai-tab-sub">Ask me anything about saving, investing, paying off loans, or getting out of debt. I only talk money — so you get focused, honest help. Your data never leaves this app.</p>
+                <h2 class="ai-tab-title">Talk to Your Money Guide</h2>
+                <p class="ai-tab-sub">I know your exact income, savings, loans, and goals. Ask me anything — I'll give you honest, personalised answers like a knowledgeable friend would. No jargon. No judgment.</p>
             </div>
+
+            <!-- SEBI Disclaimer banner -->
+            <div class="ai-sebi-notice">
+                <span>⚠️</span>
+                <span>Aarth Sutra is <strong>not a SEBI-registered advisor</strong>. This AI provides general financial education only — not investment advice. Always think independently before investing.</span>
+            </div>
+
             <div class="ai-key-card premium-card">
                 <div class="card-hd"><i data-lucide="key"></i> Connect Your Free AI Key</div>
-                <p style="font-size:13px;color:var(--slate-mid);margin-bottom:16px;line-height:1.6;">To activate the AI, you need a free Gemini key from Google. It takes 30 seconds to get — no payment required. Once added, I can give you personalised advice based on your actual numbers.</p>
+                <p style="font-size:13px;color:var(--slate-mid);margin-bottom:16px;line-height:1.6;">To activate the AI, you need a free Gemini key from Google. It takes 30 seconds — no payment required. Once added, I can give you advice based on your real numbers.</p>
                 <div class="ai-key-input-row">
                     <input type="password" id="gemini-api-key-2" placeholder="Paste your free AI key here..." class="ai-key-input" oninput="document.getElementById('gemini-api-key').value=this.value">
                     <a href="https://aistudio.google.com/apikey" target="_blank" class="ai-get-key-btn">Get Free Key →</a>
@@ -544,60 +554,62 @@
             </div>
 
             <!-- Quick question shortcuts -->
+            <div class="ai-section-label">💬 Quick Questions</div>
             <div class="ai-prompts-grid">
-                <div class="ai-prompt-card" onclick="triggerAIPrompt('Look at my numbers and tell me the top 3 things I should do right now to improve my finances.')">
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('Look at my numbers and give me a detailed diagnosis — what is good, what is moderate, and what is critical? Be honest like a doctor.')">
                     <span class="ai-prompt-icon">🔍</span>
                     <div class="ai-prompt-text">What should I fix first?</div>
                 </div>
-                <div class="ai-prompt-card" onclick="triggerAIPrompt('Based on my income and savings, how many years until I can stop working? What can I do to retire earlier?')">
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('Based on my exact income, savings and SIP — how many years until I can stop working? What one change would help me retire earliest?')">
                     <span class="ai-prompt-icon">🚀</span>
                     <div class="ai-prompt-text">When can I retire?</div>
                 </div>
-                <div class="ai-prompt-card" onclick="triggerAIPrompt('I have loans and want to invest too. Should I pay off my loans first or start a SIP? Give me a simple plan.')">
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('I have loans and want to invest too. Looking at my actual EMI and surplus — should I pay off loans first or start a SIP? Give me a concrete month-by-month plan.')">
                     <span class="ai-prompt-icon">⚖️</span>
-                    <div class="ai-prompt-text">Loan first or invest first?</div>
+                    <div class="ai-prompt-text">Loan vs SIP — which first?</div>
                 </div>
-                <div class="ai-prompt-card" onclick="triggerAIPrompt('What are the simplest ways to save tax in India for my income level? Explain in very simple language.')">
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('Based on my income and current investments, am I missing out on PPF? Tell me how much tax I can save and whether PPF makes sense for me.')">
+                    <span class="ai-prompt-icon">🏛️</span>
+                    <div class="ai-prompt-text">Should I open PPF?</div>
+                </div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('What are all the tax saving options available for my income level in India — 80C, 80D, HRA, NPS? How much total tax can I save right now?')">
                     <span class="ai-prompt-icon">🛡️</span>
-                    <div class="ai-prompt-text">How do I save on taxes?</div>
+                    <div class="ai-prompt-text">Save more on taxes</div>
                 </div>
-                <div class="ai-prompt-card" onclick="triggerAIPrompt('I feel stressed and overwhelmed about my finances. I feel like I will never get out of debt. Please help me feel better and give me a real plan.')">
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('I feel stressed and overwhelmed about money. Looking at my numbers — tell me honestly where I stand and what small steps I can take to feel better.')">
                     <span class="ai-prompt-icon">💚</span>
                     <div class="ai-prompt-text">I feel stressed about money</div>
                 </div>
-                <div class="ai-prompt-card" onclick="triggerAIPrompt('How do I build ₹1 crore? Give me a simple step-by-step monthly SIP plan I can actually follow.')">
-                    <span class="ai-prompt-icon">💰</span>
-                    <div class="ai-prompt-text">How to save ₹1 Crore?</div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('Create a personalised step-by-step wealth building plan for me — based on my exact income, surplus, age and goals. Month 1, Month 6, Year 1, Year 3.')">
+                    <span class="ai-prompt-icon">🗺️</span>
+                    <div class="ai-prompt-text">Build my wealth plan</div>
                 </div>
-                <div class="ai-prompt-card" onclick="triggerAIPrompt('generate PDF report')">
-                    <span class="ai-prompt-icon">📄</span>
-                    <div class="ai-prompt-text">Download my PDF report</div>
-                </div>
-                <div class="ai-prompt-card" onclick="triggerAIPrompt('generate Excel report')">
-                    <span class="ai-prompt-icon">📊</span>
-                    <div class="ai-prompt-text">Get my Excel sheet</div>
+                <div class="ai-prompt-card" onclick="triggerAIPrompt('Which of my current loans is hurting my wealth the most? Rank them by damage and tell me the payoff order that saves me the most money.')">
+                    <span class="ai-prompt-icon">🔬</span>
+                    <div class="ai-prompt-text">Which loan is killing me?</div>
                 </div>
             </div>
 
-            <!-- Two download buttons (no AI key needed) -->
-            <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+            <!-- Chat window (original working structure) -->
+            <div class="ai-chat-inline premium-card">
+                <div class="card-hd"><i data-lucide="message-circle"></i> Chat with Your Money Guide</div>
+                <div class="ai-inline-history" id="ai-inline-history">
+                    <div class="chat-msg ai">Namaste! 🙏 I'm your Aarth Sutra money guide. Add your AI key above and I'll give you personalised advice based on your exact numbers — ask me about saving, loans, PPF, SIP, tax, or retirement.<br><br><em style="opacity:0.5;font-size:11px;">Not a SEBI-registered advisor — for education only.</em></div>
+                </div>
+                <div class="ai-inline-input-row">
+                    <input type="text" id="ai-inline-input" placeholder="Ask me anything about money, loans, or savings..." class="ai-inline-input">
+                    <button onclick="sendInlineChat()" class="ai-send-btn" id="ai-chat-send-btn"><i data-lucide="send"></i></button>
+                </div>
+            </div>
+
+            <!-- Export buttons -->
+            <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
                 <button onclick="generateWealthBlueprintPDF()" class="add-row-btn" style="flex:1;min-width:140px;border-color:rgba(16,185,129,0.4);color:var(--emerald);">
                     <i data-lucide="file-text"></i> Save as PDF
                 </button>
                 <button onclick="generateExcelReport()" class="add-row-btn" style="flex:1;min-width:140px;border-color:rgba(129,140,248,0.4);color:#a5b4fc;">
-                    <i data-lucide="table-2"></i> Download Excel / CSV
+                    <i data-lucide="table-2"></i> Download Excel
                 </button>
-            </div>
-
-            <div class="ai-chat-inline premium-card">
-                <div class="card-hd"><i data-lucide="message-circle"></i> Chat with Your Money Guide</div>
-                <div class="ai-inline-history" id="ai-inline-history">
-                    <div class="chat-msg ai">Namaste! 🙏 I'm your Aarth Sutra money guide. Add your AI key above and I'll give you personalised advice — ask me about saving, loans, investing, insurance, or anything money-related. I only talk finance, so my help is focused and honest.</div>
-                </div>
-                <div class="ai-inline-input-row">
-                    <input type="text" id="ai-inline-input" placeholder="Ask me anything about money, loans, or savings..." class="ai-inline-input">
-                    <button onclick="sendInlineChat()" class="ai-send-btn"><i data-lucide="send"></i></button>
-                </div>
             </div>
         </section>
 
@@ -961,40 +973,133 @@
 
     <!-- ══ PDF BLUEPRINT (Offscreen) ══ -->
     <div id="pdf-container" class="pdf-offscreen">
-        <div id="pdf-content" class="pdf-blueprint-document">
-            <div style="text-align:center;border-bottom:3px solid #064e3b;padding-bottom:20px;margin-bottom:28px;">
-                <h1 id="pdf-bp-title" style="font-family:'Playfair Display',serif;font-size:26px;color:#064e3b;margin-bottom:4px;">Aarth Sutra | Algorithmic Strategy</h1>
-                <p style="color:#64748b;font-size:12px;">Generated by Aarth Sutra Intelligence — Private, Local & Non-Custodial</p>
+      <div id="pdf-content" class="pdf-blueprint-document">
+
+        <!-- COVER HEADER -->
+        <div style="background:linear-gradient(135deg,#064e3b,#065f46);color:white;padding:28px 32px 22px;margin:-20px -20px 28px;border-radius:0;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:0.7;margin-bottom:6px;">Aarth Sutra · Wealth Intelligence Report</div>
+              <h1 id="pdf-bp-title" style="font-size:24px;font-weight:900;margin:0 0 4px;">Wealth Blueprint</h1>
+              <div style="font-size:12px;opacity:0.65;" id="pdf-date-line">Private & Confidential · Generated on device</div>
             </div>
-            <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px;color:#064e3b;">Section A: Financial Health Audit</h3>
-            <table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;">
-                <tr><td style="padding:8px;font-weight:600;border-bottom:1px solid #f1f5f9;">Cash Flow Status</td><td id="pdf-cf-stat" style="padding:8px;border-bottom:1px solid #f1f5f9;"></td></tr>
-                <tr><td style="padding:8px;font-weight:600;border-bottom:1px solid #f1f5f9;">Safety Net Status</td><td id="pdf-safe-stat" style="padding:8px;border-bottom:1px solid #f1f5f9;"></td></tr>
-                <tr><td style="padding:8px;font-weight:600;border-bottom:1px solid #f1f5f9;">Liability Status</td><td id="pdf-lia-stat" style="padding:8px;border-bottom:1px solid #f1f5f9;"></td></tr>
-                <tr><td style="padding:8px;font-weight:600;">Next Milestone</td><td id="pdf-next-stat" style="padding:8px;"></td></tr>
-            </table>
-            <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px;color:#064e3b;">Section B: Goal Feasibility</h3>
-            <div id="pdf-goal-text" style="font-size:13px;margin-bottom:28px;"></div>
-            <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px;color:#064e3b;">Section C: Monthly Allocation Protocol</h3>
-            <table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;">
-                <thead><tr style="background:#f0fdf4;"><th style="padding:8px;text-align:left;color:#064e3b;">Instrument</th><th style="padding:8px;text-align:left;color:#064e3b;">Expected Yield</th><th style="padding:8px;text-align:left;color:#064e3b;">Monthly Allocation</th></tr></thead>
-                <tbody id="pdf-alloc-body"></tbody>
-            </table>
-            <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px;color:#064e3b;">Section D: Debt Amortization Schedule</h3>
-            <p id="pdf-amort-text" style="font-size:13px;margin-bottom:10px;"></p>
-            <table id="pdf-amort-table" style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;">
-                <thead><tr style="background:#f0fdf4;"><th style="padding:8px;text-align:left;">Lender</th><th style="padding:8px;text-align:left;">Principal</th><th style="padding:8px;text-align:left;">Normal Payoff</th><th style="padding:8px;text-align:left;color:#059669;">Accelerated Payoff</th></tr></thead>
-                <tbody id="pdf-amort-body"></tbody>
-            </table>
-            <div id="pdf-ego-section" style="display:none;background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px;text-align:center;margin-bottom:28px;">
-                <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#166534;margin-bottom:8px;">BRAGGING RIGHTS</div>
-                <p id="pdf-ego-text" style="font-size:13px;color:#166534;margin-bottom:12px;"></p>
-                <div style="display:flex;justify-content:center;gap:40px;">
-                    <div><div style="font-size:22px;font-weight:900;color:#059669;" id="pdf-ego-interest"></div><div style="font-size:11px;color:#64748b;">Interest Saved</div></div>
-                    <div><div style="font-size:22px;font-weight:900;color:#059669;" id="pdf-ego-years"></div><div style="font-size:11px;color:#64748b;">Years Faster</div></div>
-                </div>
+            <div style="text-align:right;">
+              <div style="font-size:11px;opacity:0.6;margin-bottom:4px;">WEALTH HEALTH SCORE</div>
+              <div style="font-size:42px;font-weight:900;line-height:1;" id="pdf-health-score">—</div>
+              <div style="font-size:11px;opacity:0.6;">/100</div>
+              <div style="margin-top:6px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block;" id="pdf-health-grade-pill" style="background:rgba(255,255,255,0.2);">—</div>
             </div>
+          </div>
         </div>
+
+        <!-- SECTION 0: SNAPSHOT -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:28px;">
+          <div style="background:#f0fdf4;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;margin-bottom:4px;">Net Worth</div>
+            <div style="font-size:17px;font-weight:900;color:#059669;" id="pdf-nw">—</div>
+          </div>
+          <div style="background:#eff6ff;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;margin-bottom:4px;">Monthly SIP</div>
+            <div style="font-size:17px;font-weight:900;color:#2563eb;" id="pdf-sip">—</div>
+          </div>
+          <div style="background:#fff7ed;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;margin-bottom:4px;">Total Debt</div>
+            <div style="font-size:17px;font-weight:900;color:#ea580c;" id="pdf-debt">—</div>
+          </div>
+          <div style="background:#faf5ff;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;margin-bottom:4px;">Savings Rate</div>
+            <div style="font-size:17px;font-weight:900;color:#7c3aed;" id="pdf-sr">—</div>
+          </div>
+        </div>
+
+        <!-- SECTION A: HEALTH AUDIT -->
+        <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #064e3b;padding-bottom:6px;margin-bottom:14px;color:#064e3b;">Section A — Financial Health Audit</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:13px;">
+          <thead><tr style="background:#f8fafc;">
+            <th style="padding:9px 10px;text-align:left;color:#475569;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Area</th>
+            <th style="padding:9px 10px;text-align:left;color:#475569;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Status</th>
+            <th style="padding:9px 10px;text-align:left;color:#475569;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Score</th>
+            <th style="padding:9px 10px;text-align:left;color:#475569;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Your Numbers</th>
+          </tr></thead>
+          <tbody id="pdf-health-table"></tbody>
+        </table>
+        <div id="pdf-health-verdict" style="background:#f0fdf4;border-left:4px solid #059669;padding:10px 14px;margin-bottom:28px;font-size:13px;color:#166534;"></div>
+
+        <!-- SECTION B: WHAT'S KILLING YOUR WEALTH -->
+        <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #064e3b;padding-bottom:6px;margin-bottom:14px;color:#064e3b;">Section B — What's Helping &amp; Hurting Your Wealth</h3>
+        <div id="pdf-killers-good" style="margin-bottom:10px;"></div>
+        <div id="pdf-killers-bad" style="margin-bottom:28px;"></div>
+
+        <!-- SECTION C: GOAL FEASIBILITY -->
+        <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #064e3b;padding-bottom:6px;margin-bottom:14px;color:#064e3b;">Section C — Goal Feasibility Analysis</h3>
+        <div id="pdf-goal-text" style="font-size:13px;margin-bottom:28px;color:#374151;"></div>
+
+        <!-- SECTION D: ACTION PLAN / PRESCRIPTION -->
+        <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #064e3b;padding-bottom:6px;margin-bottom:14px;color:#064e3b;">Section D — Your Personalised Action Plan</h3>
+        <div id="pdf-rx-list" style="margin-bottom:28px;"></div>
+
+        <!-- SECTION E: MONTHLY ALLOCATION -->
+        <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #064e3b;padding-bottom:6px;margin-bottom:14px;color:#064e3b;">Section E — Monthly Allocation Protocol</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;">
+          <thead><tr style="background:#f0fdf4;">
+            <th style="padding:9px 10px;text-align:left;color:#064e3b;">Instrument</th>
+            <th style="padding:9px 10px;text-align:left;color:#064e3b;">Expected Yield</th>
+            <th style="padding:9px 10px;text-align:left;color:#064e3b;">Monthly Allocation</th>
+          </tr></thead>
+          <tbody id="pdf-alloc-body"></tbody>
+        </table>
+
+        <!-- SECTION F: DEBT XRAY -->
+        <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #064e3b;padding-bottom:6px;margin-bottom:14px;color:#064e3b;">Section F — Debt X-Ray &amp; Amortization</h3>
+        <p id="pdf-amort-text" style="font-size:13px;margin-bottom:10px;color:#374151;"></p>
+        <table id="pdf-amort-table" style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px;">
+          <thead><tr style="background:#f0fdf4;">
+            <th style="padding:9px 10px;text-align:left;">Lender / Loan</th>
+            <th style="padding:9px 10px;text-align:left;">Balance</th>
+            <th style="padding:9px 10px;text-align:left;">EMI</th>
+            <th style="padding:9px 10px;text-align:left;">Rate</th>
+            <th style="padding:9px 10px;text-align:left;">Normal Payoff</th>
+            <th style="padding:9px 10px;text-align:left;color:#059669;">Accelerated Payoff</th>
+          </tr></thead>
+          <tbody id="pdf-amort-body"></tbody>
+        </table>
+        <div id="pdf-ego-section" style="display:none;background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:18px;text-align:center;margin-bottom:28px;">
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#166534;margin-bottom:6px;">🏆 BRAGGING RIGHTS — If You Follow This Plan</div>
+          <p id="pdf-ego-text" style="font-size:13px;color:#166534;margin-bottom:12px;"></p>
+          <div style="display:flex;justify-content:center;gap:40px;">
+            <div><div style="font-size:24px;font-weight:900;color:#059669;" id="pdf-ego-interest"></div><div style="font-size:11px;color:#64748b;">Interest Saved</div></div>
+            <div><div style="font-size:24px;font-weight:900;color:#059669;" id="pdf-ego-years"></div><div style="font-size:11px;color:#64748b;">Years Faster</div></div>
+          </div>
+        </div>
+
+        <!-- SECTION G: 10-YEAR PROJECTION -->
+        <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #064e3b;padding-bottom:6px;margin-bottom:14px;color:#064e3b;">Section G — 10-Year Wealth Projection</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;">
+          <thead><tr style="background:#f0fdf4;">
+            <th style="padding:8px 10px;text-align:left;color:#064e3b;">Year</th>
+            <th style="padding:8px 10px;text-align:left;color:#064e3b;">Projected Net Worth</th>
+            <th style="padding:8px 10px;text-align:left;color:#064e3b;">Monthly SIP (step-up)</th>
+            <th style="padding:8px 10px;text-align:left;color:#064e3b;">FI Progress</th>
+          </tr></thead>
+          <tbody id="pdf-projection-body"></tbody>
+        </table>
+
+        <!-- SECTION H: LIFESTYLE INTELLIGENCE -->
+        <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #064e3b;padding-bottom:6px;margin-bottom:14px;color:#064e3b;">Section H — Lifestyle Intelligence: What You Can Afford Right Now</h3>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;font-style:italic;">Based on your income, surplus, debt level and financial health — here's an honest assessment of what fits your life comfortably today.</p>
+        <div id="pdf-lifestyle"></div>
+
+        <!-- DISCLAIMER -->
+        <div style="border-top:1px solid #e2e8f0;padding-top:14px;font-size:10.5px;color:#94a3b8;line-height:1.6;">
+          <strong style="color:#64748b;">⚠️ Disclaimer:</strong> Aarth Sutra is <strong>not registered with SEBI</strong> as an investment advisor or research analyst. This report is generated for educational and informational purposes only, based on data you entered. It does <strong>not constitute financial advice</strong>. Please consult a SEBI-registered financial advisor, CA, or CFP before making any investment decision. Past returns of any instrument do not guarantee future performance. All projections are estimates based on assumed CAGR and may vary significantly.
+        </div>
+
+        <!-- Audit footer -->
+        <div style="text-align:center;margin-top:18px;font-size:10px;color:#cbd5e1;">
+          Aarth Sutra · 100% Private · Zero data sent to any server · <span id="pdf-footer-date"></span>
+        </div>
+
+      </div>
     </div>
 
 </div><!-- /app-container -->

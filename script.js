@@ -2482,6 +2482,7 @@ function calculateStrategy(silentMode = false) {
     // ==== FIRE DIVERSIFICATION METER (Library Tab) ====
     if (typeof updateDiversificationMeter === 'function') updateDiversificationMeter();
 
+
     // --- EXACT MONTHLY ALLOCATOR (10-COLUMN PRO MATRIX) ---
     let allocHTML = "";
     let simDebt = toxicDebtAmount;
@@ -2979,117 +2980,358 @@ async function runCrisisSimulator() {
 
 // --- MACRO-ARCHITECTURAL BLUEPRINT (FORMAL PDF) ---
 function generateWealthBlueprintPDF() {
-    if(engineMemory.totalAssets === undefined) { alert("Generate Strategy first."); return; }
+    if (engineMemory.totalAssets === undefined) { alert("Please tap 'Compute My Wealth Blueprint' first to generate your report."); return; }
+    const m = engineMemory;
+    const name = m.name || 'Friend';
+    const income = m.income || 0;
+    const exp = m.totalExp || 0;
+    const surplus = m.sumSurplus || m.surplus || 0;
+    const sip = m.sip || 0;
+    const netWorth = m.netWorth || 0;
+    const liab = m.totalLiabilities || 0;
+    const assets = m.totalAssets || 0;
+    const cash = m.astCash || 0;
+    const emMonths = m.emFundMonths || 0;
+    const cagr = m.blendedCAGR || 12;
+    const hasMed = m.hasMedIns;
+    const hasTerm = m.hasTermIns;
+    const dArr = m.dArr || [];
+    const stepUp = m.stepUpPercent || 0;
+    const today = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' });
 
-    document.getElementById('pdf-bp-title').innerText = `Aarth Sutra | Algorithmic Strategy: ${engineMemory.name}`;
+    // ── COVER ──
+    document.getElementById('pdf-bp-title').innerText = `${name}'s Wealth Blueprint`;
+    document.getElementById('pdf-date-line').innerText = `Private & Confidential · Generated ${today}`;
+    document.getElementById('pdf-footer-date').innerText = today;
 
-    // 1. Institutional Audit formatting
-    document.getElementById('pdf-cf-stat').innerText = engineMemory.cfStat;
-    if(engineMemory.cfStat.includes('Negative')) document.getElementById('pdf-cf-stat').style.color = '#dc2626';
-    else document.getElementById('pdf-cf-stat').style.color = '#059669';
+    // ── HEALTH SCORE ──
+    const savingsRate = income > 0 ? surplus / income : 0;
+    const sipRate = income > 0 ? sip / income : 0;
+    const debtRatio = income > 0 ? liab / (income * 12) : 0;
+    let cfPts = savingsRate>=0.30?25:savingsRate>=0.20?20:savingsRate>=0.10?13:savingsRate>=0.05?7:savingsRate>=0?3:0;
+    let debtPts = liab===0?25:debtRatio<=0.5?22:debtRatio<=1?17:debtRatio<=2?10:debtRatio<=4?5:0;
+    let invPts = sipRate>=0.25?25:sipRate>=0.15?20:sipRate>=0.10?14:sipRate>=0.05?8:sip>0?4:0;
+    let safetyPts = (emMonths>=6?10:emMonths>=3?5:0)+(hasMed?8:0)+(hasTerm?7:0);
+    const score = cfPts + debtPts + invPts + safetyPts;
+    let grade, gradeColor, gradeBg;
+    if      (score>=80){ grade='Excellent';  gradeColor='#065f46'; gradeBg='#d1fae5'; }
+    else if (score>=60){ grade='Good';       gradeColor='#1e40af'; gradeBg='#dbeafe'; }
+    else if (score>=40){ grade='Moderate';   gradeColor='#92400e'; gradeBg='#fef3c7'; }
+    else               { grade='Needs Work'; gradeColor='#991b1b'; gradeBg='#fee2e2'; }
+    document.getElementById('pdf-health-score').innerText = score;
+    document.getElementById('pdf-health-score').style.color = gradeColor;
+    const pillEl = document.getElementById('pdf-health-grade-pill');
+    pillEl.innerText = grade;
+    pillEl.style.background = gradeBg;
+    pillEl.style.color = gradeColor;
 
-    document.getElementById('pdf-safe-stat').innerText = engineMemory.safeStat;
-    if(engineMemory.safeStat.includes('At-Risk')) document.getElementById('pdf-safe-stat').style.color = '#dc2626';
-    else document.getElementById('pdf-safe-stat').style.color = '#059669';
+    // ── SNAPSHOT STATS ──
+    document.getElementById('pdf-nw').innerText = formatCurrency(netWorth);
+    document.getElementById('pdf-sip').innerText = sip > 0 ? formatCurrency(sip)+'/mo' : '₹0 — Not investing';
+    document.getElementById('pdf-debt').innerText = liab > 0 ? formatCurrency(liab) : 'Debt-Free ✓';
+    document.getElementById('pdf-sr').innerText = Math.round(savingsRate*100)+'%';
 
-    document.getElementById('pdf-lia-stat').innerText = engineMemory.liaStat;
-    if(engineMemory.liaStat.includes('CRITCAL')) document.getElementById('pdf-lia-stat').style.color = '#dc2626';
-    else document.getElementById('pdf-lia-stat').style.color = '#059669';
-    
-    document.getElementById('pdf-next-stat').innerText = engineMemory.nextMilestone;
-    
-    if(document.getElementById('pdf-goal-text')) {
-        document.getElementById('pdf-goal-text').innerHTML = engineMemory.goalAnalysisHTML;
+    // ── SECTION A: HEALTH TABLE ──
+    const cfGrade = cfPts>=20?'🟢 Excellent':cfPts>=13?'🟡 Good':cfPts>=7?'🟠 Moderate':'🔴 Critical';
+    const dGrade  = debtPts>=22?'🟢 Healthy':debtPts>=17?'🟡 Manageable':debtPts>=10?'🟠 High':'🔴 Critical';
+    const iGrade  = invPts>=20?'🟢 Excellent':invPts>=14?'🟡 Good':invPts>=8?'🟠 Moderate':'🔴 Low';
+    const sGrade  = safetyPts>=20?'🟢 Protected':safetyPts>=13?'🟡 Adequate':safetyPts>=7?'🟠 Partial':'🔴 Exposed';
+    const rowStyle = 'border-bottom:1px solid #f1f5f9;';
+    const tdP = 'padding:9px 10px;font-size:13px;';
+    document.getElementById('pdf-health-table').innerHTML = `
+      <tr style="${rowStyle}"><td style="${tdP}font-weight:700;">💸 Cash Flow</td><td style="${tdP}">${cfGrade}</td><td style="${tdP}font-weight:700;color:#059669;">${cfPts}/25</td><td style="${tdP}">Savings rate: ${Math.round(savingsRate*100)}% &nbsp;|&nbsp; Surplus: ${formatCurrency(surplus)}/mo</td></tr>
+      <tr style="${rowStyle}"><td style="${tdP}font-weight:700;">⚖️ Debt Burden</td><td style="${tdP}">${dGrade}</td><td style="${tdP}font-weight:700;color:#059669;">${debtPts}/25</td><td style="${tdP}">Total debt: ${formatCurrency(liab)} &nbsp;|&nbsp; ${Math.round(debtRatio*12)} months of income</td></tr>
+      <tr style="${rowStyle}"><td style="${tdP}font-weight:700;">📈 Investing</td><td style="${tdP}">${iGrade}</td><td style="${tdP}font-weight:700;color:#059669;">${invPts}/25</td><td style="${tdP}">SIP: ${formatCurrency(sip)}/mo (${Math.round(sipRate*100)}% of income) &nbsp;|&nbsp; CAGR: ${cagr.toFixed(1)}%</td></tr>
+      <tr><td style="${tdP}font-weight:700;">🛡️ Safety Net</td><td style="${tdP}">${sGrade}</td><td style="${tdP}font-weight:700;color:#059669;">${safetyPts}/25</td><td style="${tdP}">Emergency fund: ${Math.round(emMonths)} months &nbsp;|&nbsp; Health: ${hasMed?'✓':'✗'} &nbsp;|&nbsp; Term Life: ${hasTerm?'✓':'✗'}</td></tr>
+    `;
+    const verdictMap = {
+      'Excellent': `Excellent financial health, ${name}! You're doing better than 90% of people. Stay consistent and keep increasing your SIP every year.`,
+      'Good': `Good foundation, ${name}. A few targeted fixes in the weaker areas below will put you on the fast track to financial freedom.`,
+      'Moderate': `You have a base to build on, ${name}, but clear gaps need urgent attention. Focus on the Action Plan in Section D — small fixes here compound massively.`,
+      'Needs Work': `Your finances need restructuring, ${name}. The good news: even fixing 2-3 things from the Action Plan below can dramatically improve your score within 6 months.`
+    };
+    document.getElementById('pdf-health-verdict').innerText = verdictMap[grade] || '';
+    document.getElementById('pdf-health-verdict').style.borderLeftColor = gradeColor;
+    document.getElementById('pdf-health-verdict').style.background = gradeBg;
+    document.getElementById('pdf-health-verdict').style.color = gradeColor;
+
+    // ── SECTION B: WHAT'S HELPING / HURTING ──
+    const goods = [], bads = [];
+    if (savingsRate >= 0.20) goods.push(`✅ Strong savings rate (${Math.round(savingsRate*100)}%) — you're building wealth every month`);
+    if (liab === 0) goods.push(`✅ Completely debt-free — your full surplus is yours to invest`);
+    if (sip >= income*0.15) goods.push(`✅ Investing ${Math.round(sipRate*100)}% of income — compounding is working in your favour`);
+    if (hasMed && hasTerm) goods.push(`✅ Both health & term insurance in place — your family is protected`);
+    if (emMonths >= 6) goods.push(`✅ ${Math.round(emMonths)}-month emergency fund — financially resilient`);
+    if (savingsRate < 0.10) bads.push(`❌ Low savings rate (${Math.round(savingsRate*100)}%) — most of income is being consumed. Target: 20%+`);
+    if (liab > income*6) bads.push(`❌ Debt is ${Math.round(debtRatio*12)} months of income — paying this off is your #1 priority`);
+    if (sip < income*0.10 && sip >= 0) bads.push(`❌ SIP is only ${Math.round(sipRate*100)}% of income — wealth building is slow. Increase by ₹2,000 every 3 months`);
+    if (!hasMed) bads.push(`❌ No health insurance — one hospital bill could wipe out years of savings`);
+    if (!hasTerm) bads.push(`❌ No term life insurance — your family has no financial safety net if something happens`);
+    if (emMonths < 3) bads.push(`❌ Emergency fund covers only ${Math.round(emMonths)} month(s) — dangerously low. Target: 6 months (${formatCurrency(exp*6)})`);
+    // PPF check
+    let hasPPF = false;
+    document.querySelectorAll('.a-type').forEach(el => { if(el.value==='ppf') hasPPF=true; });
+    if (!hasPPF && income >= 30000) bads.push(`❌ No PPF account — missing 7.1% tax-free (EEE) returns & ₹46,800/yr tax saving (80C)`);
+    const liStyle = 'font-size:13px;padding:5px 0;color:#166534;';
+    const bStyle  = 'font-size:13px;padding:5px 0;color:#991b1b;';
+    document.getElementById('pdf-killers-good').innerHTML = goods.length
+        ? `<div style="background:#f0fdf4;border-radius:8px;padding:12px 14px;">${goods.map(g=>`<div style="${liStyle}">${g}</div>`).join('')}</div>`
+        : '';
+    document.getElementById('pdf-killers-bad').innerHTML = bads.length
+        ? `<div style="background:#fef2f2;border-radius:8px;padding:12px 14px;margin-top:8px;">${bads.map(b=>`<div style="${bStyle}">${b}</div>`).join('')}</div>`
+        : '<div style="font-size:13px;color:#059669;">No major red flags detected — great work!</div>';
+
+    // ── SECTION C: GOAL FEASIBILITY ──
+    if (document.getElementById('pdf-goal-text')) {
+        document.getElementById('pdf-goal-text').innerHTML = m.goalAnalysisHTML || '<p style="color:#94a3b8;">No goals entered.</p>';
     }
 
-    // 2. Exact Alloc Table mapping
-    let surplus = engineMemory.sumSurplus;
-    let allocEmergency = 0; let allocEquity = 0; let allocBonds = 0; let allocUS = 0;
-    
-    if(!engineMemory.p1) {
-        allocEmergency = surplus;
-    } else if(engineMemory.p4) {
-        allocEquity = surplus * 0.60; allocBonds = surplus * 0.20; allocUS = surplus * 0.20;
-    } else if(engineMemory.p3) {
-        allocEquity = surplus * 0.80; allocBonds = surplus * 0.20;
+    // ── SECTION D: ACTION PLAN ──
+    const rxItems = [];
+    if (surplus < 0) rxItems.push({ urgent:true, txt:`Cut expenses by at least ${formatCurrency(Math.abs(surplus))}/month. You are spending more than you earn — this is the single most urgent fix.` });
+    const toxicD = dArr.filter(d=>(d.rt||d.rate||0)>10).sort((a,b)=>(b.rt||b.rate||0)-(a.rt||a.rate||0));
+    if (toxicD.length > 0) rxItems.push({ urgent:true, txt:`Pay off ${toxicD[0].n||toxicD[0].name||'high-interest loan'} first (${toxicD[0].rt||toxicD[0].rate||'?'}% rate). Divert 100% of surplus until cleared. Frees up ${formatCurrency(toxicD[0].e||toxicD[0].emi||0)}/mo.` });
+    if (!hasMed) rxItems.push({ urgent:true, txt:`Buy a ₹10L family floater health insurance policy today. Costs ₹500-800/month on PolicyBazaar. No excuse to delay this.` });
+    if (!hasTerm) rxItems.push({ urgent:true, txt:`Get a ₹1 Crore term life insurance plan. For a 30-year-old it costs ~₹700/month. Compare on PolicyBazaar or Ditto Insurance.` });
+    if (emMonths < 6) rxItems.push({ urgent:emMonths<3, txt:`Build emergency fund to 6 months of expenses (${formatCurrency(exp*6)}). You need ${formatCurrency(Math.max(0,exp*6-cash))} more. Park in a liquid mutual fund.` });
+    if (!hasPPF && income >= 30000) rxItems.push({ urgent:false, txt:`Open a PPF account at any post office or bank. Invest ₹12,500/month for 7.1% tax-free returns + ₹46,800/yr tax saving under 80C.` });
+    if (sipRate < 0.20 && surplus > 5000) rxItems.push({ urgent:false, txt:`Increase your SIP by ${formatCurrency(Math.max(0,Math.round(income*0.20)-sip))}/month to hit 20% of income. Set up auto step-up of ${stepUp||10}% yearly.` });
+    if (score >= 60) rxItems.push({ urgent:false, txt:`Review this report every 6 months. When income rises, increase SIP by the same %. Small annual upgrades compound to massive wealth.` });
+    document.getElementById('pdf-rx-list').innerHTML = rxItems.map((rx,i)=>`
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:9px 12px;margin-bottom:6px;border-radius:8px;background:${rx.urgent?'#fef2f2':'#f0fdf4'};border-left:3px solid ${rx.urgent?'#ef4444':'#059669'};">
+        <div style="width:22px;height:22px;border-radius:50%;background:${rx.urgent?'#ef4444':'#059669'};color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</div>
+        <div style="font-size:13px;color:${rx.urgent?'#7f1d1d':'#166534'};line-height:1.5;">${rx.txt}</div>
+      </div>`).join('');
+
+    // ── SECTION E: ALLOCATION ──
+    let allocEquity=0, allocBonds=0, allocUS=0, allocEmergency=0;
+    if (!m.p1) { allocEmergency = surplus; }
+    else if (m.p4) { allocEquity=surplus*0.60; allocBonds=surplus*0.20; allocUS=surplus*0.20; }
+    else if (m.p3) { allocEquity=surplus*0.80; allocBonds=surplus*0.20; }
+    else { allocEquity=surplus; }
+    let aBody = '';
+    const tr = (c,color) => `background:${color||'transparent'}`;
+    if (!m.p1) {
+        aBody += `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:9px 10px;">Liquid Buffer (Savings A/c)</td><td style="padding:9px 10px;">0–4%</td><td style="padding:9px 10px;color:#64748b;font-weight:700;">First ₹10,000 here</td></tr>`;
+        aBody += `<tr style="border-bottom:1px solid #f1f5f9;background:#fef2f2;"><td style="padding:9px 10px;color:#dc2626;font-weight:700;">Emergency Fund / Debt Clearance</td><td style="padding:9px 10px;">0–7%</td><td style="padding:9px 10px;color:#dc2626;font-weight:700;">100% → ${formatCurrency(allocEmergency)}/mo</td></tr>`;
+        aBody += `<tr style="color:#94a3b8;"><td style="padding:9px 10px;">Mutual Funds / Equity</td><td style="padding:9px 10px;">—</td><td style="padding:9px 10px;">🔒 Locked until foundation complete</td></tr>`;
     } else {
-        allocEquity = surplus;
+        aBody += `<tr style="border-bottom:1px solid #f1f5f9;background:#f0fdf4;"><td style="padding:9px 10px;font-weight:700;">Nifty 50 + Midcap Index Funds</td><td style="padding:9px 10px;">12–15% CAGR</td><td style="padding:9px 10px;font-weight:700;color:#059669;">${formatCurrency(allocEquity)}/mo</td></tr>`;
+        if (m.p3) aBody += `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:9px 10px;font-weight:700;">Corporate Bonds (A+ rated)</td><td style="padding:9px 10px;">9–11%</td><td style="padding:9px 10px;font-weight:700;">${formatCurrency(allocBonds)}/mo</td></tr>`;
+        else aBody += `<tr style="border-bottom:1px solid #f1f5f9;color:#94a3b8;"><td style="padding:9px 10px;">Corporate Bonds</td><td style="padding:9px 10px;">—</td><td style="padding:9px 10px;">🔒 Unlocks at ₹5L portfolio</td></tr>`;
+        if (m.p4) aBody += `<tr><td style="padding:9px 10px;font-weight:700;">US Equities (Nasdaq / S&P500)</td><td style="padding:9px 10px;">13–15% CAGR</td><td style="padding:9px 10px;font-weight:700;">${formatCurrency(allocUS)}/mo</td></tr>`;
+        else aBody += `<tr style="color:#94a3b8;"><td style="padding:9px 10px;">US Equities</td><td style="padding:9px 10px;">—</td><td style="padding:9px 10px;">🔒 Unlocks at ₹20L portfolio</td></tr>`;
     }
-
-    let aBody = "";
-    if(!engineMemory.p1) {
-        aBody += `<tr><td>Liquid Savings Bank Buffer</td><td>0-4%</td><td style="color:#64748b; font-weight:bold;">First ₹10,000 diverted here.</td></tr>`;
-        aBody += `<tr><td>Emergency Fund & Debt Clearance</td><td>0-7%</td><td style="color:#ef4444; font-weight:bold;">100% (${formatCurrency(allocEmergency)}/mo) diverted here.</td></tr>`;
-        aBody += `<tr><td style="color:#94a3b8;">Mutual Funds (Nifty)</td><td>--</td><td style="color:#94a3b8;">LOCKED</td></tr>`;
-    } else {
-        aBody += `<tr><td>Mutual Funds (Nifty & Mid Cap)</td><td>12-15%</td><td style="font-weight:bold;">${formatCurrency(allocEquity)}/mo</td></tr>`;
-        if(engineMemory.p3) aBody += `<tr><td>Corporate Bonds (A+)</td><td>9-11%</td><td style="font-weight:bold;">${formatCurrency(allocBonds)}/mo</td></tr>`;
-        else aBody += `<tr><td style="color:#94a3b8;">Corporate Bonds</td><td>--</td><td style="color:#94a3b8;">LOCKED (Unlocks at ₹5L)</td></tr>`;
-        
-        if(engineMemory.p4) aBody += `<tr><td>US Equities (Nasdaq)</td><td>13-15%</td><td style="font-weight:bold;">${formatCurrency(allocUS)}/mo</td></tr>`;
-        else aBody += `<tr><td style="color:#94a3b8;">US Equities</td><td>--</td><td style="color:#94a3b8;">LOCKED (Unlocks at ₹20L)</td></tr>`;
-    }
-
     document.getElementById('pdf-alloc-body').innerHTML = aBody;
 
-    // 3. Amortization and Ego Metrics
-    let amBody = "";
-    let baseTotalInterest = 0;
-    let accTotalInterest = 0;
-    let maxBaseYears = 0;
-    let maxAccYears = 0;
-
-    if(engineMemory.dArr.length === 0) {
+    // ── SECTION F: DEBT X-RAY ──
+    let amBody='', baseTotalInt=0, accTotalInt=0, maxBaseYrs=0, maxAccYrs=0;
+    if (dArr.length === 0) {
         document.getElementById('pdf-amort-table').style.display = 'none';
-        document.getElementById('pdf-amort-text').innerText = "Congratulations! You have no bad debt.";
+        document.getElementById('pdf-amort-text').innerText = '🎉 Congratulations! You are completely debt-free. Your entire surplus can compound for you.';
         document.getElementById('pdf-ego-section').style.display = 'none';
     } else {
         document.getElementById('pdf-amort-table').style.display = 'table';
-        document.getElementById('pdf-amort-text').innerText = "Warning: Bad Debt detected. Try paying just 1 extra EMI every year to clear it faster.";
-        
-        engineMemory.dArr.forEach(d => {
-            let bM=0; let wM=0;
-            if(d.p>0 && d.e>0) {
-                let r=(d.rt/100)/12;
-                
-                // Normal Amortization
-                let v1 = 1 - (d.p*r)/d.e; 
+        const totalEMI = dArr.reduce((s,d)=>s+(d.e||d.emi||0),0);
+        document.getElementById('pdf-amort-text').innerText = `⚠️ You have ${dArr.length} active loan(s) with total EMI of ${formatCurrency(totalEMI)}/month (${Math.round(totalEMI/income*100)}% of income). Paying just 1 extra EMI per year can save you years of debt.`;
+        dArr.forEach(d => {
+            const p = d.p || d.bal || 0;
+            const e = d.e || d.emi || 0;
+            const rt = d.rt || d.rate || 0;
+            let bM=0, wM=0;
+            if (p>0 && e>0 && rt>0) {
+                const r = (rt/100)/12;
+                const v1 = 1-(p*r)/e;
                 bM = v1>0 ? -Math.log(v1)/Math.log(1+r) : 999;
-                let interestBase = (bM * d.e) - d.p;
-                if(v1 > 0) {
-                    baseTotalInterest += interestBase;
-                    if(bM > maxBaseYears) maxBaseYears = bM;
-                }
-                
-                // Accelerated Amortization (1 extra EMI injected per year roughly = 1.0833x monthly)
-                let wE = d.e * 1.0833; 
-                let v2 = 1 - (d.p*r)/wE; 
+                const intBase = (bM*e)-p;
+                if(v1>0){ baseTotalInt+=intBase; if(bM>maxBaseYrs) maxBaseYrs=bM; }
+                const wE=e*1.0833, v2=1-(p*r)/wE;
                 wM = v2>0 ? -Math.log(v2)/Math.log(1+r) : 999;
-                let interestAcc = (wM * wE) - d.p;
-                if(v2 > 0) {
-                    accTotalInterest += interestAcc;
-                    if(wM > maxAccYears) maxAccYears = wM;
-                }
+                const intAcc = (wM*wE)-p;
+                if(v2>0){ accTotalInt+=intAcc; if(wM>maxAccYrs) maxAccYrs=wM; }
             }
-            amBody += `<tr><td>${d.n} [${d.rt}%]</td><td>${formatCurrency(d.p)}</td><td>${(bM/12).toFixed(1)} Yrs</td><td style="color:#065f46; font-weight:bold;">${(wM/12).toFixed(1)} Yrs</td></tr>`;
+            const emiPct = income>0?Math.round((e/income)*100):0;
+            amBody += `<tr style="border-bottom:1px solid #f1f5f9;">
+                <td style="padding:9px 10px;font-weight:600;">${d.n||d.name||'Loan'}</td>
+                <td style="padding:9px 10px;">${formatCurrency(p)}</td>
+                <td style="padding:9px 10px;">${formatCurrency(e)}/mo<span style="font-size:11px;color:#94a3b8;"> (${emiPct}% of income)</span></td>
+                <td style="padding:9px 10px;">${rt}% p.a.</td>
+                <td style="padding:9px 10px;">${bM>0?(bM/12).toFixed(1)+' yrs':'—'}</td>
+                <td style="padding:9px 10px;color:#059669;font-weight:700;">${wM>0?(wM/12).toFixed(1)+' yrs':'—'}</td>
+            </tr>`;
         });
-
-        // Compute Bragging Rights
-        let interestSaved = Math.max(0, baseTotalInterest - accTotalInterest);
-        let yearsSaved = Math.max(0, (maxBaseYears - maxAccYears) / 12);
-        
-        if(interestSaved > 0) {
-            document.getElementById('pdf-ego-text').innerHTML = `By strictly following the Wealth Planner architecture, you are practically obliterating your bad debt. The math proves that you will permanently avoid handing over massive amounts of your hard-earned money to the banks!`;
-            document.getElementById('pdf-ego-interest').innerText = formatCurrency(interestSaved);
-            document.getElementById('pdf-ego-years').innerText = `${yearsSaved.toFixed(1)} Years`;
+        const intSaved = Math.max(0, baseTotalInt-accTotalInt);
+        const yrsSaved = Math.max(0, (maxBaseYrs-maxAccYrs)/12);
+        if (intSaved > 0) {
+            document.getElementById('pdf-ego-text').innerHTML = `By paying just 1 extra EMI per year on each loan, you will clear your debt ${yrsSaved.toFixed(1)} years earlier and avoid handing over ${formatCurrency(intSaved)} in interest to the banks!`;
+            document.getElementById('pdf-ego-interest').innerText = formatCurrency(intSaved);
+            document.getElementById('pdf-ego-years').innerText = `${yrsSaved.toFixed(1)} Years`;
             document.getElementById('pdf-ego-section').style.display = 'block';
-        } else {
-            document.getElementById('pdf-ego-section').style.display = 'none';
-        }
+        } else { document.getElementById('pdf-ego-section').style.display = 'none'; }
     }
     document.getElementById('pdf-amort-body').innerHTML = amBody;
 
-    // Trigger Native Print Dialog (works universally)
+    // ── SECTION G: 10-YEAR PROJECTION ──
+    const fiTarget = exp * 12 * 25;
+    let corpus = assets, monthlySIP = sip, projBody = '';
+    const mr = (cagr/100)/12;
+    for (let yr=1; yr<=10; yr++) {
+        for (let mo=0; mo<12; mo++) corpus = corpus*(1+mr) + monthlySIP;
+        if (stepUp > 0 && yr < 10) monthlySIP *= (1 + stepUp/100);
+        const fiPct = fiTarget>0 ? Math.min(100,Math.round(corpus/fiTarget*100)) : 0;
+        const rowBg = yr%2===0?'background:#f8fafc;':'';
+        projBody += `<tr style="${rowBg}border-bottom:1px solid #f1f5f9;">
+            <td style="padding:8px 10px;font-weight:600;">Year ${yr} (${new Date().getFullYear()+yr})</td>
+            <td style="padding:8px 10px;font-weight:700;color:#059669;">${formatCurrency(Math.round(corpus))}</td>
+            <td style="padding:8px 10px;">${formatCurrency(Math.round(monthlySIP))}/mo</td>
+            <td style="padding:8px 10px;"><span style="background:${fiPct>=100?'#d1fae5':fiPct>=50?'#dbeafe':'#f1f5f9'};color:${fiPct>=100?'#065f46':fiPct>=50?'#1e40af':'#475569'};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${fiPct}%${fiPct>=100?' 🎉 FINANCIALLY FREE':''}</span></td>
+        </tr>`;
+    }
+    document.getElementById('pdf-projection-body').innerHTML = projBody;
+
+    // ── SECTION H: LIFESTYLE INTELLIGENCE ──
+    (function buildLifestyleSection() {
+        const el = document.getElementById('pdf-lifestyle');
+        if (!el) return;
+
+        // ── CREDIT CARD ELIGIBILITY ──────────────────────────────────
+        // Rule: bank typically approves limit = 2–3× monthly income for salaried
+        const estCCLimit = Math.round(income * 2.5);
+
+        // Tier the right card based on income
+        let ccRec, ccWhy, ccWarn;
+        if (income >= 200000) {
+            ccRec = 'HDFC Infinia / Axis Magnus / Amex Platinum';
+            ccWhy = `Super-premium cards — unlimited lounge access, 5× rewards, concierge service. Your income (${formatCurrency(income)}/mo) easily qualifies. Estimated limit: ${formatCurrency(estCCLimit)}+.`;
+            ccWarn = 'Use for all monthly expenses and pay full balance every month to earn maximum rewards.';
+        } else if (income >= 100000) {
+            ccRec = 'HDFC Regalia / Axis Bank Select / SBI SimplyCLICK';
+            ccWhy = `Mid-premium cards — airport lounge access, 4× rewards on dining & travel, milestone benefits. Estimated limit: ${formatCurrency(estCCLimit)}.`;
+            ccWarn = 'Never revolve the balance. At 36–42% p.a. interest, credit card debt is the most toxic debt in India.';
+        } else if (income >= 50000) {
+            ccRec = 'SBI SimplySAVE / ICICI Amazon Pay / Flipkart Axis';
+            ccWhy = `Entry-to-mid cards — good cashback on daily spends (groceries, fuel, online). Estimated limit: ${formatCurrency(estCCLimit)}.`;
+            ccWarn = 'Strictly use only for planned purchases you can pay in full each month. Avoid EMI conversions.';
+        } else if (income >= 25000) {
+            ccRec = 'IDFC FIRST WOW (lifetime free) / AU Bank LIT';
+            ccWhy = `Zero-fee starter cards — cashback on everyday spends. Estimated limit: ${formatCurrency(estCCLimit)}.`;
+            ccWarn = 'With a tight budget, a credit card is a risk unless you are very disciplined. Consider a secured FD-backed card first.';
+        } else {
+            ccRec = 'Secured card (FD-backed) — e.g. SBI Unnati or Kotak 811';
+            ccWhy = `Your income is below ₹25,000/month. A secured card (backed by a fixed deposit) is the safest way to build credit history without risk.`;
+            ccWarn = 'Focus on income growth and emergency fund first before taking on any credit products.';
+        }
+
+        // ── CAR AFFORDABILITY ─────────────────────────────────────────
+        // Rule: Car EMI should not exceed 15% of income. Loan = 80% of car price.
+        // Max EMI = income * 0.15. At 9% for 5 yrs: max loan = EMI / 0.02076 (approx factor)
+        const maxCarEMI = Math.round(income * 0.15);
+        const loanFactor = 0.02076; // approx monthly factor for 9% 5yr loan
+        const maxCarLoan = Math.round(maxCarEMI / loanFactor);
+        const maxCarPrice = Math.round(maxCarLoan / 0.8); // 20% down payment
+        const onRoadFactor = 1.15; // approx on-road vs ex-showroom
+
+        let carRec, carModel, carMaintain, carWarn;
+        if (maxCarPrice >= 2500000) {
+            carRec = 'Premium segment (₹25L–50L ex-showroom)';
+            carModel = 'Hyundai Creta N-Line, Tata Harrier, MG Hector Plus, Honda City Hybrid';
+            carMaintain = `Monthly cost estimate: EMI ~${formatCurrency(maxCarEMI)} + fuel ~₹8,000 + insurance ~₹3,500 + maintenance ~₹2,000 = ~${formatCurrency(maxCarEMI+13500)}/month total.`;
+        } else if (maxCarPrice >= 1200000) {
+            carRec = 'Mid segment (₹12L–25L ex-showroom)';
+            carModel = 'Maruti Suzuki Grand Vitara, Hyundai Venue, Tata Nexon EV, Honda Amaze';
+            carMaintain = `Monthly cost estimate: EMI ~${formatCurrency(maxCarEMI)} + fuel ~₹6,000 + insurance ~₹2,500 + maintenance ~₹1,500 = ~${formatCurrency(maxCarEMI+10000)}/month total.`;
+        } else if (maxCarPrice >= 600000) {
+            carRec = 'Entry segment (₹6L–12L ex-showroom)';
+            carModel = 'Maruti Suzuki Swift / Dzire, Tata Tiago, Hyundai i20, Renault Triber';
+            carMaintain = `Monthly cost estimate: EMI ~${formatCurrency(maxCarEMI)} + fuel ~₹4,500 + insurance ~₹1,800 + maintenance ~₹1,000 = ~${formatCurrency(maxCarEMI+7300)}/month total.`;
+        } else if (maxCarPrice >= 300000) {
+            carRec = 'Budget segment (₹3L–6L ex-showroom)';
+            carModel = 'Maruti Suzuki Alto K10 / S-Presso, Tata Punch, Renault Kwid';
+            carMaintain = `Monthly cost estimate: EMI ~${formatCurrency(maxCarEMI)} + fuel ~₹3,500 + insurance ~₹1,200 + maintenance ~₹800 = ~${formatCurrency(maxCarEMI+5500)}/month total.`;
+        } else {
+            carRec = 'Not recommended right now';
+            carModel = 'Consider a two-wheeler or public transport instead';
+            carMaintain = `A car EMI + running costs would exceed 25%+ of your income at this stage. It will significantly slow wealth building.`;
+        }
+
+        const totalCarCost = maxCarEMI + (maxCarPrice >= 1200000 ? 10000 : maxCarPrice >= 600000 ? 7300 : 5500);
+        const carIncPct = Math.round(totalCarCost / income * 100);
+        carWarn = liab > income * 3
+            ? `⚠️ You already have significant debt (${formatCurrency(liab)}). Adding a car loan now is not advisable. Clear existing loans first.`
+            : carIncPct > 30
+            ? `⚠️ Total car cost would be ${carIncPct}% of income — above the healthy 20% limit. Consider a lower segment or wait 12 months.`
+            : `✅ A car in this segment is within your budget at ${carIncPct}% of income — but only if your emergency fund is intact and SIP is running.`;
+
+        // ── RENT / HOME AFFORDABILITY ──────────────────────────────────
+        const maxRent = Math.round(income * 0.30);
+        const maxHomeLoan = Math.round((income * 0.40) / loanFactor); // 40% EMI on 20yr loan
+        const maxHomePrice = Math.round(maxHomeLoan / 0.80);
+        let homeRec, homeWarn;
+        if (maxHomePrice >= 8000000) {
+            homeRec = `You can afford a home loan up to ~${formatCurrency(maxHomeLoan)} (price ~${formatCurrency(maxHomePrice)} with 20% down). This covers most Tier-1 city apartments.`;
+        } else if (maxHomePrice >= 3000000) {
+            homeRec = `You can afford a home loan up to ~${formatCurrency(maxHomeLoan)} (price ~${formatCurrency(maxHomePrice)}). Good for Tier-2 cities or outskirts of metros.`;
+        } else {
+            homeRec = `Home loan affordability is limited (~${formatCurrency(maxHomeLoan)}). Build income and savings for 2–3 more years before taking a home loan.`;
+        }
+        homeWarn = `Max comfortable rent: ${formatCurrency(maxRent)}/month (30% of income rule). Going above this strains all other financial goals.`;
+
+        // ── VACATION / LIFESTYLE SPEND ──────────────────────────────────
+        const annualVacBudget = Math.round(surplus * 12 * 0.10);
+        let vacRec;
+        if (annualVacBudget >= 200000) vacRec = `International holiday (Southeast Asia, Europe budget trip) — ₹${(annualVacBudget/1000).toFixed(0)}K/year is realistic without touching investments.`;
+        else if (annualVacBudget >= 80000) vacRec = `Domestic trip (Goa, Manali, Kerala, Rajasthan) or budget international (Thailand, Bali) — ₹${(annualVacBudget/1000).toFixed(0)}K/year.`;
+        else if (annualVacBudget >= 30000) vacRec = `Weekend trips and short domestic getaways — ₹${(annualVacBudget/1000).toFixed(0)}K/year. Skip international travel until surplus improves.`;
+        else vacRec = `Vacations should wait until your surplus improves. Even ₹10,000/month more surplus opens up real options.`;
+
+        // ── RENDER ──────────────────────────────────────────────────────
+        const S = (label, color) => `<div style="display:inline-block;padding:2px 9px;border-radius:12px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;background:${color==='g'?'#d1fae5':color==='y'?'#fef3c7':'#fee2e2'};color:${color==='g'?'#065f46':color==='y'?'#92400e':'#991b1b'};">${label}</div>`;
+        const block = (icon, title, statusColor, main, sub, warn) => `
+          <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+              <span style="font-size:20px;">${icon}</span>
+              <span style="font-size:13px;font-weight:800;color:#1e293b;">${title}</span>
+              ${S(statusColor==='g'?'Good fit':statusColor==='y'?'Caution':'Not yet', statusColor)}
+            </div>
+            <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:4px;">${main}</div>
+            <div style="font-size:12.5px;color:#475569;margin-bottom:6px;line-height:1.6;">${sub}</div>
+            <div style="font-size:12px;color:${warn.startsWith('✅')?'#166534':warn.startsWith('⚠️')?'#92400e':'#374151'};background:${warn.startsWith('✅')?'#f0fdf4':warn.startsWith('⚠️')?'#fffbeb':'#f8fafc'};border-radius:6px;padding:7px 10px;line-height:1.5;">${warn}</div>
+          </div>`;
+
+        const ccStatus = income >= 50000 ? 'g' : income >= 25000 ? 'y' : 'r';
+        const carStatus = liab > income*3 ? 'r' : carIncPct <= 25 ? 'g' : 'y';
+        const homeStatus = maxHomePrice >= 3000000 ? 'g' : maxHomePrice >= 1500000 ? 'y' : 'r';
+        const vacStatus = annualVacBudget >= 80000 ? 'g' : annualVacBudget >= 30000 ? 'y' : 'r';
+
+        el.innerHTML =
+          block('💳', 'Credit Card', ccStatus,
+            ccRec,
+            ccWhy,
+            ccWarn) +
+          block('🚗', 'Car You Can Afford', carStatus,
+            `${carRec} — e.g. ${carModel}`,
+            carMaintain,
+            carWarn) +
+          block('🏠', 'Rent & Home Loan', homeStatus,
+            homeRec,
+            homeWarn,
+            `✅ Tip: Never buy a home just because you can afford the EMI. Make sure you have 20% down payment saved in addition to your emergency fund and SIPs running.`) +
+          block('✈️', 'Vacation Budget', vacStatus,
+            vacRec,
+            `Based on 10% of your annual surplus (${formatCurrency(surplus * 12)}).`,
+            `✅ Always book travel from your surplus — never skip SIP or dip into emergency fund for a holiday.`);
+    })();
+
+    // Also keep old status fields populated for backward compat
+    const cfStatEl = document.getElementById('pdf-cf-stat');
+    if (cfStatEl) { cfStatEl.innerText = m.cfStat||''; cfStatEl.style.color = (m.cfStat||'').includes('Negative')?'#dc2626':'#059669'; }
+    const safeEl = document.getElementById('pdf-safe-stat');
+    if (safeEl) { safeEl.innerText = m.safeStat||''; safeEl.style.color = (m.safeStat||'').includes('At-Risk')?'#dc2626':'#059669'; }
+    const liaEl = document.getElementById('pdf-lia-stat');
+    if (liaEl) { liaEl.innerText = m.liaStat||''; liaEl.style.color = (m.liaStat||'').includes('CRIT')?'#dc2626':'#059669'; }
+    const nextEl = document.getElementById('pdf-next-stat');
+    if (nextEl) nextEl.innerText = m.nextMilestone||'';
+
     window.print();
 }
 
@@ -5407,3 +5649,477 @@ document.addEventListener('DOMContentLoaded', () => {
         if(document.getElementById('pg-sim')?.classList.contains('on')) j2Setup();
     });
 });
+
+// ════════════════════════════════════════════════════════════════
+//  WEALTH HEALTH REPORT CARD ENGINE
+// ════════════════════════════════════════════════════════════════
+
+function buildWealthReport() {
+    const m = engineMemory;
+    if (!m || !m.income) {
+        // No data yet — show placeholder state
+        setReportPlaceholder();
+        return;
+    }
+
+    const income   = m.income       || 0;
+    const exp      = m.totalExp     || 0;
+    const surplus  = m.surplus      || m.sumSurplus || 0;
+    const sip      = m.sip          || 0;
+    const netWorth = m.netWorth     || 0;
+    const liab     = m.totalLiabilities || 0;
+    const assets   = m.totalAssets  || 0;
+    const cash     = m.astCash      || 0;
+    const emMonths = m.emFundMonths || 0;
+    const cagr     = m.blendedCAGR  || 0;
+    const hasMed   = m.hasMedIns;
+    const hasTerm  = m.hasTermIns;
+    const dArr     = m.dArr         || [];
+    const name     = (m.name || 'Friend').split(' ')[0];
+    const riskLvl  = m.riskLevel    || 2;
+
+    // ── 1. SCORE CALCULATION (out of 100) ──────────────────────
+    let score = 0;
+    const scoreBreakdown = {};
+
+    // (a) Cash Flow health — 25 pts
+    const savingsRate = income > 0 ? surplus / income : 0;
+    let cfPts = 0;
+    if      (savingsRate >= 0.30) cfPts = 25;
+    else if (savingsRate >= 0.20) cfPts = 20;
+    else if (savingsRate >= 0.10) cfPts = 13;
+    else if (savingsRate >= 0.05) cfPts = 7;
+    else if (savingsRate >= 0)    cfPts = 3;
+    else                          cfPts = 0; // negative surplus
+    scoreBreakdown.cashflow = cfPts;
+
+    // (b) Debt burden — 25 pts
+    const debtRatio = income > 0 ? liab / (income * 12) : 0; // years of income
+    let debtPts = 0;
+    if      (liab === 0)          debtPts = 25;
+    else if (debtRatio <= 0.5)    debtPts = 22;
+    else if (debtRatio <= 1)      debtPts = 17;
+    else if (debtRatio <= 2)      debtPts = 10;
+    else if (debtRatio <= 4)      debtPts = 5;
+    else                          debtPts = 0;
+    scoreBreakdown.debt = debtPts;
+
+    // (c) Investing — 25 pts
+    const sipRate = income > 0 ? sip / income : 0;
+    let invPts = 0;
+    if      (sipRate >= 0.25) invPts = 25;
+    else if (sipRate >= 0.15) invPts = 20;
+    else if (sipRate >= 0.10) invPts = 14;
+    else if (sipRate >= 0.05) invPts = 8;
+    else if (sipRate >  0)    invPts = 4;
+    else                      invPts = 0;
+    scoreBreakdown.invest = invPts;
+
+    // (d) Safety net — 25 pts
+    let safetyPts = 0;
+    if (emMonths >= 6) safetyPts += 10; else if (emMonths >= 3) safetyPts += 5;
+    if (hasMed)        safetyPts += 8;
+    if (hasTerm)       safetyPts += 7;
+    scoreBreakdown.safety = safetyPts;
+
+    score = cfPts + debtPts + invPts + safetyPts;
+
+    // ── 2. GRADE ───────────────────────────────────────────────
+    let grade, gradeClass, heroSub;
+    if      (score >= 80) { grade='Excellent';  gradeClass='grade-great';    heroSub=`${name}, your wealth is in great shape. You're building a strong financial future. Keep it up!`; }
+    else if (score >= 60) { grade='Good';       gradeClass='grade-good';     heroSub=`${name}, you're doing well overall. A few targeted fixes will put you on the fast track.`; }
+    else if (score >= 40) { grade='Moderate';   gradeClass='grade-moderate'; heroSub=`${name}, you have a foundation — but there are clear gaps that need attention soon.`; }
+    else                  { grade='Needs Work'; gradeClass='grade-critical'; heroSub=`${name}, your finances need urgent attention. The good news — a few smart moves can turn this around quickly.`; }
+
+    // ── 3. ANIMATE SCORE RING ─────────────────────────────────
+    const ringArc = document.getElementById('rpt-ring-arc');
+    const scoreEl = document.getElementById('rpt-score-num');
+    const badgeEl = document.getElementById('rpt-grade-badge');
+    const heroName = document.getElementById('rpt-hero-name');
+    const heroSub2 = document.getElementById('rpt-hero-sub');
+    if (ringArc) {
+        const circumference = 314;
+        const offset = circumference - (score / 100) * circumference;
+        ringArc.style.strokeDashoffset = offset;
+        const scoreColor = score>=80?'#a5b4fc':score>=60?'#34d399':score>=40?'#fbbf24':'#f87171';
+        ringArc.style.stroke = scoreColor;
+    }
+    if (scoreEl) { scoreEl.textContent = score; }
+    if (badgeEl) { badgeEl.textContent = grade; badgeEl.className = 'rpt-grade-badge ' + gradeClass; }
+    if (heroName) heroName.textContent = `${name}'s Wealth Health Report`;
+    if (heroSub2) heroSub2.textContent = heroSub;
+
+    // ── 4. VITAL SIGNS ────────────────────────────────────────
+    function setVital(valId, gradeId, cardId, val, gradeClass, gradeLabel) {
+        const v=document.getElementById(valId), g=document.getElementById(gradeId), c=document.getElementById(cardId);
+        if(v) v.textContent = val;
+        if(g) { g.textContent = gradeLabel; g.className = 'rpt-vital-grade ' + gradeClass; }
+        if(c) c.className = 'rpt-vital-card ' + gradeClass;
+    }
+
+    // Cash Flow vital
+    const srPct = Math.round(savingsRate * 100);
+    const cfGr  = cfPts>=20?'grade-great':cfPts>=13?'grade-good':cfPts>=7?'grade-moderate':'grade-critical';
+    const cfLbl = cfPts>=20?'Excellent':cfPts>=13?'Good':cfPts>=7?'Moderate':'Critical';
+    setVital('rvit-cf-val','rvit-cf-grade','rvit-cashflow', `${srPct}% saved`, cfGr, cfLbl);
+
+    // Debt vital
+    const debtGr  = debtPts>=22?'grade-great':debtPts>=17?'grade-good':debtPts>=10?'grade-moderate':'grade-critical';
+    const debtLbl = debtPts>=22?'Healthy':debtPts>=17?'Manageable':debtPts>=10?'High':'Critical';
+    const debtDisp = liab===0 ? 'Debt-free' : formatCurrency(liab);
+    setVital('rvit-debt-val','rvit-debt-grade','rvit-debt', debtDisp, debtGr, debtLbl);
+
+    // Investing vital
+    const invGr  = invPts>=20?'grade-great':invPts>=14?'grade-good':invPts>=8?'grade-moderate':'grade-critical';
+    const invLbl = invPts>=20?'Excellent':invPts>=14?'Good':invPts>=8?'Moderate':'Low';
+    const invDisp = sip>0 ? `${formatCurrency(sip)}/mo` : '₹0/mo';
+    setVital('rvit-invest-val','rvit-invest-grade','rvit-invest', invDisp, invGr, invLbl);
+
+    // Safety vital
+    const safeGr  = safetyPts>=20?'grade-great':safetyPts>=13?'grade-good':safetyPts>=7?'grade-moderate':'grade-critical';
+    const safeLbl = safetyPts>=20?'Protected':safetyPts>=13?'Adequate':safetyPts>=7?'Partial':'Exposed';
+    const safeDisp = `${Math.round(emMonths)}mo cover`;
+    setVital('rvit-safety-val','rvit-safety-grade','rvit-safety', safeDisp, safeGr, safeLbl);
+
+    // ── 5. DOCTOR'S DIAGNOSIS CARDS ───────────────────────────
+    const diagContainer = document.getElementById('rpt-diagnoses');
+    if (diagContainer) {
+        const diags = [];
+
+        // Cash flow diagnosis
+        if (savingsRate >= 0.20) {
+            diags.push({ icon:'💚', grade:'grade-good', title:'Cash Flow is Strong',
+                text:`You're saving <strong>${srPct}%</strong> of your income (₹${formatCurrency(surplus)}/mo). This is above the healthy 20% benchmark. Your financial engine is well-fuelled.` });
+        } else if (savingsRate >= 0.10) {
+            diags.push({ icon:'🟡', grade:'grade-moderate', title:'Cash Flow is Moderate',
+                text:`You're saving <strong>${srPct}%</strong> of income. Aim for 20%+ to accelerate wealth building. Review your top 3 expense categories for cuts.` });
+        } else if (savingsRate > 0) {
+            diags.push({ icon:'🔴', grade:'grade-critical', title:'Cash Flow is Tight',
+                text:`You're only saving <strong>${srPct}%</strong> of income. This limits your ability to invest or handle emergencies. This is the #1 thing to fix first.` });
+        } else {
+            diags.push({ icon:'🚨', grade:'grade-critical', title:'Spending Exceeds Income',
+                text:`Your expenses exceed income by <strong>${formatCurrency(Math.abs(surplus))}/mo</strong>. You're drawing down savings every month. Urgent action needed.` });
+        }
+
+        // Debt diagnosis
+        if (liab === 0) {
+            diags.push({ icon:'🏆', grade:'grade-great', title:'Debt-Free — Excellent',
+                text:`You have zero debt. This is a massive advantage — your full surplus can go towards building wealth. Stay away from high-interest credit card debt.` });
+        } else {
+            // find worst loan by interest rate
+            const sortedLoans = [...dArr].sort((a,b)=>(b.rate||0)-(a.rate||0));
+            const worstLoan = sortedLoans[0];
+            const emiPct = income > 0 ? Math.round((sortedLoans.reduce((s,d)=>s+(d.emi||0),0)/income)*100) : 0;
+            if (emiPct > 50) {
+                diags.push({ icon:'🚨', grade:'grade-critical', title:`Debt is Crushing — ${emiPct}% of Income Goes to EMIs`,
+                    text:`Your EMIs consume <strong>${emiPct}%</strong> of your income. This leaves very little room for investing or emergencies. Your worst loan: <strong>${worstLoan?.name||'High-interest loan'}</strong>. Prioritise paying this off first.` });
+            } else if (emiPct > 30) {
+                diags.push({ icon:'⚠️', grade:'grade-moderate', title:`Debt is Heavy — ${emiPct}% of Income in EMIs`,
+                    text:`<strong>${emiPct}%</strong> of income goes to EMIs — above the safe 30% limit. Pay off <strong>${worstLoan?.name||'your highest-rate loan'}</strong> first to free up cash flow for investing.` });
+            } else {
+                diags.push({ icon:'✅', grade:'grade-good', title:`Debt is Manageable — ${emiPct}% of Income`,
+                    text:`Your EMIs are <strong>${emiPct}%</strong> of income — within the healthy range. Keep making timely payments. Avoid taking new loans unless essential.` });
+            }
+        }
+
+        // Investing diagnosis
+        if (sipRate >= 0.20) {
+            diags.push({ icon:'🚀', grade:'grade-great', title:'Investing Aggressively — Great',
+                text:`You're investing <strong>${Math.round(sipRate*100)}%</strong> of your income. At ${(cagr||12).toFixed(1)}% CAGR, this puts you firmly on the path to financial independence.` });
+        } else if (sipRate >= 0.10) {
+            diags.push({ icon:'📈', grade:'grade-good', title:'Investing Steadily',
+                text:`You invest <strong>${formatCurrency(sip)}/month</strong>. Good start — but increasing SIP by just ₹2,000–5,000/mo could add <strong>₹20–40L</strong> to your corpus in 15 years.` });
+        } else if (sip > 0) {
+            diags.push({ icon:'📉', grade:'grade-moderate', title:'Investing Too Little',
+                text:`Your SIP of <strong>${formatCurrency(sip)}/mo</strong> is only ${Math.round(sipRate*100)}% of income. You need at least 15–20% to build real wealth. Increase by ₹1,000 every 3 months.` });
+        } else {
+            diags.push({ icon:'❌', grade:'grade-critical', title:'Not Investing Yet',
+                text:`You have no active SIP or investment. Every month without investing is compounding working against you. Even ₹500/month is a better start than ₹0.` });
+        }
+
+        // PPF/Tax — smart gap detection
+        let hasPPF = false;
+        if (window.engineMemory) {
+            // Check if PPF is in assets
+            const allAssets = document.querySelectorAll('.dy-asset');
+            allAssets.forEach(row => {
+                const t = row.querySelector('.a-type')?.value || '';
+                if (t === 'ppf') hasPPF = true;
+            });
+        }
+        if (!hasPPF && income >= 30000) {
+            const taxSave = Math.min(46800, Math.round(income * 12 * 0.30 * 0.10));
+            diags.push({ icon:'🏛️', grade:'grade-moderate', title:'PPF Not Used — Missing Tax-Free Returns',
+                text:`You don't have a PPF account. PPF gives <strong>7.1% tax-free (EEE)</strong> returns with full 80C benefit. Investing <strong>₹12,500/mo</strong> saves up to <strong>₹46,800/year in tax</strong>. Open one this month.` });
+        }
+
+        // Insurance diagnosis
+        if (!hasMed && !hasTerm) {
+            diags.push({ icon:'🚨', grade:'grade-critical', title:'No Insurance — Your Family is Exposed',
+                text:`You have neither health insurance nor term life insurance. A single medical emergency or accident could wipe out years of savings. Get a <strong>₹10L health policy (₹500/mo)</strong> and a <strong>₹1Cr term plan (₹700/mo)</strong> immediately.` });
+        } else if (!hasMed) {
+            diags.push({ icon:'⚠️', grade:'grade-moderate', title:'No Health Insurance',
+                text:`You have term insurance but no health cover. Medical bills are the #1 reason families go broke in India. A ₹10L floater health policy costs around ₹500–800/month.` });
+        } else if (!hasTerm) {
+            diags.push({ icon:'⚠️', grade:'grade-moderate', title:'No Term Life Insurance',
+                text:`You have health cover but no term life insurance. If you have dependents, a ₹1Cr term plan costs just ₹600–900/month. Your family deserves this safety net.` });
+        } else {
+            diags.push({ icon:'🛡️', grade:'grade-good', title:'Insurance Coverage is Good',
+                text:`You have both health and term insurance. This is essential protection. Review your coverage once a year as income and family size grow.` });
+        }
+
+        // Emergency Fund
+        if (emMonths >= 6) {
+            diags.push({ icon:'✅', grade:'grade-good', title:`Emergency Fund: ${Math.round(emMonths)} Months Covered`,
+                text:`Your emergency buffer is solid. Keep it in a liquid fund or savings account — not in equity or locked instruments.` });
+        } else if (emMonths >= 3) {
+            diags.push({ icon:'🟡', grade:'grade-moderate', title:`Emergency Fund: Only ${Math.round(emMonths)} Months`,
+                text:`You have ${Math.round(emMonths)} months of expenses saved. Build this to <strong>6 months</strong> (${formatCurrency(exp*6)}) before aggressively investing.` });
+        } else {
+            diags.push({ icon:'🔴', grade:'grade-critical', title:'Emergency Fund is Dangerously Low',
+                text:`You have less than ${Math.round(emMonths)} months of expenses in liquid savings. One job loss or medical event could force you to sell investments at a loss. Build this first.` });
+        }
+
+        diagContainer.innerHTML = diags.map((d,i) => `
+            <div class="rpt-diag-card ${d.grade}" style="animation-delay:${i*0.07}s">
+                <div class="rpt-diag-icon">${d.icon}</div>
+                <div class="rpt-diag-body">
+                    <div class="rpt-diag-title">${d.title}</div>
+                    <div class="rpt-diag-text">${d.text}</div>
+                </div>
+            </div>`).join('');
+    }
+
+    // ── 6. LOAN X-RAY ─────────────────────────────────────────
+    const loanContainer = document.getElementById('rpt-loan-xray');
+    const loanLabel     = document.getElementById('rpt-loan-section-label');
+    if (loanContainer && dArr.length > 0) {
+        if (loanLabel) loanLabel.style.display = 'block';
+        const totalEMI = dArr.reduce((s,d)=>s+(d.emi||0),0);
+        const sortedLoans = [...dArr].sort((a,b)=>(b.emi||0)-(a.emi||0));
+        loanContainer.innerHTML = sortedLoans.map(loan => {
+            const emiPct = income>0 ? Math.round((loan.emi||0)/income*100) : 0;
+            const fillPct = totalEMI>0 ? Math.round((loan.emi||0)/totalEMI*100) : 0;
+            const rate = loan.rate ? ` · ${loan.rate}% p.a.` : '';
+            const balFmt = loan.bal ? ` · Balance: ${formatCurrency(loan.bal)}` : '';
+            return `
+            <div class="rpt-loan-row">
+                <div class="rpt-loan-top">
+                    <span class="rpt-loan-name">${loan.name || 'Loan'}</span>
+                    <span class="rpt-loan-pct">${emiPct}% of income</span>
+                </div>
+                <div class="rpt-loan-bar"><div class="rpt-loan-fill" style="width:${fillPct}%"></div></div>
+                <div class="rpt-loan-meta">EMI: ${formatCurrency(loan.emi||0)}/mo${rate}${balFmt}</div>
+            </div>`;
+        }).join('');
+    } else if (loanContainer) {
+        loanContainer.innerHTML = '';
+        if (loanLabel) loanLabel.style.display = 'none';
+    }
+
+    // ── 7. PRESCRIPTIONS ──────────────────────────────────────
+    const rxContainer = document.getElementById('rpt-prescriptions');
+    if (rxContainer) {
+        const rxItems = [];
+
+        // Always prioritise by impact
+        if (surplus < 0) {
+            rxItems.push({ urgency:'rx-urgent', title:'Cut Expenses Immediately',
+                text:`Your expenses exceed income by <strong style="color:#f87171">${formatCurrency(Math.abs(surplus))}/month</strong>. List every expense and cut the bottom 3. Even ₹3,000/month saved = ₹36,000/year.` });
+        }
+
+        // Debt payoff order
+        if (dArr.length > 0) {
+            const toxicDebts = dArr.filter(d=>(d.rate||0)>10).sort((a,b)=>(b.rate||0)-(a.rate||0));
+            if (toxicDebts.length > 0) {
+                const worst = toxicDebts[0];
+                rxItems.push({ urgency:'rx-urgent', title:`Pay Off ${worst.name||'High-Interest Loan'} First`,
+                    text:`At ${worst.rate||'high'}% interest, this loan is your biggest wealth destroyer. Divert 100% of surplus here until cleared. Paying it off frees up <strong style="color:#a5b4fc">${formatCurrency(worst.emi||0)}/mo</strong> for investing.` });
+            }
+        }
+
+        // SIP boost
+        if (surplus > 5000 && sipRate < 0.20) {
+            const gap = Math.max(0, Math.round(income*0.20) - sip);
+            rxItems.push({ urgency:'', title:'Increase Your SIP',
+                text:`You have room to invest <strong style="color:#a5b4fc">${formatCurrency(gap)}/month more</strong>. Set up a step-up SIP that increases by 10% each year — this alone could add ₹50L+ to your retirement corpus.` });
+        }
+
+        // PPF suggestion
+        if (!hasPPF && income >= 30000) {
+            rxItems.push({ urgency:'', title:'Open a PPF Account This Month',
+                text:`PPF gives <strong style="color:#a5b4fc">7.1% tax-free (EEE)</strong>. Invest ₹12,500/month (₹1.5L/yr) and save up to ₹46,800 in tax. It takes 15 minutes at any post office or nationalised bank.` });
+        }
+
+        // Emergency fund
+        if (emMonths < 6) {
+            const needed = Math.max(0, exp*6 - cash);
+            rxItems.push({ urgency: emMonths<3?'rx-urgent':'', title:`Build Your Emergency Fund to 6 Months`,
+                text:`You need <strong style="color:#a5b4fc">${formatCurrency(needed)} more</strong> to reach a 6-month buffer. Park it in a liquid mutual fund (Parag Parikh or HDFC Liquid) — better returns than savings account, withdrawable in 1 day.` });
+        }
+
+        // Insurance
+        if (!hasMed) {
+            rxItems.push({ urgency:'rx-urgent', title:'Buy Health Insurance Today',
+                text:`A <strong style="color:#f87171">₹10L family floater</strong> plan costs ₹500–800/month. One hospitalisation without insurance can wipe out 2–3 years of savings. Compare on PolicyBazaar.` });
+        }
+        if (!hasTerm) {
+            rxItems.push({ urgency:'rx-urgent', title:'Get a Term Life Insurance Policy',
+                text:`A <strong style="color:#f87171">₹1 Crore term plan</strong> for a 30-year-old costs ~₹700/month. If you have a spouse, children, or elderly parents depending on you — this is non-negotiable.` });
+        }
+
+        // Good habit reinforcement
+        if (score >= 60) {
+            rxItems.push({ urgency:'rx-good', title:'Keep Your SIP Running on Auto-Pilot',
+                text:`Never pause your SIPs. Market crashes are when SIPs work best (you buy more units at lower prices). Set it up as an auto-debit so you never miss a month.` });
+        }
+        if (score >= 75) {
+            rxItems.push({ urgency:'rx-good', title:`Review Your Plan Every 6 Months`,
+                text:`You're on the right track, ${name}. Revisit this report every 6 months — when income increases, increase SIP by the same %. Small upgrades compound dramatically over time.` });
+        }
+
+        rxContainer.innerHTML = rxItems.map((rx,i)=>`
+            <div class="rpt-rx-card ${rx.urgency}" style="animation-delay:${i*0.08}s">
+                <div class="rpt-rx-num">${i+1}</div>
+                <div class="rpt-rx-body">
+                    <div class="rpt-rx-title">${rx.title}</div>
+                    <div class="rpt-rx-text">${rx.text}</div>
+                </div>
+            </div>`).join('');
+    }
+}
+
+function setReportPlaceholder() {
+    const scoreEl = document.getElementById('rpt-score-num');
+    const badgeEl = document.getElementById('rpt-grade-badge');
+    const heroSub = document.getElementById('rpt-hero-sub');
+    const diag    = document.getElementById('rpt-diagnoses');
+    const rx      = document.getElementById('rpt-prescriptions');
+    if (scoreEl) scoreEl.textContent = '—';
+    if (badgeEl) { badgeEl.textContent = 'Not calculated'; badgeEl.className='rpt-grade-badge grade-moderate'; }
+    if (heroSub) heroSub.textContent = 'Go to "My Numbers", fill in your details, and tap Compute My Wealth Blueprint to see your full health report.';
+    if (diag) diag.innerHTML = `<div class="rpt-diag-card grade-moderate"><div class="rpt-diag-icon">📋</div><div class="rpt-diag-body"><div class="rpt-diag-title">No data yet</div><div class="rpt-diag-text">Fill in your income, expenses, assets and loans in "My Numbers", then tap <strong>Compute My Wealth Blueprint</strong>.</div></div></div>`;
+    if (rx)   rx.innerHTML = '';
+}
+
+// ════════════════════════════════════════════════════════════════
+//  UPGRADED AI CHAT — clearAIChat + typing indicator
+// ════════════════════════════════════════════════════════════════
+
+function clearAIChat() {
+    const hist = document.getElementById('ai-inline-history');
+    if (!hist) return;
+    hist.innerHTML = `<div class="chat-msg ai">Chat cleared. Namaste again! 🙏 Ask me anything about your money — loans, PPF, SIP, tax, or retirement.<br><em style="opacity:0.5;font-size:11px;">Not a SEBI advisor — for education only.</em></div>`;
+}
+
+// Override sendInlineChat with richer personalised AI prompt (uses original chat-msg CSS)
+const _origSendInlineUpgraded = window.sendInlineChat;
+window.sendInlineChat = async function() {
+    const input  = document.getElementById('ai-inline-input');
+    const hist   = document.getElementById('ai-inline-history');
+    const sendBtn= document.getElementById('ai-chat-send-btn');
+    if (!input || !hist) { if (_origSendInlineUpgraded) _origSendInlineUpgraded(); return; }
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    // Add user message using original working CSS class
+    const userDiv = document.createElement('div');
+    userDiv.className = 'chat-msg user';
+    userDiv.textContent = text;
+    hist.appendChild(userDiv);
+    input.value = '';
+    hist.scrollTop = hist.scrollHeight;
+    if (sendBtn) sendBtn.disabled = true;
+
+    // Typing indicator using original CSS class
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-msg ai';
+    typingDiv.id = 'ai-typing-indicator';
+    typingDiv.innerHTML = '<span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span>';
+    hist.appendChild(typingDiv);
+    hist.scrollTop = hist.scrollHeight;
+
+    const m = (typeof engineMemory !== 'undefined') ? engineMemory : {};
+    const apiKey = (document.getElementById('gemini-api-key') || document.getElementById('gemini-api-key-2') || {value:''}).value.trim();
+
+    if (!apiKey) {
+        typingDiv.remove();
+        const r = document.createElement('div');
+        r.className = 'chat-msg ai';
+        r.textContent = 'Please paste your free Gemini API key above to activate me. Takes 30 seconds at aistudio.google.com 🙏';
+        hist.appendChild(r);
+        hist.scrollTop = hist.scrollHeight;
+        if (sendBtn) sendBtn.disabled = false;
+        return;
+    }
+
+    const dArr = m.dArr || [];
+    const name = (m.name || 'Friend').split(' ')[0];
+    let sysPrompt = `You are Aarth Sutra — a warm, knowledgeable Indian personal finance guide. Speak like a trusted friend with CA/CFP expertise. Use simple language and Hinglish where helpful.
+
+End every response with: "(Note: Not a SEBI-registered advisor. For education only.)"
+
+Only help with: savings, SIP, mutual funds, FD, stocks, gold, NPS, PPF, EPF, loans/EMI, insurance, Indian taxes (80C/80D/HRA), retirement/FIRE. Decline all other topics politely.
+
+${name}'s profile:
+- Income: ₹${m.income||0}/mo | Expenses: ₹${m.totalExp||0}/mo | Surplus: ₹${m.surplus||m.sumSurplus||0}/mo
+- SIP: ₹${m.sip||0}/mo | Net worth: ₹${m.netWorth||0}
+- Assets: ₹${m.totalAssets||0} (liquid ₹${m.astCash||0}, equity ₹${m.astEq||0}) | Debt: ₹${m.totalLiabilities||0}
+- Emergency fund: ${Math.round(m.emFundMonths||0)} months | CAGR: ${(m.blendedCAGR||0).toFixed(1)}%
+- Health insurance: ${m.hasMedIns?'Yes':'No'} | Term insurance: ${m.hasTermIns?'Yes':'No'}`;
+
+    if (dArr.length > 0) {
+        sysPrompt += `\nLoans: ` + dArr.map(d=>`${d.name||'Loan'} EMI ₹${d.emi||0} @${d.rate||'?'}%`).join(', ');
+    }
+    if (m.extractedGoals?.length > 0) {
+        sysPrompt += `\nGoals: ` + m.extractedGoals.map(g=>`${g.name} ₹${g.target} in ${Math.round((g.monthDue||0)/12)}yr`).join(', ');
+    }
+    sysPrompt += `\n\nBe concise (3-5 sentences), warm, honest. Use ₹ for amounts.`;
+
+    if (!window._aarthChatHistory) window._aarthChatHistory = [];
+    window._aarthChatHistory.push({ role:'user', parts:[{text}] });
+
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                system_instruction: { parts: { text: sysPrompt } },
+                contents: window._aarthChatHistory,
+                generationConfig: { temperature: 0.3, maxOutputTokens: 400 }
+            })
+        });
+        const data = await res.json();
+        let aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Sorry, could not get a response. Please try again.';
+        window._aarthChatHistory.push({ role:'model', parts:[{text:aiText}] });
+
+        if (aiText.startsWith('{') && aiText.endsWith('}')) {
+            try {
+                const cmd = JSON.parse(aiText);
+                if (cmd.action==='generatePDF')   { setTimeout(generateWealthBlueprintPDF,300); aiText='Generating your PDF report now... 📄'; }
+                if (cmd.action==='generateExcel') { setTimeout(generateExcelReport,300); aiText='Downloading your Excel report... 📊'; }
+            } catch(e) {}
+        }
+
+        typingDiv.remove();
+        const r = document.createElement('div');
+        r.className = 'chat-msg ai';
+        r.innerHTML = aiText
+            .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+            .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+            .replace(/\n/g,'<br>');
+        hist.appendChild(r);
+
+    } catch(err) {
+        typingDiv.remove();
+        const r = document.createElement('div');
+        r.className = 'chat-msg ai';
+        r.textContent = 'Something went wrong. Check your API key and try again.';
+        hist.appendChild(r);
+    }
+
+    hist.scrollTop = hist.scrollHeight;
+    if (sendBtn) sendBtn.disabled = false;
+};
+
