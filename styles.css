@@ -135,7 +135,8 @@ body {
     top: 0;
     z-index: 500;
     background: var(--obsidian-dark);
-    padding: 0 20px;
+    /* Safe-area insets baked into topbar padding so profile icon never touches bezel */
+    padding: 0 max(20px, calc(env(safe-area-inset-right, 0px) + 16px)) 0 max(20px, calc(env(safe-area-inset-left, 0px) + 16px));
     height: var(--topbar-height);
     display: flex;
     justify-content: space-between;
@@ -145,8 +146,8 @@ body {
     -webkit-backdrop-filter: blur(20px);
 }
 
-.topbar-left { display: flex; align-items: center; gap: 10px; padding-left: env(safe-area-inset-left, 0px); }
-.topbar-right { display: flex; align-items: center; gap: 10px; padding-right: env(safe-area-inset-right, 16px); }
+.topbar-left  { display: flex; align-items: center; gap: 10px; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
 
 .brand-logo {
     display: flex;
@@ -228,14 +229,15 @@ body {
 /* ===================== SECURITY BAR ===================== */
 .security-health-bar {
     background: rgba(6, 78, 59, 0.06);
-    padding: 0 24px;
+    padding: 0 max(16px, env(safe-area-inset-left, 16px));
     height: var(--secbar-height);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 20px;
+    gap: 16px;
     border-bottom: 1px solid rgba(5, 150, 105, 0.1);
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 }
 .security-health-bar::-webkit-scrollbar { display: none; }
@@ -1672,13 +1674,14 @@ body.privacy-on td:not(:first-child) {
 @media (max-width: 768px) {
     .content-area { padding: 16px 12px; padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 20px); }
 
-    .topbar { padding: 0 16px; }
+    /* Topbar: safe-area already baked in via max() — just override font */
     .topbar-title { font-size: 19px; }
 
-    .action-bar { padding: 0 14px; }
+    .action-bar { padding: 0 max(14px, env(safe-area-inset-left, 14px)); }
     .weather-label { font-size: 11px; }
 
-    .security-health-bar { gap: 14px; padding: 0 12px; }
+    /* Security bar: justify-content flex-start prevents center-clipping on overflow */
+    .security-health-bar { gap: 14px; padding: 0 max(14px, env(safe-area-inset-left, 14px)); justify-content: flex-start; }
 
     .app-card, .glass-card, .premium-card { padding: 18px 16px; margin-bottom: 16px; }
 
@@ -1720,7 +1723,7 @@ body.privacy-on td:not(:first-child) {
     .action-bar { }
     .weather-label { font-size: 10px; }
 
-    .security-health-bar { gap: 10px; }
+    .security-health-bar { gap: 10px; padding: 0 max(12px, env(safe-area-inset-left, 12px)); justify-content: flex-start; }
     .sec-badge { font-size: 8px; }
 
     /* Nav text smaller */
@@ -2376,36 +2379,50 @@ a:has(button), a.btn-link {
         display: none;
     }
 
-    /* Asset / debt / goal rows become stacked cards on mobile */
+    /* Asset / debt / goal rows: stack as cards, normal flow (NO absolute positioning) */
     .dy-account,
     .dy-debt,
     .dy-goal {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
         background: rgba(255,255,255,0.04);
         border-radius: var(--r-xl);
-        padding: 14px;
+        padding: 12px;
         gap: 10px;
         position: relative;
     }
+    /* ✕ button: last in DOM, moved to top-right via flex order trick */
     .dy-account .del-btn,
     .dy-debt .del-btn,
     .dy-goal .del-btn {
         position: absolute;
-        top: 12px;
-        right: 12px;
-        width: 36px;
-        height: 36px;
-        min-width: 36px;
+        top: 10px;
+        right: 10px;
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        padding: 0;
         font-size: 14px;
+        line-height: 1;
         display: flex;
         align-items: center;
         justify-content: center;
+        border-radius: 50%;
+        z-index: 2;
     }
-    /* Prevent input text from sliding under the absolute ✕ button */
-    .dy-account input,
-    .dy-debt input,
-    .dy-goal input {
-        padding-right: 44px !important;
+    /* First form-group gets right padding to leave room for the ✕ button */
+    .dy-account .form-group:first-child,
+    .dy-debt .form-group:first-child,
+    .dy-goal .form-group:first-child {
+        padding-right: 42px;
+    }
+    /* All inputs and selects full width, no extra right padding */
+    .dy-account input, .dy-account select,
+    .dy-debt input,   .dy-debt select,
+    .dy-goal input,   .dy-goal select {
+        width: 100%;
+        box-sizing: border-box;
+        padding-right: 10px !important;
     }
 
     .compute-cta-inner { padding: 16px 18px; gap: 12px; }
