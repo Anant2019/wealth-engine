@@ -1746,9 +1746,52 @@ body.privacy-on td:not(:first-child) {
     .sim-header { flex-direction: column; align-items: flex-start; }
     .sim-header .primary-btn { width: 100%; }
 
-    /* Table: horizontal scroll on mobile */
-    .calc-table { font-size: 10px; }
-    .calc-table th, .calc-table td { padding: 8px 8px; }
+    /* 24-Month Roadmap: Convert table to vertical cards on mobile */
+    .calc-table-wrapper { overflow-x: visible !important; }
+    .calc-table thead { display: none; }
+    .calc-table, .calc-table tbody, .calc-table tr, .calc-table td {
+        display: block; width: 100%;
+    }
+    .calc-table tr {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        margin-bottom: 10px;
+        padding: 10px 12px;
+        position: relative;
+    }
+    .calc-table tr:hover td { background: transparent; }
+    .calc-table td {
+        text-align: right !important;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+        padding: 6px 0 !important;
+        font-size: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .calc-table td:last-child { border-bottom: none; }
+    .calc-table td::before {
+        content: attr(data-label);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: var(--slate-mid);
+        text-align: left;
+        flex: 1;
+        margin-right: 8px;
+    }
+    .calc-table td:first-child {
+        font-size: 13px !important;
+        font-weight: 800 !important;
+        color: var(--emerald) !important;
+        border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+        padding-bottom: 8px !important;
+        margin-bottom: 4px;
+        justify-content: flex-start !important;
+    }
+    .calc-table td:first-child::before { display: none; }
 }
 
 /* --- Small phone (iPhone SE) --- */
@@ -3826,4 +3869,84 @@ body {
     stroke: white;
     fill: none;
     pointer-events: none;
+}
+
+/* ═══════════════════════════════════
+   JARGON TOOLTIP SYSTEM
+   ═══════════════════════════════════ */
+.jargon-tip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    background: rgba(99,102,241,0.20);
+    border: 1px solid rgba(99,102,241,0.40);
+    color: #818cf8;
+    border-radius: 50%;
+    font-size: 9px;
+    font-weight: 800;
+    font-style: normal;
+    cursor: help;
+    vertical-align: middle;
+    margin-left: 4px;
+    position: relative;
+    line-height: 1;
+    transition: background 0.15s;
+}
+.jargon-tip:hover { background: rgba(99,102,241,0.40); }
+.jargon-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    border: 1px solid rgba(99,102,241,0.30);
+    color: rgba(255,255,255,0.85);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    width: 220px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 7000;
+    text-align: left;
+    font-family: var(--font-body);
+    font-style: normal;
+}
+.jargon-tip:hover::after { opacity: 1; }
+/* Arrow */
+.jargon-tip::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(99,102,241,0.30);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 7001;
+}
+.jargon-tip:hover::before { opacity: 1; }
+/* On mobile, show tooltips below to avoid clipping */
+@media (max-width: 768px) {
+    .jargon-tip::after {
+        bottom: auto;
+        top: calc(100% + 8px);
+    }
+    .jargon-tip::before {
+        bottom: auto;
+        top: calc(100% + 2px);
+        border-top-color: transparent;
+        border-bottom-color: rgba(99,102,241,0.30);
+    }
 }

@@ -1,4 +1,25 @@
 // --- UTILITIES ---
+
+// Safe rounding — eliminates JS floating-point drift (e.g. 0.1 + 0.2 = 0.30000000000000004)
+const toINR = (num) => {
+    if (!isFinite(num) || isNaN(num)) return 0;
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
+// Safe division — returns 0 (or fallback) instead of Infinity/NaN
+const safeDivide = (numerator, denominator, fallback = 0) => {
+    if (!denominator || !isFinite(denominator) || isNaN(denominator)) return fallback;
+    const result = numerator / denominator;
+    return isFinite(result) ? result : fallback;
+};
+
+// Real rate of return adjusted for inflation (6% assumed for India)
+const INFLATION_RATE = 0.06;
+const toRealRate = (nominalRate) => {
+    const r = (nominalRate / 100);
+    return ((1 + r) / (1 + INFLATION_RATE) - 1) * 100; // returns as percentage
+};
+
 const formatCurrency = (n) => {
     const absN = Math.abs(n);
     if (absN >= 1000000000) return '₹' + (n / 1000000000).toFixed(2) + ' kCr'; // Thousand Crores (Billions)
@@ -21,6 +42,71 @@ function calcRequiredSIP(targetAmt, years, rateAnnual) {
 let engineMemory = {};
 let privacyOn = false;
 let marketMode = 'bull'; // 'bull' or 'bear'
+
+// ══ JARGON TOOLTIP INJECTION ══
+// Injects [?] tooltip badges next to key financial terms in the DOM
+const JARGON_TERMS = {
+    'SIP': 'Systematic Investment Plan — A fixed monthly amount auto-invested into mutual funds. Like a recurring deposit, but into the stock market.',
+    'FI': 'Financial Independence — When your investments generate enough passive income to cover all expenses without working.',
+    'FIRE': 'Financial Independence, Retire Early — A movement to achieve FI before traditional retirement age through aggressive saving & investing.',
+    'CAGR': 'Compound Annual Growth Rate — The steady yearly rate at which your investment grows, accounting for compounding.',
+    'LTCG': 'Long Term Capital Gains — Profit on equity investments held >1 year, taxed at 12.5% above ₹1.25 lakh per year.',
+    'EMI': 'Equated Monthly Instalment — Fixed monthly payment that covers both principal and interest on a loan.',
+    'Net Worth': 'Total Assets minus Total Liabilities. The true measure of your wealth at any point in time.',
+    'Step-Up': 'Annually increasing your SIP by a fixed % (e.g. 10%). Dramatically boosts your final corpus due to compounding.',
+    'Emergency Fund': '3–6 months of expenses kept liquid (savings/FD) to handle job loss, medical emergencies, or sudden costs.',
+    'Corpus': 'The total accumulated investment amount. Your corpus generates returns that eventually fund your retirement.',
+};
+
+function injectJargonTooltips() {
+    // Target specific label elements only — avoid injecting inside inputs or scripts
+    const targets = document.querySelectorAll('label, .card-hd, .stat-label, .section-label, th, .form-section-title, h3, h4');
+    targets.forEach(el => {
+        // Skip if already processed or inside an input/select
+        if (el.dataset.jargonDone) return;
+        if (el.closest('input, select, textarea, script')) return;
+        Object.entries(JARGON_TERMS).forEach(([term, tip]) => {
+            // Only if element text STARTS with or contains the exact term (word boundary)
+            const regex = new RegExp(`\\b${term}\\b`);
+            if (regex.test(el.textContent) && !el.querySelector(`.jargon-tip[data-term="${term}"]`)) {
+                // Find the text node containing the term
+                el.childNodes.forEach(node => {
+                    if (node.nodeType === 3 && regex.test(node.textContent)) {
+                        const badge = document.createElement('i');
+                        badge.className = 'jargon-tip';
+                        badge.dataset.tip = tip;
+                        badge.dataset.term = term;
+                        badge.textContent = '?';
+                        badge.title = ''; // suppress native tooltip
+                        // Insert after the text node's parent
+                        node.parentNode.insertBefore(badge, node.nextSibling);
+                    }
+                });
+            }
+        });
+        el.dataset.jargonDone = '1';
+    });
+}
+
+// ══ SEBI DISCLAIMER MODAL ══
+function showSebiModalIfNeeded() {
+    try {
+        const ack = localStorage.getItem('aarthSutraSebiAck');
+        if (!ack) {
+            const overlay = document.getElementById('sebi-modal-overlay');
+            if (overlay) { overlay.style.display = 'flex'; }
+        }
+    } catch(e) {}
+}
+function acknowledgeSebiDisclaimer() {
+    try { localStorage.setItem('aarthSutraSebiAck', '1'); } catch(e) {}
+    const overlay = document.getElementById('sebi-modal-overlay');
+    if (overlay) {
+        overlay.style.opacity = '0';
+        overlay.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => { overlay.style.display = 'none'; overlay.style.opacity = ''; overlay.style.transition = ''; }, 320);
+    }
+}
 
 // ══ GUARD LOADER STATE ══
 let isComputing = false; // State: true while calculation runs, false when complete
@@ -1013,7 +1099,9 @@ function validateForm() {
 
 // ==================== SURVIVAL RUNWAY ====================
 function calcSurvivalRunway(astCash, totalExp) {
-    const runwayMonths = totalExp > 0 ? Math.floor(astCash / totalExp) : 0;
+    const safeCash = isFinite(astCash) && !isNaN(astCash) ? astCash : 0;
+    const safeExp  = isFinite(totalExp) && !isNaN(totalExp) && totalExp > 0 ? totalExp : 0;
+    const runwayMonths = safeExp > 0 ? Math.max(0, Math.floor(safeCash / safeExp)) : 0;
     const cappedMonths = Math.min(runwayMonths, 12);
     const pct = (cappedMonths / 12) * 100;
     const isDanger = runwayMonths < 3;
@@ -1060,10 +1148,12 @@ function calcSurvivalRunway(astCash, totalExp) {
 
 // ==================== FREEDOM METER ====================
 function calcFreedomMeter(totalAssets, totalExp) {
-    const fiTarget = totalExp * 12 * 25; // 25x rule
-    const pct = fiTarget > 0 ? Math.min((totalAssets / fiTarget) * 100, 100) : 0;
+    const safeAssets = isFinite(totalAssets) && !isNaN(totalAssets) ? totalAssets : 0;
+    const safeExp    = isFinite(totalExp)    && !isNaN(totalExp) && totalExp > 0 ? totalExp : 1;
+    const fiTarget = safeExp * 12 * 25; // 25x rule
+    const pct = fiTarget > 0 ? Math.min((safeAssets / fiTarget) * 100, 100) : 0;
     // Daily passive income at 12% CAGR
-    const dailyEarning = (totalAssets * 0.12) / 365;
+    const dailyEarning = (safeAssets * 0.12) / 365;
     // Hours of work money does per day (arbitrary: 1 L/yr = 1 hr/day)
     const hrsPerDay = Math.min((dailyEarning / 274), 24).toFixed(1);
 
@@ -1201,6 +1291,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Load saved data first — defaults are only added if nothing was saved
     loadAllData();
+
+    // Show SEBI disclaimer on first visit
+    showSebiModalIfNeeded();
+
+    // Inject jargon tooltips across the UI
+    injectJargonTooltips();
 
     // Initial insurance display
     updateInsuranceImpact();
@@ -1643,7 +1739,7 @@ function switchTab(t) {
     if (t === 'dash') calculateStrategy(true);
     if (t === 'simulator') setTimeout(j2Setup, 60);
     
-    setTimeout(() => lucide.createIcons(), 50);
+    setTimeout(() => { lucide.createIcons(); injectJargonTooltips(); }, 60);
 }
 
 // ==================== FIXED: addGoal ========================
@@ -2482,7 +2578,9 @@ function calculateStrategy(silentMode = false) {
         // Risk Profile
         riskProfile: riskProfile.label,
         riskLevel: riskProfile.level,
-        extractedGoals
+        extractedGoals,
+        // For LTCG calculation in PDF projection
+        equityFraction: totalAssets > 0 ? astEq / totalAssets : 0.60
     };
 
     // ==== FIRE WEATHER ENGINE ====
@@ -2626,15 +2724,15 @@ function calculateStrategy(silentMode = false) {
 
         allocHTML += `<tr>
             <td>Month ${m}</td>
-            <td>${formatCurrency(activeSurplus)}</td>
-            <td class="${toDebt > 0 ? 'calc-val-debt' : 'calc-val-zero'}">${toDebt > 0 ? formatCurrency(toDebt) : '₹0'}</td>
-            <td class="${toLiquid > 0 ? 'calc-val-liquid' : 'calc-val-zero'}">${toLiquid > 0 ? formatCurrency(toLiquid) : '₹0'}</td>
-            <td class="${toFD > 0 ? 'calc-val-em' : 'calc-val-zero'}">${toFD > 0 ? formatCurrency(toFD) : '₹0'}</td>
-            <td class="${toNifty > 0 ? 'calc-val-nifty' : 'calc-val-zero'}">${toNifty > 0 ? formatCurrency(toNifty) : '₹0'}</td>
-            <td class="${toMid > 0 ? 'calc-val-mid' : 'calc-val-zero'}">${toMid > 0 ? formatCurrency(toMid) : '₹0'}</td>
-            <td class="${toBond > 0 ? 'calc-val-bond' : 'calc-val-zero'}">${toBond > 0 ? formatCurrency(toBond) : '₹0'}</td>
-            <td class="${goalSpend > 0 ? 'calc-val-spend' : 'calc-val-zero'}">${goalSpend > 0 ? '-'+formatCurrency(goalSpend) : '₹0'}</td>
-            <td class="calc-val-wealth">${formatCurrency(totalWealth)}</td>
+            <td data-label="Free Cash">${formatCurrency(activeSurplus)}</td>
+            <td data-label="Loan Repayment" class="${toDebt > 0 ? 'calc-val-debt' : 'calc-val-zero'}">${toDebt > 0 ? formatCurrency(toDebt) : '₹0'}</td>
+            <td data-label="Savings (Liquid)" class="${toLiquid > 0 ? 'calc-val-liquid' : 'calc-val-zero'}">${toLiquid > 0 ? formatCurrency(toLiquid) : '₹0'}</td>
+            <td data-label="Emergency FD" class="${toFD > 0 ? 'calc-val-em' : 'calc-val-zero'}">${toFD > 0 ? formatCurrency(toFD) : '₹0'}</td>
+            <td data-label="Large Cap / Index" class="${toNifty > 0 ? 'calc-val-nifty' : 'calc-val-zero'}">${toNifty > 0 ? formatCurrency(toNifty) : '₹0'}</td>
+            <td data-label="Mid & Small Cap" class="${toMid > 0 ? 'calc-val-mid' : 'calc-val-zero'}">${toMid > 0 ? formatCurrency(toMid) : '₹0'}</td>
+            <td data-label="Bonds & Debt" class="${toBond > 0 ? 'calc-val-bond' : 'calc-val-zero'}">${toBond > 0 ? formatCurrency(toBond) : '₹0'}</td>
+            <td data-label="Goal Spend" class="${goalSpend > 0 ? 'calc-val-spend' : 'calc-val-zero'}">${goalSpend > 0 ? '-'+formatCurrency(goalSpend) : '₹0'}</td>
+            <td data-label="Total Wealth" class="calc-val-wealth">${formatCurrency(totalWealth)}</td>
         </tr>`;
         
         trendData.push({ month: m, wealth: totalWealth, spend: goalSpend });
@@ -3192,20 +3290,39 @@ function generateWealthBlueprintPDF() {
     }
     document.getElementById('pdf-amort-body').innerHTML = amBody;
 
-    // ── SECTION G: 10-YEAR PROJECTION ──
+    // ── SECTION G: 10-YEAR PROJECTION (Real-Rate + LTCG Adjusted) ──
     const fiTarget = exp * 12 * 25;
-    let corpus = assets, monthlySIP = sip, projBody = '';
-    const mr = (cagr/100)/12;
-    for (let yr=1; yr<=10; yr++) {
-        for (let mo=0; mo<12; mo++) corpus = corpus*(1+mr) + monthlySIP;
-        if (stepUp > 0 && yr < 10) monthlySIP *= (1 + stepUp/100);
-        const fiPct = fiTarget>0 ? Math.min(100,Math.round(corpus/fiTarget*100)) : 0;
-        const rowBg = yr%2===0?'background:#f8fafc;':'';
+    // Equity fraction for LTCG: estimate from portfolio (use 60% default if unknown)
+    const equityFrac = m.equityFraction !== undefined ? m.equityFraction : 0.60;
+    const LTCG_RATE  = 0.125; // 12.5% post-2024 Budget
+    // Real CAGR = nominal adjusted for 6% inflation
+    const nominalRate = (cagr / 100);
+    const realRate    = (1 + nominalRate) / (1 + INFLATION_RATE) - 1;
+    const mr_nominal  = nominalRate / 12;
+    const mr_real     = realRate / 12;
+    let corpus_nominal = assets, corpus_real = assets, monthlySIP = sip, projBody = '';
+    for (let yr = 1; yr <= 10; yr++) {
+        for (let mo = 0; mo < 12; mo++) {
+            corpus_nominal = corpus_nominal * (1 + mr_nominal) + monthlySIP;
+            corpus_real    = corpus_real    * (1 + mr_real)    + monthlySIP;
+        }
+        if (stepUp > 0 && yr < 10) monthlySIP *= (1 + stepUp / 100);
+        // LTCG: 12.5% on equity gains (gains = nominal corpus - cost basis approx)
+        const equityCorpus  = corpus_nominal * equityFrac;
+        const costBasis     = assets * equityFrac + (sip * equityFrac * yr * 12); // simplified
+        const capitalGains  = Math.max(0, equityCorpus - costBasis);
+        const ltcgTax       = capitalGains * LTCG_RATE;
+        const postTaxCorpus = toINR(corpus_nominal - ltcgTax);
+        const fiPct = fiTarget > 0 ? Math.min(100, Math.round(postTaxCorpus / fiTarget * 100)) : 0;
+        const realFmt = formatCurrency(Math.round(corpus_real));
+        const rowBg = yr % 2 === 0 ? 'background:#f8fafc;' : '';
         projBody += `<tr style="${rowBg}border-bottom:1px solid #f1f5f9;">
             <td style="padding:8px 10px;font-weight:600;">Year ${yr} (${new Date().getFullYear()+yr})</td>
-            <td style="padding:8px 10px;font-weight:700;color:#059669;">${formatCurrency(Math.round(corpus))}</td>
+            <td style="padding:8px 10px;font-weight:700;color:#059669;">${formatCurrency(Math.round(corpus_nominal))}</td>
+            <td style="padding:8px 10px;font-weight:700;color:#0369a1;" title="After 12.5% LTCG tax on equity gains">${formatCurrency(postTaxCorpus)}</td>
+            <td style="padding:8px 10px;color:#64748b;font-size:12px;" title="Inflation-adjusted real value">${realFmt}</td>
             <td style="padding:8px 10px;">${formatCurrency(Math.round(monthlySIP))}/mo</td>
-            <td style="padding:8px 10px;"><span style="background:${fiPct>=100?'#d1fae5':fiPct>=50?'#dbeafe':'#f1f5f9'};color:${fiPct>=100?'#065f46':fiPct>=50?'#1e40af':'#475569'};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${fiPct}%${fiPct>=100?' 🎉 FINANCIALLY FREE':''}</span></td>
+            <td style="padding:8px 10px;"><span style="background:${fiPct>=100?'#d1fae5':fiPct>=50?'#dbeafe':'#f1f5f9'};color:${fiPct>=100?'#065f46':fiPct>=50?'#1e40af':'#475569'};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${fiPct}%${fiPct>=100?' 🎉 FREE':''}</span></td>
         </tr>`;
     }
     document.getElementById('pdf-projection-body').innerHTML = projBody;
