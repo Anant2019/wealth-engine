@@ -4240,6 +4240,9 @@ function j2Animate() {
     // ── HUD overlay ──
     j2DrawHUD(ctx, w, h, stage);
 
+    // ── Cinematic overlay (vignette + letterbox) — drawn over everything ──
+    j2DrawCinematicOverlay(ctx, w, h);
+
     // ── Chapter title cinematic overlay ──
     if (j2ChapterAlpha > 0) {
         j2ChapterAlpha = Math.max(0, j2ChapterAlpha - 0.028);
@@ -4598,6 +4601,322 @@ function j2DrawBg(ctx, w, h, stage) {
         }
         ctx.restore();
     }
+
+    // ── THE GREAT EXCHANGE — cinematic props per stage ──────────
+    j2DrawSceneProps(ctx, w, h, stage, f);
+}
+
+// ══ CINEMATIC PROP SYSTEM ═════════════════════════════════════
+// Stone cubes, golden forge, liquid gold, god rays, holograms
+
+function j2DrawSceneProps(ctx, w, h, stage, f) {
+    const gnd = h * 0.68;
+    const id  = stage.id;
+
+    // ── Light path on ground (unlocks at stage 2) ──
+    if (id >= 2) {
+        const pi = Math.min(1.6, (id - 1) * 0.28);
+        const pg = ctx.createLinearGradient(0, gnd+1, w, gnd+1);
+        pg.addColorStop(0, 'rgba(0,0,0,0)');
+        pg.addColorStop(0.25, `rgba(251,191,36,${0.07*pi})`);
+        pg.addColorStop(0.5,  `rgba(251,191,36,${0.19*pi})`);
+        pg.addColorStop(0.75, `rgba(251,191,36,${0.07*pi})`);
+        pg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = pg; ctx.fillRect(0, gnd, w, 9);
+        // Shimmer bead
+        const sx = ((f * 2.4) % (w + 60)) - 30;
+        const sg = ctx.createRadialGradient(sx, gnd+4, 0, sx, gnd+4, 28);
+        sg.addColorStop(0, `rgba(253,230,138,${0.28*pi})`);
+        sg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = sg; ctx.fillRect(sx-28, gnd, 56, 9);
+    }
+
+    // ── Stone cubes — liabilities (stages 0-2) ──
+    if (id <= 2) {
+        const cubes = [
+            { lbl:'DEBT',     ox:-60, oy:-30, sz:28 },
+            { lbl:'HIGH RENT',ox: 54, oy:-20, sz:23 },
+            { lbl:'EMI',      ox:-22, oy:-58, sz:20 },
+        ];
+        const show = id === 0 ? 3 : id === 1 ? 2 : 1;
+        cubes.slice(0, show).forEach(({ lbl, ox, oy, sz }, i) => {
+            const bob = Math.sin(f * 0.024 + i * 2.2) * 7;
+            const a   = (id === 2 && i === 0) ? 0.45 : 1.0; // last one fading
+            j2DrawStoneCube(ctx, w*0.28+ox, gnd+oy+bob, sz, lbl, a);
+        });
+    }
+
+    // ── Golden Forge — appears at stage 1 (Foundation) ──
+    if (id === 1 || id === 2) {
+        j2DrawForge(ctx, w*0.74, gnd-10, f, 0.82);
+        j2DrawLiquidGold(ctx, w*0.74, gnd-20, w*0.40, gnd-6, f, 0.55);
+    }
+
+    // ── MILESTONE — Park Golden (stage 4): The Great Exchange moment ──
+    if (id === 4) {
+        // Massive forge center-stage
+        j2DrawForge(ctx, w*0.68, gnd-6, f, 1.7);
+        // God rays from forge
+        j2DrawGodRays(ctx, w*0.68, gnd*0.72, 22, w*0.95, '#f59e0b', f);
+        // Gold streaming in both directions
+        j2DrawLiquidGold(ctx, w*0.68, gnd-20, w*0.14, gnd-6, f, 0.9);
+        j2DrawLiquidGold(ctx, w*0.68, gnd-20, w*0.92, gnd-8, f, 0.7);
+        // ₹1 CRORE text
+        ctx.save();
+        ctx.globalAlpha = 0.7 + Math.sin(f * 0.06) * 0.25;
+        ctx.shadowColor = '#fde68a'; ctx.shadowBlur = 22;
+        ctx.fillStyle = '#fef9c3';
+        ctx.font = 'bold 16px "JetBrains Mono",monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('★  ₹1 CRORE  MILESTONE  ★', w/2, gnd * 0.26);
+        ctx.textAlign = 'left'; ctx.restore();
+    }
+
+    // ── Goal holograms — materialize from stage 2 to 7 ──
+    const holoPct = [0, 0, 0.18, 0.40, 0.58, 0.75, 0.88, 0.95, 1.0];
+    if (id >= 2 && id <= 7) {
+        const pct = holoPct[id] || 0;
+        const sub = id <= 3 ? 'materializing...' : id === 4 ? '55% formed' : id <= 6 ? `${Math.round(pct*100)}% formed` : 'almost there';
+        j2DrawHologram(ctx, w*0.75, gnd-52, '🏠', 'Dream Home', sub, pct, f);
+    }
+
+    // ── God rays for late nature scenes ──
+    if (stage.scene === 'nature') {
+        j2DrawGodRays(ctx, w*0.68, h*0.10, 12, w*0.70, '#60a5fa', f);
+    }
+    if (stage.scene === 'nature-golden') {
+        j2DrawGodRays(ctx, w*0.68, h*0.11, 16, w*0.82, '#fb923c', f);
+    }
+
+    // ── FREEDOM — Beach (stage 8): everything solid ──
+    if (id === 8) {
+        // Massive sun god rays
+        j2DrawGodRays(ctx, w*0.5, h*0.09, 26, w*1.15, '#fde68a', f);
+        // Goals fully materialized (solid, green border)
+        j2DrawHologram(ctx, w*0.60, gnd-60, '🏠', 'Dream Home', 'YOURS ✓', 1.0, f);
+        j2DrawHologram(ctx, w*0.80, gnd-50, '🌿', 'Peace & Time', 'ACHIEVED ✓', 1.0, f);
+        // FINANCIALLY FREE inscription
+        const fa = 0.72 + Math.sin(f * 0.04) * 0.24;
+        ctx.save();
+        ctx.globalAlpha = fa;
+        ctx.shadowColor = '#fde68a'; ctx.shadowBlur = 30;
+        ctx.fillStyle = '#fef9c3';
+        ctx.font = 'bold 19px "JetBrains Mono",monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('FINANCIALLY  FREE', w/2, gnd * 0.27);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = fa * 0.65;
+        ctx.fillStyle = 'rgba(253,230,138,0.8)';
+        ctx.font = '600 10px "Inter",sans-serif';
+        ctx.fillText('WORK  IS  NOW  OPTIONAL', w/2, gnd * 0.27 + 20);
+        ctx.textAlign = 'left'; ctx.restore();
+        // Extra gold on ground
+        const pi2 = 1.6;
+        const pg2 = ctx.createLinearGradient(0, gnd+1, w, gnd+1);
+        pg2.addColorStop(0, 'rgba(0,0,0,0)');
+        pg2.addColorStop(0.5, `rgba(251,191,36,${0.22*pi2})`);
+        pg2.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = pg2; ctx.fillRect(0, gnd, w, 12);
+    }
+}
+
+// ── Stone Cube (liability — heavy, grey, dusty) ────────────────
+function j2DrawStoneCube(ctx, cx, cy, size, label, alpha) {
+    const s = size;
+    ctx.save(); ctx.globalAlpha = alpha;
+    // Drop shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.38)';
+    ctx.beginPath(); ctx.ellipse(cx+s*0.08, cy+s*0.65, s*0.52, s*0.12, 0, 0, Math.PI*2); ctx.fill();
+    // Top face
+    ctx.fillStyle = '#374151';
+    ctx.beginPath();
+    ctx.moveTo(cx,        cy-s*0.52);
+    ctx.lineTo(cx+s*0.62, cy-s*0.17);
+    ctx.lineTo(cx,        cy+s*0.17);
+    ctx.lineTo(cx-s*0.62, cy-s*0.17);
+    ctx.closePath(); ctx.fill();
+    // Cracks on top
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx-s*0.26, cy-s*0.38); ctx.lineTo(cx+s*0.07, cy-s*0.09); ctx.lineTo(cx+s*0.28, cy-s*0.04); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx+s*0.08, cy-s*0.44); ctx.lineTo(cx-s*0.04, cy-s*0.21); ctx.stroke();
+    // Left face (darkest — in shadow)
+    const lg = ctx.createLinearGradient(cx-s*0.62, cy, cx, cy);
+    lg.addColorStop(0, '#0d1117'); lg.addColorStop(1, '#1f2937');
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.moveTo(cx-s*0.62, cy-s*0.17); ctx.lineTo(cx, cy+s*0.17);
+    ctx.lineTo(cx, cy+s*0.68);       ctx.lineTo(cx-s*0.62, cy+s*0.34);
+    ctx.closePath(); ctx.fill();
+    // Right face (mid shadow)
+    const rg = ctx.createLinearGradient(cx, cy, cx+s*0.62, cy);
+    rg.addColorStop(0, '#1f2937'); rg.addColorStop(1, '#2d3748');
+    ctx.fillStyle = rg;
+    ctx.beginPath();
+    ctx.moveTo(cx+s*0.62, cy-s*0.17); ctx.lineTo(cx, cy+s*0.17);
+    ctx.lineTo(cx, cy+s*0.68);        ctx.lineTo(cx+s*0.62, cy+s*0.34);
+    ctx.closePath(); ctx.fill();
+    // Label on face
+    ctx.globalAlpha = alpha * 0.72;
+    ctx.fillStyle = '#6b7280';
+    ctx.font = `bold ${Math.max(6, Math.round(s*0.17))}px "JetBrains Mono",monospace`;
+    ctx.textAlign = 'center'; ctx.fillText(label, cx+s*0.02, cy+s*0.48); ctx.textAlign = 'left';
+    // Occasional dust particle
+    if (Math.random() < 0.07 && j2Particles.length < 120) {
+        j2Particles.push({ x:cx+(Math.random()-0.5)*s, y:cy+s*0.1, vx:(Math.random()-0.5)*0.7, vy:-0.6-Math.random()*0.9, color:'#6b7280', size:1.4+Math.random()*1.6, life:1, decay:0.04, rot:0, rotV:0, shape:'circle' });
+    }
+    ctx.restore();
+}
+
+// ── Golden Forge (transformation point) ───────────────────────
+function j2DrawForge(ctx, fx, fy, f, intensity) {
+    ctx.save();
+    // Ground halo glow
+    const hr = (60 + Math.sin(f*0.05)*7) * intensity;
+    const hg = ctx.createRadialGradient(fx, fy, 4, fx, fy, hr);
+    hg.addColorStop(0, `rgba(255,185,35,${0.65*intensity})`);
+    hg.addColorStop(0.35, `rgba(255,100,20,${0.28*intensity})`);
+    hg.addColorStop(0.7, `rgba(251,60,0,${0.10*intensity})`);
+    hg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(fx, fy, hr, 0, Math.PI*2); ctx.fill();
+    // Body shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(fx+s2(intensity)*0.08, fy+18*intensity, 30*intensity, 8, 0, 0, Math.PI*2); ctx.fill();
+    // Forge body (dark stone)
+    ctx.fillStyle = '#0d1117';
+    ctx.beginPath();
+    ctx.moveTo(fx-24*intensity, fy+3);
+    ctx.lineTo(fx-20*intensity, fy+20);
+    ctx.lineTo(fx+20*intensity, fy+20);
+    ctx.lineTo(fx+24*intensity, fy+3);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(fx, fy+3, 24*intensity, 10*intensity, 0, 0, Math.PI*2); ctx.fill();
+    // Molten core
+    const cg = ctx.createRadialGradient(fx, fy-1, 0, fx, fy-1, 20*intensity);
+    cg.addColorStop(0, '#fef9c3'); cg.addColorStop(0.3, '#fde68a');
+    cg.addColorStop(0.65, '#f97316'); cg.addColorStop(1, 'rgba(220,38,38,0.15)');
+    ctx.fillStyle = cg;
+    ctx.beginPath(); ctx.ellipse(fx, fy-1, 20*intensity, 9*intensity, 0, 0, Math.PI*2); ctx.fill();
+    // Fire tendrils
+    for (let i=0; i<16; i++) {
+        const fa = ((i/16)-0.5)*Math.PI*1.15 - Math.PI/2;
+        const fr = (10+Math.sin(f*0.09+i*0.85)*5)*intensity;
+        const fpx = fx + Math.cos(fa)*fr*0.85;
+        const fpy = fy - 9 + Math.sin(f*0.1+i*1.1)*fr*0.55 - fr*0.32;
+        const fc  = i%3===0?'#fef9c3':i%3===1?'#fb923c':'#ef4444';
+        ctx.fillStyle = fc;
+        ctx.globalAlpha = (0.4+Math.sin(f*0.09+i)*0.35)*intensity;
+        ctx.beginPath(); ctx.arc(fpx, fpy, (2.2+Math.sin(f*0.07+i)*1.4)*intensity, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.restore();
+}
+function s2(x){return x;} // identity, avoids unused-var lint
+
+// ── Liquid gold stream ─────────────────────────────────────────
+function j2DrawLiquidGold(ctx, x1, y1, x2, y2, f, alpha) {
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.shadowColor = '#f97316'; ctx.shadowBlur = 14;
+    const mid = { x:(x1+x2)/2, y:Math.min(y1,y2)-28+Math.sin(f*0.04)*10 };
+    const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+    grad.addColorStop(0, '#fde68a'); grad.addColorStop(0.45,'#f97316'); grad.addColorStop(1,'rgba(251,146,60,0.1)');
+    ctx.strokeStyle = grad; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(mid.x, mid.y, x2, y2); ctx.stroke();
+    // Droplets along the arc
+    for (let t=0.05; t<1; t+=0.16) {
+        const bx = (1-t)*(1-t)*x1 + 2*(1-t)*t*mid.x + t*t*x2;
+        const by = (1-t)*(1-t)*y1 + 2*(1-t)*t*mid.y + t*t*y2;
+        const phase = (t + f*0.025) % 1;
+        ctx.globalAlpha = alpha*(0.35+phase*0.55);
+        ctx.fillStyle = '#fde68a'; ctx.shadowBlur = 5;
+        ctx.beginPath(); ctx.arc(bx, by, 2.5+phase*1.5, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+}
+
+// ── God rays (light shafts from source) ───────────────────────
+function j2DrawGodRays(ctx, srcX, srcY, count, len, hexColor, f) {
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    let r=255,g=255,b=255;
+    if (hexColor && hexColor.length===7) {
+        r=parseInt(hexColor.slice(1,3),16);
+        g=parseInt(hexColor.slice(3,5),16);
+        b=parseInt(hexColor.slice(5,7),16);
+    }
+    for (let i=0; i<count; i++) {
+        const base  = (i/count)*Math.PI*2;
+        const angle = base + f*0.0018;
+        const rLen  = len*(0.60+Math.sin(f*0.017+i*1.5)*0.38);
+        const a     = (0.038+Math.sin(f*0.013+i*1.7)*0.022)*Math.max(0,Math.sin(base*1.4+1.1));
+        const sp    = 0.030+Math.abs(Math.sin(i*0.8))*0.018;
+        const grd   = ctx.createLinearGradient(srcX, srcY, srcX+Math.cos(angle)*rLen, srcY+Math.sin(angle)*rLen);
+        grd.addColorStop(0,   `rgba(${r},${g},${b},${a*3.5})`);
+        grd.addColorStop(0.28,`rgba(${r},${g},${b},${a})`);
+        grd.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.moveTo(srcX, srcY);
+        ctx.lineTo(srcX+Math.cos(angle-sp)*rLen, srcY+Math.sin(angle-sp)*rLen);
+        ctx.lineTo(srcX+Math.cos(angle+sp)*rLen, srcY+Math.sin(angle+sp)*rLen);
+        ctx.closePath(); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.restore();
+}
+
+// ── Goal hologram panel ────────────────────────────────────────
+function j2DrawHologram(ctx, cx, cy, icon, label, subLabel, pct, f) {
+    const p=Math.max(0,Math.min(1,pct)), pw=74, ph=58;
+    ctx.save();
+    // Panel fill
+    ctx.globalAlpha = 0.06+p*0.20; ctx.fillStyle = p>=1?'#10b981':'#06b6d4';
+    j2RndRect(ctx, cx-pw/2, cy-ph/2, pw, ph, 8);
+    // Border
+    ctx.globalAlpha = 0.25+p*0.58+Math.sin(f*0.065)*0.10;
+    ctx.strokeStyle = p>=1?'#34d399':`rgba(6,182,212,${0.5+Math.sin(f*0.07)*0.28})`;
+    ctx.lineWidth = p>=1?2:1.5;
+    ctx.beginPath();
+    const bx=cx-pw/2, by=cy-ph/2, rr=8;
+    ctx.moveTo(bx+rr,by); ctx.arcTo(bx+pw,by,bx+pw,by+ph,rr);
+    ctx.arcTo(bx+pw,by+ph,bx,by+ph,rr); ctx.arcTo(bx,by+ph,bx,by,rr);
+    ctx.arcTo(bx,by,bx+pw,by,rr); ctx.closePath(); ctx.stroke();
+    // Scanlines
+    ctx.globalAlpha=0.045; ctx.fillStyle=p>=1?'#34d399':'#67e8f9';
+    for (let sl=0;sl<ph;sl+=3) ctx.fillRect(cx-pw/2, cy-ph/2+sl, pw, 1.2);
+    // Corner brackets
+    ctx.globalAlpha=0.5+p*0.38; ctx.strokeStyle=p>=1?'#34d399':'#67e8f9'; ctx.lineWidth=1.8;
+    const bl=9;
+    [[bx,by,1,1],[bx+pw,by,-1,1],[bx,by+ph,1,-1],[bx+pw,by+ph,-1,-1]].forEach(([ox,oy,dx,dy])=>{
+        ctx.beginPath(); ctx.moveTo(ox+dx*bl,oy); ctx.lineTo(ox,oy); ctx.lineTo(ox,oy+dy*bl); ctx.stroke();
+    });
+    // Icon
+    ctx.globalAlpha=0.52+p*0.42; ctx.font=`${14+p*5}px sans-serif`; ctx.textAlign='center';
+    ctx.fillText(p>=1?'✅':icon, cx, cy-7);
+    // Main label
+    ctx.fillStyle=p>=1?'#34d399':'#67e8f9'; ctx.font=`bold ${8+Math.round(p*2)}px "Inter",sans-serif`;
+    ctx.globalAlpha=0.62+p*0.32; ctx.fillText(label, cx, cy+9);
+    // Sub label
+    if (subLabel) {
+        ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.font='7px "Inter",sans-serif';
+        ctx.globalAlpha=0.38+p*0.42; ctx.fillText(subLabel, cx, cy+21);
+    }
+    ctx.textAlign='left'; ctx.restore();
+}
+
+// ── Cinematic overlay — vignette + letterbox + lens fringe ─────
+function j2DrawCinematicOverlay(ctx, w, h) {
+    // Vignette (drawn first, under letterbox)
+    const vig = ctx.createRadialGradient(w/2, h/2, w*0.14, w/2, h/2, w*0.74);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(0.5, 'rgba(0,0,0,0.06)');
+    vig.addColorStop(1, 'rgba(0,0,0,0.72)');
+    ctx.fillStyle = vig; ctx.fillRect(0, 0, w, h);
+    // Letterbox bars — 2.35:1 cinematic widescreen
+    const barH = Math.round(h * 0.092);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, barH);
+    ctx.fillRect(0, h-barH, w, barH);
+    // Subtle anamorphic lens fringe on bar edges
+    ctx.fillStyle = 'rgba(99,102,241,0.07)';
+    ctx.fillRect(0, barH, w, 1.5);
+    ctx.fillRect(0, h-barH-1.5, w, 1.5);
 }
 
 // ── Helper drawers ─────────────────────────────────────────────
@@ -4904,39 +5223,44 @@ function j2DrawHUD(ctx, w, h, stage) {
     j2WealthDisp += (j2WealthTarget - j2WealthDisp) * 0.06;
     const dispW = Math.round(j2WealthDisp);
 
+    // Letterbox bar height — keeps HUD inside the visible content area
+    const lbH = Math.round(h * 0.092); // ~29px at 320px canvas height
+
     // ── NET WORTH pill (top-left) ──
     const wLabel = j2Fmt(dispW);
+    const nwTop = lbH + 5;
     ctx.fillStyle='rgba(0,0,0,0.62)';
-    j2RndRect(ctx, 10, 10, 150, 44, 10);
+    j2RndRect(ctx, 10, nwTop, 150, 44, 10);
     ctx.fillStyle='rgba(255,255,255,0.45)';
     ctx.font=`bold 9px "JetBrains Mono",monospace`;
-    ctx.fillText('NET WORTH', 20, 24);
+    ctx.fillText('NET WORTH', 20, nwTop + 14);
     ctx.fillStyle='#34d399';
     ctx.font=`bold 16px "JetBrains Mono",monospace`;
-    ctx.fillText(wLabel, 20, 44);
+    ctx.fillText(wLabel, 20, nwTop + 34);
 
     // ── Age + Year pill (top-right) ──
     const ageTxt = `Age ${stage.age} · ${stage.year}`;
     const aTw = ctx.measureText(ageTxt).width;
     ctx.fillStyle='rgba(0,0,0,0.62)';
-    j2RndRect(ctx, w-aTw-28, 10, aTw+18, 30, 8);
+    j2RndRect(ctx, w-aTw-28, nwTop, aTw+18, 30, 8);
     ctx.fillStyle='rgba(255,255,255,0.85)';
     ctx.font=`bold 12px "Inter",sans-serif`;
-    ctx.fillText(ageTxt, w-aTw-19, 30);
+    ctx.fillText(ageTxt, w-aTw-19, nwTop + 20);
 
     // ── SIP badge (top-right, below age) ──
     if (stage.invest > 0) {
         const sipTxt = `SIP ${j2Fmt(stage.invest)}/mo`;
         const sTw = ctx.measureText(sipTxt).width;
+        const sipTop = nwTop + 38;
         ctx.fillStyle='rgba(79,70,229,0.75)';
-        j2RndRect(ctx, w-sTw-28, 48, sTw+18, 26, 7);
+        j2RndRect(ctx, w-sTw-28, sipTop, sTw+18, 26, 7);
         ctx.fillStyle='rgba(255,255,255,0.9)';
         ctx.font=`bold 11px "Inter",sans-serif`;
-        ctx.fillText(sipTxt, w-sTw-19, 65);
+        ctx.fillText(sipTxt, w-sTw-19, sipTop + 17);
     }
 
-    // ── FI Progress bar (bottom of canvas) ──
-    const barX=10, barY=h-28, barW=w-20, barH=14;
+    // ── FI Progress bar (bottom of canvas, above letterbox) ──
+    const barX=10, barY=h-lbH-26, barW=w-20, barH=14;
     const pct = stage.fiPct || 0;
     // Track
     ctx.fillStyle='rgba(0,0,0,0.50)';
@@ -4973,7 +5297,7 @@ function j2DrawHUD(ctx, w, h, stage) {
     const mw2 = ctx.measureText(moodTxt).width + 22;
     const charX2 = w * 0.28;
     const bx2 = Math.max(4, Math.min(w-mw2-4, charX2-mw2/2));
-    const bY2 = h - 52;
+    const bY2 = h - lbH - 46;
     ctx.fillStyle='rgba(0,0,0,0.68)';
     j2RndRect(ctx, bx2, bY2, mw2, 22, 6);
     ctx.fillStyle='rgba(0,0,0,0.68)';
