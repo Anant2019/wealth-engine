@@ -145,8 +145,8 @@ body {
     -webkit-backdrop-filter: blur(20px);
 }
 
-.topbar-left { display: flex; align-items: center; gap: 10px; }
-.topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-left { display: flex; align-items: center; gap: 10px; padding-left: env(safe-area-inset-left, 0px); }
+.topbar-right { display: flex; align-items: center; gap: 10px; padding-right: env(safe-area-inset-right, 16px); }
 
 .brand-logo {
     display: flex;
@@ -1010,13 +1010,28 @@ input[type="range"].accel-slider {
     cursor: pointer;
 }
 input[type="range"].accel-slider::-webkit-slider-thumb {
-    appearance: none; width: 22px; height: 22px;
+    appearance: none; width: 28px; height: 28px;
     background: white; border-radius: 50%; cursor: pointer;
     box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    /* Ensures 44px touch target via transparent padding trick */
+    -webkit-tap-highlight-color: transparent;
 }
 input[type="range"].accel-slider::-moz-range-thumb {
-    width: 22px; height: 22px;
+    width: 28px; height: 28px;
     background: white; border-radius: 50%; cursor: pointer; border: none;
+}
+@media (max-width: 768px) {
+    /* MOB-UX-02: Bigger touch target for sliders on mobile */
+    input[type="range"].accel-slider {
+        height: 10px;
+        padding: 8px 0; /* Expands touch area above/below the track */
+    }
+    input[type="range"].accel-slider::-webkit-slider-thumb {
+        width: 32px; height: 32px;
+    }
+    input[type="range"].accel-slider::-moz-range-thumb {
+        width: 32px; height: 32px;
+    }
 }
 
 /* ===================== NET WORTH HERO ===================== */
@@ -1465,7 +1480,23 @@ input[type="range"].accel-slider::-moz-range-thumb {
 
 /* ===================== AI CHAT WIDGET ===================== */
 .ai-chat-widget {
-    position: fixed; bottom: 88px; right: 20px; z-index: 2000;
+    position: fixed;
+    bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 16px);
+    right: max(20px, env(safe-area-inset-right, 20px));
+    z-index: 2000;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+/* MOB-UX-03: Hide AI widget when it would obscure bottom form content */
+.ai-chat-widget.widget-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px);
+}
+@media (max-width: 480px) {
+    .ai-chat-widget {
+        right: 12px;
+        bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 12px);
+    }
 }
 
 .chat-toggle-btn {
@@ -1801,6 +1832,57 @@ body.privacy-on td:not(:first-child) {
     .ai-prompts-grid { grid-template-columns: 1fr 1fr; }
     .nav-item span { display: none; }
     .nav-item { gap: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE UAT FIXES — MOB-UI-03, MOB-UX-01, MOB-UI-05
+   ═══════════════════════════════════════════════════════════ */
+
+/* MOB-UI-03: Risk profile text overflow on narrow viewports */
+#risk-profile-badge {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+#risk-profile-label, #risk-profile-desc {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+    hyphens: auto;
+}
+
+/* MOB-UX-01: All modal/popup inner containers must stay inset from screen edges */
+.withdraw-modal,
+#lib-modal,
+#pillar-modal {
+    width: calc(100% - 32px) !important;
+    max-width: 480px;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    box-sizing: border-box;
+}
+@media (max-width: 480px) {
+    .withdraw-modal { padding: 20px 16px; }
+    #lib-modal-inner, #pillar-modal-inner { padding: 20px 16px !important; }
+    .milestone-pop { padding: 24px 20px; }
+}
+
+/* MOB-UI-05: Ghost border/underline fix on download action buttons */
+.app-btn-sm,
+.add-row-btn,
+button[onclick*="generateWealth"],
+button[onclick*="generateExcel"] {
+    text-decoration: none !important;
+    border-bottom: none !important;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+}
+a:has(button), a.btn-link {
+    text-decoration: none !important;
+    border: none !important;
+    display: inline-block;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -2311,9 +2393,19 @@ body.privacy-on td:not(:first-child) {
         position: absolute;
         top: 12px;
         right: 12px;
-        width: 30px;
-        height: 30px;
-        font-size: 12px;
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    /* Prevent input text from sliding under the absolute ✕ button */
+    .dy-account input,
+    .dy-debt input,
+    .dy-goal input {
+        padding-right: 44px !important;
     }
 
     .compute-cta-inner { padding: 16px 18px; gap: 12px; }

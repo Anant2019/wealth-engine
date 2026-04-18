@@ -1,5 +1,14 @@
 // --- UTILITIES ---
 
+// ── MOB-FUN-03: Safe number parser — strips Indian comma formatting before parsing
+// Handles: "1,00,000" → 100000, "1.5" → 1.5, "" → 0, NaN → 0
+const parseINR = (val) => {
+    if (val === null || val === undefined || val === '') return 0;
+    const cleaned = String(val).replace(/,/g, '').trim();
+    const n = parseFloat(cleaned);
+    return isFinite(n) && !isNaN(n) ? n : 0;
+};
+
 // Safe rounding — eliminates JS floating-point drift (e.g. 0.1 + 0.2 = 0.30000000000000004)
 const toINR = (num) => {
     if (!isFinite(num) || isNaN(num)) return 0;
@@ -1292,6 +1301,22 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load saved data first — defaults are only added if nothing was saved
     loadAllData();
 
+    // MOB-FUN-03: Strip commas from numeric inputs as user types
+    // Handles Indian mobile keyboard habit of typing "1,00,000"
+    document.addEventListener('input', function(e) {
+        const el = e.target;
+        if (el.type === 'number' || el.inputMode === 'numeric' || el.inputMode === 'decimal') {
+            const raw = el.value;
+            if (raw.includes(',')) {
+                const cursor = el.selectionStart;
+                const cleaned = raw.replace(/,/g, '');
+                el.value = cleaned;
+                // Restore cursor position accounting for removed commas
+                try { el.setSelectionRange(cursor, cursor); } catch(_) {}
+            }
+        }
+    }, true);
+
     // Show SEBI disclaimer on first visit
     showSebiModalIfNeeded();
 
@@ -1756,11 +1781,11 @@ function addGoal() {
         </div>
         <div class="form-group" style="margin:0;">
             <label>Target Amount (₹)</label>
-            <input type="number" class="g-tgt" placeholder="e.g. 1500000" min="0">
+            <input type="number" class="g-tgt" placeholder="e.g. 1500000" min="0" inputmode="numeric" pattern="[0-9]*">
         </div>
         <div class="form-group" style="margin:0;">
             <label>Years Away</label>
-            <input type="number" class="g-yrs" placeholder="e.g. 3" min="1" max="40">
+            <input type="number" class="g-yrs" placeholder="e.g. 3" min="1" max="40" inputmode="numeric" pattern="[0-9]*">
         </div>
         <button class="del-btn" onclick="document.getElementById('${id}').remove()" title="Remove">✕</button>
     `;
@@ -1785,15 +1810,15 @@ function addDebt() {
         </div>
         <div class="form-group" style="margin:0;">
             <label>Outstanding Principal (₹)</label>
-            <input type="number" class="d-p" placeholder="e.g. 1500000" min="0" oninput="updateDebtTotal()">
+            <input type="number" class="d-p" placeholder="e.g. 1500000" min="0" inputmode="numeric" pattern="[0-9]*" oninput="updateDebtTotal()">
         </div>
         <div class="form-group" style="margin:0;">
             <label>Interest Rate (% p.a.)</label>
-            <input type="number" class="d-r" placeholder="e.g. 8.5" min="0" max="60" step="0.1">
+            <input type="number" class="d-r" placeholder="e.g. 8.5" min="0" max="60" step="0.1" inputmode="decimal" pattern="[0-9.]*">
         </div>
         <div class="form-group" style="margin:0;">
             <label>Monthly EMI (₹)</label>
-            <input type="number" class="d-e" placeholder="e.g. 15000" min="0">
+            <input type="number" class="d-e" placeholder="e.g. 15000" min="0" inputmode="numeric" pattern="[0-9]*">
         </div>
         <button class="del-btn" onclick="document.getElementById('${id}').remove(); updateDebtTotal();" title="Remove">✕</button>
     `;
@@ -1891,12 +1916,12 @@ function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = n
         </div>
         <div class="form-group" style="margin:0;">
             <label>Current Value (₹)</label>
-            <input type="number" class="a-p" placeholder="0" value="${defValue || ''}" min="0" oninput="updatePortfolioTotal()">
+            <input type="number" class="a-p" placeholder="0" value="${defValue || ''}" min="0" inputmode="numeric" pattern="[0-9]*" oninput="updatePortfolioTotal()">
         </div>
         <div class="form-group" style="margin:0;">
             <label>Return % p.a.</label>
             <div style="display:flex;align-items:center;gap:4px;">
-                <input type="number" class="a-r" value="${rate}" step="0.1" min="0" max="100" style="border-color:var(--amber); width:100%;">
+                <input type="number" class="a-r" value="${rate}" step="0.1" min="0" max="100" inputmode="decimal" pattern="[0-9.]*" style="border-color:var(--amber); width:100%;">
             </div>
         </div>
         <button class="del-btn" onclick="document.getElementById('${id}').remove(); updatePortfolioTotal();" title="Remove">✕</button>
@@ -2092,7 +2117,8 @@ function calculateStrategy(silentMode = false) {
     const name = (document.getElementById('u-name') || {}).value || '';
 
     // Helper: safely read a numeric field
-    const numVal = id => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || 0) : 0; };
+    // MOB-FUN-03: parseINR handles comma-formatted inputs e.g. "1,00,000" → 100000
+    const numVal = id => { const el = document.getElementById(id); return el ? parseINR(el.value) : 0; };
     const strVal = id => { const el = document.getElementById(id); return el ? (el.value || '') : ''; };
 
     // Cashflow
@@ -2120,8 +2146,8 @@ function calculateStrategy(silentMode = false) {
 
     document.querySelectorAll('.dy-account').forEach(r => {
         let type = r.querySelector('.a-t') ? r.querySelector('.a-t').value : 'savings';
-        let bal = parseFloat(r.querySelector('.a-p') ? r.querySelector('.a-p').value : 0) || 0;
-        let rt  = parseFloat(r.querySelector('.a-r') ? r.querySelector('.a-r').value : (ASSET_DEFAULT_RATES[type]||8)) || (ASSET_DEFAULT_RATES[type]||8);
+        let bal = parseINR(r.querySelector('.a-p') ? r.querySelector('.a-p').value : 0);
+        let rt  = parseINR(r.querySelector('.a-r') ? r.querySelector('.a-r').value : (ASSET_DEFAULT_RATES[type]||8)) || (ASSET_DEFAULT_RATES[type]||8);
 
         // Weighted return tracking for blended portfolio CAGR
         if (bal > 0) { totalWeightedValue += bal; totalWeightedReturn += bal * rt; }
@@ -2168,9 +2194,9 @@ function calculateStrategy(silentMode = false) {
     document.querySelectorAll('.dy-debt').forEach(r => {
         const dpEl = r.querySelector('.d-p'), deEl = r.querySelector('.d-e'),
               drEl = r.querySelector('.d-r'), dnEl = r.querySelector('.d-n');
-        let p  = parseFloat((dpEl && dpEl.value) || 0) || 0;
-        let e  = parseFloat((deEl && deEl.value) || 0) || 0;
-        let rt = parseFloat((drEl && drEl.value) || 0) || 0;
+        let p  = parseINR((dpEl && dpEl.value) || 0);
+        let e  = parseINR((deEl && deEl.value) || 0);
+        let rt = parseINR((drEl && drEl.value) || 0);
         if(p > 0) anyDebt = true;
         totalLiabilities += p; totalEMI += e;
         if(rt > 10)  hasBadDebt = true;
@@ -2253,8 +2279,8 @@ function calculateStrategy(silentMode = false) {
     document.querySelectorAll('.dy-goal').forEach(r => {
         const gnEl = r.querySelector('.g-name'), gtEl = r.querySelector('.g-tgt'), gyEl = r.querySelector('.g-yrs');
         let nm  = (gnEl && gnEl.value) || 'My Goal';
-        let tgt = parseFloat((gtEl && gtEl.value) || 0) || 0;
-        let yrs = parseFloat((gyEl && gyEl.value) || 0) || 0;
+        let tgt = parseINR((gtEl && gtEl.value) || 0);
+        let yrs = parseINR((gyEl && gyEl.value) || 0);
 
         if(tgt > 0 && yrs > 0) {
             // ┌─ GET SMART ALLOCATION ───────────────────────────────────┐
@@ -2810,7 +2836,15 @@ function calculateStrategy(silentMode = false) {
     }
 
     // Only navigate to dash if user explicitly clicked Compute (not on page-load auto-run)
-    if (!silentMode) switchTab('dash');
+    if (!silentMode) {
+        switchTab('dash');
+        // MOB-FUN-01: Auto-scroll to top so user sees results immediately
+        setTimeout(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            const contentArea = document.querySelector('.content-area');
+            if (contentArea) contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 120);
+    }
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
     } catch(err) {
@@ -3542,8 +3576,8 @@ function generateExcelReport() {
     rows.push(['Goal', 'Money I Need (₹)', 'Years Away', 'Monthly Saving Needed (₹)']);
     document.querySelectorAll('.dy-goal').forEach(r => {
         const nm  = (r.querySelector('.g-name') || {}).value || '';
-        const tgt = parseFloat((r.querySelector('.g-tgt') || {}).value) || 0;
-        const yrs = parseFloat((r.querySelector('.g-yrs') || {}).value) || 0;
+        const tgt = parseINR((r.querySelector('.g-tgt') || {}).value);
+        const yrs = parseINR((r.querySelector('.g-yrs') || {}).value);
         if (tgt > 0 && yrs > 0) {
             const rate = yrs <= 3 ? 7 : 12;
             const sip  = Math.round(calcRequiredSIP(tgt, yrs, rate));
