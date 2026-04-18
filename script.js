@@ -1782,6 +1782,10 @@ function addGoal() {
     const r = document.createElement('div');
     r.className = 'dy-row dy-goal'; r.id = id;
     r.innerHTML = `
+        <div class="dy-card-header">
+            <span class="dy-card-label">Goal</span>
+            <button class="del-btn" onclick="document.getElementById('${id}').remove(); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
+        </div>
         <div class="form-group" style="margin:0;">
             <label>Goal Name</label>
             <input type="text" class="g-name" placeholder="e.g. Car, Home, Europe Trip">
@@ -1794,7 +1798,6 @@ function addGoal() {
             <label>Years Away</label>
             <input type="number" class="g-yrs" placeholder="e.g. 3" min="1" max="40" inputmode="numeric" pattern="[0-9]*">
         </div>
-        <button class="del-btn" onclick="document.getElementById('${id}').remove(); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
     `;
     c.appendChild(r);
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -1811,6 +1814,10 @@ function addDebt() {
     const r = document.createElement('div');
     r.className = 'dy-row dy-debt'; r.id = id;
     r.innerHTML = `
+        <div class="dy-card-header">
+            <span class="dy-card-label">Loan / Debt</span>
+            <button class="del-btn" onclick="document.getElementById('${id}').remove(); updateDebtTotal(); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
+        </div>
         <div class="form-group" style="margin:0;">
             <label>Lender / Loan Name</label>
             <input type="text" class="d-n" placeholder="e.g. HDFC Home Loan, Credit Card">
@@ -1827,7 +1834,6 @@ function addDebt() {
             <label>Monthly EMI (₹)</label>
             <input type="number" class="d-e" placeholder="e.g. 15000" min="0" inputmode="numeric" pattern="[0-9]*">
         </div>
-        <button class="del-btn" onclick="document.getElementById('${id}').remove(); updateDebtTotal(); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
     `;
     c.appendChild(r);
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -1881,6 +1887,10 @@ function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = n
     const isIlliquid = ASSET_LABELS[defType] && !ASSET_LABELS[defType].liq;
 
     r.innerHTML = `
+        <div class="dy-card-header">
+            <span class="dy-card-label">Asset</span>
+            <button class="del-btn" onclick="document.getElementById('${id}').remove(); updatePortfolioTotal(); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
+        </div>
         <div class="form-group" style="margin:0;">
             <label>Asset Type</label>
             <select class="a-t" onchange="onAssetTypeChange(this)">
@@ -1927,11 +1937,8 @@ function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = n
         </div>
         <div class="form-group" style="margin:0;">
             <label>Return % p.a.</label>
-            <div style="display:flex;align-items:center;gap:4px;">
-                <input type="number" class="a-r" value="${rate}" step="0.1" min="0" max="100" inputmode="decimal" pattern="[0-9.]*" style="border-color:var(--amber); width:100%;">
-            </div>
+            <input type="number" class="a-r" value="${rate}" step="0.1" min="0" max="100" inputmode="decimal" pattern="[0-9.]*" style="border-color:var(--amber); width:100%;">
         </div>
-        <button class="del-btn" onclick="document.getElementById('${id}').remove(); updatePortfolioTotal(); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
     `;
     c.appendChild(r);
     // Set the selected type

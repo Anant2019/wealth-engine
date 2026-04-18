@@ -688,6 +688,23 @@ body {
 .dy-goal { grid-template-columns: 2fr 1.5fr 1fr auto; }
 .dy-debt { grid-template-columns: 2fr 1.5fr 1fr 1fr auto; }
 
+/* ===================== DY-CARD HEADER ===================== */
+/* Flex row at top of each dynamic card: label left, ✕ button right */
+.dy-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.dy-card-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: rgba(255, 255, 255, 0.35);
+    user-select: none;
+}
+
 /* ===================== BUTTON SYSTEM ===================== */
 
 /* Primary compute button */
@@ -2379,7 +2396,7 @@ a:has(button), a.btn-link {
         display: none;
     }
 
-    /* Asset / debt / goal rows: stack as cards, normal flow (NO absolute positioning) */
+    /* Asset / debt / goal rows: stack as cards, normal document flow */
     .dy-account,
     .dy-debt,
     .dy-goal {
@@ -2389,15 +2406,24 @@ a:has(button), a.btn-link {
         border-radius: var(--r-xl);
         padding: 12px;
         gap: 10px;
-        position: relative;
+        position: static; /* no relative — del-btn lives in header row, not absolute */
     }
-    /* ✕ button: last in DOM, moved to top-right via flex order trick */
+
+    /* Card header: label left, ✕ button right — proper flex row, no overlap possible */
+    .dy-account .dy-card-header,
+    .dy-debt .dy-card-header,
+    .dy-goal .dy-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2px;
+    }
+
+    /* ✕ button: normal flow inside header, sized for easy tapping */
     .dy-account .del-btn,
     .dy-debt .del-btn,
     .dy-goal .del-btn {
-        position: absolute;
-        top: 10px;
-        right: 10px;
+        position: static;
         width: 32px;
         height: 32px;
         min-width: 32px;
@@ -2408,15 +2434,10 @@ a:has(button), a.btn-link {
         align-items: center;
         justify-content: center;
         border-radius: 50%;
-        z-index: 2;
+        flex-shrink: 0;
     }
-    /* First form-group gets right padding to leave room for the ✕ button */
-    .dy-account .form-group:first-child,
-    .dy-debt .form-group:first-child,
-    .dy-goal .form-group:first-child {
-        padding-right: 42px;
-    }
-    /* All inputs and selects full width, no extra right padding */
+
+    /* All inputs and selects full width — no padding hack needed */
     .dy-account input, .dy-account select,
     .dy-debt input,   .dy-debt select,
     .dy-goal input,   .dy-goal select {
