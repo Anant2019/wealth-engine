@@ -1386,6 +1386,13 @@ input[type="range"].accel-slider::-moz-range-thumb {
 
 .lib-platforms { display: flex; flex-wrap: wrap; gap: 7px; }
 .lib-platform-tag { background: rgba(255,255,255,0.06); padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--slate); }
+.lib-platform-link { text-decoration: none; border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc !important; background: rgba(99,102,241,0.08) !important; transition: background 0.2s, border-color 0.2s; cursor: pointer; }
+.lib-platform-link:hover { background: rgba(99,102,241,0.2) !important; border-color: rgba(99,102,241,0.6); }
+
+/* Ladder deep-link CTA buttons */
+.ladder-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ladder-cta-link { display: inline-block; padding: 5px 12px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.3); border-radius: 20px; font-size: 11px; font-weight: 700; color: #34d399; text-decoration: none; transition: background 0.2s, border-color 0.2s; }
+.ladder-cta-link:hover { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.6); }
 
 /* Diversification Meter */
 .div-meter-bar { height: 10px; background: linear-gradient(to right, var(--emerald) 0%, #3b82f6 50%, var(--rose) 100%); border-radius: var(--r-full); position: relative; margin: 18px 0; }
@@ -1655,6 +1662,11 @@ body.privacy-on td:not(:first-child) {
     to   { opacity: 1; transform: translateY(0); }
 }
 .count-up-anim { animation: countUp 0.5s ease; }
+
+@keyframes slideUpNudge {
+    from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
 
 .confetti-piece {
     position: fixed; width: 8px; height: 8px;
@@ -3083,13 +3095,16 @@ body {
 .profile-topbar-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
     background: rgba(99,102,241,0.12);
     border: 1px solid rgba(99,102,241,0.3);
-    border-radius: 20px;
-    padding: 5px 12px 5px 6px;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    padding: 0;
     cursor: pointer;
     color: #fff;
+    flex-shrink: 0;
     transition: background 0.2s, border-color 0.2s;
 }
 .profile-topbar-btn:hover {
@@ -3097,18 +3112,20 @@ body {
     border-color: rgba(99,102,241,0.5);
 }
 .profile-topbar-initial {
-    width: 26px;
-    height: 26px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     background: linear-gradient(135deg, #6366f1, #a855f7);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 800;
     color: #fff;
     flex-shrink: 0;
     line-height: 1;
+    /* fills the button exactly — no gap between circle and border */
+    margin: -1px;
 }
 
 /* ══ FI stat pills ══ */

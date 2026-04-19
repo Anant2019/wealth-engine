@@ -304,58 +304,119 @@ function validateRiskAllocation(riskProfile, totalAssets) {
 function generateTaxAlpha(totalAssets, astEq, astCash, income) {
     const alerts = [];
 
-    // Section 80C: ELSS / PPF / EPF
-    let hasPPF = false, hasEPF = false, hasELSS = false;
+    // ── Determine income tax slab ──────────────────────────────────────────
+    // New Tax Regime FY 2024-25 (default) vs Old Regime
+    // We compute "effective marginal rate" for actionable savings estimate
+    const annualIncome = income * 12;
+    let marginalRate = 0;
+    if (annualIncome <= 300000)  marginalRate = 0;
+    else if (annualIncome <= 700000)  marginalRate = 0.05;  // after new regime rebate
+    else if (annualIncome <= 1000000) marginalRate = 0.10;
+    else if (annualIncome <= 1200000) marginalRate = 0.15;
+    else if (annualIncome <= 1500000) marginalRate = 0.20;
+    else marginalRate = 0.30;
+
+    // For Old Regime (where 80C / 80CCD apply), use old slab marginal rate
+    let oldRegimeMarginal = 0;
+    if (annualIncome <= 250000)       oldRegimeMarginal = 0;
+    else if (annualIncome <= 500000)  oldRegimeMarginal = 0.05;
+    else if (annualIncome <= 1000000) oldRegimeMarginal = 0.20;
+    else                              oldRegimeMarginal = 0.30;
+
+    // Surcharge & cess: 4% health+education cess applies on tax
+    const cessMultiplier = 1.04;
+
+    // 80C: max deduction ₹1.5L — saves up to ₹1,50,000 × slab × cess
+    const max80C = 150000;
+    const saved80C = Math.round(max80C * oldRegimeMarginal * cessMultiplier);
+
+    // 80CCD(1B): NPS extra ₹50K deduction on top of 80C
+    const maxNPS = 50000;
+    const savedNPS = Math.round(maxNPS * oldRegimeMarginal * cessMultiplier);
+
+    // Total potential tax saved if not using either
+    const totalPotentialSaving = saved80C + savedNPS;
+
+    // ── Scan existing assets ───────────────────────────────────────────────
+    let hasPPF = false, hasEPF = false, hasELSS = false, hasNPS = false;
     let ppfValue = 0, epfValue = 0, elssValue = 0;
     document.querySelectorAll('.dy-account').forEach(r => {
         const type = r.querySelector('.a-t') ? r.querySelector('.a-t').value : '';
-        const bal = parseFloat(r.querySelector('.a-p') ? r.querySelector('.a-p').value : 0) || 0;
+        const bal  = parseFloat(r.querySelector('.a-p') ? r.querySelector('.a-p').value : 0) || 0;
         if (type === 'ppf') { hasPPF = true; ppfValue += bal; }
         if (type === 'epf') { hasEPF = true; epfValue += bal; }
-        if (type === 'mutual_fund') { hasELSS = true; elssValue += bal; } // Proxy for ELSS
+        if (type === 'mutual_fund') { hasELSS = true; elssValue += bal; }
+        if (type === 'nps') hasNPS = true;
     });
 
-    // 80C Alert
-    if (!hasPPF && !hasEPF && income > 0) {
+    // ── BANNER: "Money Left on Table" — only show if income > 10 LPA ──────
+    const missing80C  = !hasPPF && !hasEPF && !hasELSS && annualIncome > 700000 && saved80C > 0;
+    const missingNPS  = !hasNPS && annualIncome > 600000 && savedNPS > 0;
+    if (missing80C || missingNPS) {
+        let leaving = 0;
+        let leaveItems = [];
+        if (missing80C)  { leaving += saved80C;  leaveItems.push(`₹${(saved80C/1000).toFixed(0)}K via 80C`); }
+        if (missingNPS)  { leaving += savedNPS;  leaveItems.push(`₹${(savedNPS/1000).toFixed(0)}K via NPS 80CCD(1B)`); }
+        alerts.push({
+            icon: '🚨',
+            title: `YOU ARE LEAVING ₹${(leaving/1000).toFixed(0)},000 ON THE TABLE EVERY YEAR`,
+            message: `Based on your income of ${formatCurrency(income)}/mo (${formatCurrency(annualIncome)}/yr) at the ${Math.round(oldRegimeMarginal*100)}% tax bracket, you could legally save ${leaveItems.join(' + ')} annually by switching to the Old Tax Regime and using available deductions. That is ${formatCurrency(leaving)} in cold cash back in your pocket — every single year, compounding for life.`,
+            color: '#EF4444',
+            isBanner: true
+        });
+    }
+
+    // ── 80C Alert ─────────────────────────────────────────────────────────
+    if (!hasPPF && !hasEPF && !hasELSS && annualIncome > 500000) {
         alerts.push({
             icon: '🏛️',
-            title: 'Section 80C: Save ₹46,800 in Tax',
-            message: 'You may not be using your full ₹1.5L Section 80C deduction. Invest in PPF (safe, 7.1% tax-free), ELSS Mutual Funds (best returns), or top up EPF. This alone saves ₹46,800/year in tax at the 30% bracket.',
+            title: `Section 80C: Save ${formatCurrency(saved80C)} in Tax This Year`,
+            message: `Invest ₹1.5 Lakh/year in any 80C instrument — PPF (7.1% tax-free, ultra safe), ELSS Mutual Funds (12–15% returns, 3-yr lock), or EPF top-up. At your ${Math.round(oldRegimeMarginal*100)}% slab, that is ${formatCurrency(saved80C)}/year saved. That is a guaranteed ${(saved80C/150000*100).toFixed(0)}% return just from tax savings, before any market return.`,
+            color: '#10B981'
+        });
+    } else if ((hasPPF || hasEPF || hasELSS) && annualIncome > 500000) {
+        // User has some 80C assets — just confirm
+        alerts.push({
+            icon: '✅',
+            title: `80C: Good. Keep Your ₹1.5L Invested Every Year`,
+            message: `You have PPF/EPF/ELSS holdings. Make sure you invest the full ₹1.5L limit each financial year to claim the maximum ${formatCurrency(saved80C)} annual tax saving. Top it up before 31st March.`,
             color: '#10B981'
         });
     }
 
-    // Long-Term Capital Gains alert for equity
+    // ── Long-Term Capital Gains Harvest ───────────────────────────────────
     if (astEq > 100000) {
+        const estimatedGains = astEq * 0.12; // assume 12% annual gain
+        const taxableLTCG = Math.max(0, estimatedGains - 100000);
+        const ltcgTaxSaved = Math.round(taxableLTCG * 0.10 * cessMultiplier);
         alerts.push({
             icon: '📊',
-            title: 'LTCG Harvest: Keep Equity Gains Under ₹1 Lakh/Year',
-            message: `You have ${formatCurrency(astEq)} in equity. Gains up to ₹1 Lakh/year from equity are tax-free (LTCG exemption). If you book profits, plan your redemptions across financial years to minimize your 10% LTCG tax liability.`,
+            title: `LTCG Harvest: ₹1 Lakh/Year is Tax-Free — Plan Redemptions`,
+            message: `You have ${formatCurrency(astEq)} in equity. Long-term gains up to ₹1L/year are fully exempt. Your estimated annual gain is ~${formatCurrency(estimatedGains)}. By splitting redemptions across two financial years, you can save up to ₹${(ltcgTaxSaved/1000).toFixed(1)}K in LTCG tax. Never redeem large amounts in a single financial year.`,
             color: '#6366F1'
         });
     }
 
-    // NPS for additional 80CCD(1B) deduction
-    let hasNPS = false;
-    document.querySelectorAll('.dy-account').forEach(r => {
-        const type = r.querySelector('.a-t') ? r.querySelector('.a-t').value : '';
-        if (type === 'nps') hasNPS = true;
-    });
-    if (!hasNPS && income >= 50000) {
+    // ── NPS 80CCD(1B) ─────────────────────────────────────────────────────
+    if (!hasNPS && annualIncome >= 600000) {
         alerts.push({
             icon: '🧾',
-            title: 'NPS: Extra ₹15,600 Tax Savings via 80CCD(1B)',
-            message: 'NPS (National Pension System) gives an additional ₹50,000 tax deduction over and above 80C. At the 30% bracket, this saves ₹15,600 extra per year. Open an NPS account at any bank or online at enps.nsdl.com.',
+            title: `NPS: An Extra ${formatCurrency(savedNPS)} Tax Shield via 80CCD(1B)`,
+            message: `NPS gives a SEPARATE ₹50,000 deduction — completely over and above your ₹1.5L 80C limit. At your tax bracket, this saves ${formatCurrency(savedNPS)}/year. Open NPS at enps.nsdl.com or any bank in 10 minutes. Tier 1 account is mandatory; you can exit at 60.`,
             color: '#F59E0B'
         });
     }
 
-    // FD interest tax alert
-    if (astCash > 500000) {
+    // ── FD → Debt MF migration alert ──────────────────────────────────────
+    if (astCash > 500000 && annualIncome > 500000) {
+        const fdInterest = astCash * 0.075;
+        const fdTax = Math.round(fdInterest * oldRegimeMarginal * cessMultiplier);
+        const debtMFTax = Math.round(fdInterest * 0.20 * cessMultiplier); // indexation ~20% effective
+        const saving = Math.max(0, fdTax - debtMFTax);
         alerts.push({
             icon: '🏦',
-            title: 'FD Interest is Fully Taxable — Consider Debt MFs',
-            message: `Your savings/FD balance of ${formatCurrency(astCash)} earns interest that is added to your income and taxed at your slab rate (up to 30%). Debt Mutual Funds held 3+ years are taxed at 20% with indexation benefit — a significant saving. Consider moving some to Debt MFs.`,
+            title: `FD Interest is Fully Taxable — Could Save ₹${(saving/1000).toFixed(1)}K by Switching`,
+            message: `Your ${formatCurrency(astCash)} in FD/savings earns ~${formatCurrency(fdInterest)}/yr interest, taxed at ${Math.round(oldRegimeMarginal*100)}% = ${formatCurrency(fdTax)}/yr tax. Debt Mutual Funds (3+ yr holding) are taxed at ~20% effective with indexation = ${formatCurrency(debtMFTax)}/yr. Migration could save ${formatCurrency(saving)}/yr. Consider moving 40–50% to Debt MFs via Kuvera or Groww.`,
             color: '#EF4444'
         });
     }
@@ -1257,6 +1318,105 @@ function toggleMarketPulse() {
         text.style.color = marketMode === 'bull' ? 'var(--emerald)' : 'var(--amber)';
         text.textContent = marketMode === 'bull' ? 'Positive — Good Time to Invest' : 'Caution — Markets Are Down';
     }
+
+    // ── Market Mood Multiplier: Bear Nudge ──────────────────────────────────
+    if (marketMode === 'bear') {
+        // Show bear-market opportunity nudge with one-tap action
+        const sip = engineMemory.sip || 0;
+        const sipBoost = Math.round(sip * 0.20);
+        const cash = engineMemory.astCash || 0;
+        const hasReserves = cash > (engineMemory.income || 0) * 3; // at least 3 months cash
+
+        let nudgeMsg = `Markets are bleeding. This is not a crisis — this is a sale. Every great investor from Warren Buffett to Rakesh Jhunjhunwala made their biggest fortunes by buying aggressively during crashes.`;
+        let actionHTML = '';
+
+        if (hasReserves && sip > 0) {
+            nudgeMsg += ` You have ${formatCurrency(cash)} in cash reserves — well above your emergency fund. You can afford to be aggressive.`;
+            actionHTML = `
+                <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+                    <button onclick="applyBearBoost(${sipBoost})" style="padding:10px 20px; background:linear-gradient(135deg,#f59e0b,#d97706); border:none; border-radius:10px; color:#000; font-weight:900; font-size:13px; cursor:pointer; letter-spacing:0.3px;">
+                        ⚡ Increase SIP by ₹${(sipBoost/1000).toFixed(0)}K this month →
+                    </button>
+                    <button onclick="closeBearNudge()" style="padding:10px 16px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:10px; color:rgba(255,255,255,0.6); font-weight:700; font-size:12px; cursor:pointer;">
+                        Maybe later
+                    </button>
+                </div>`;
+        } else if (sip > 0) {
+            nudgeMsg += ` Your current SIP is ${formatCurrency(sip)}/mo. Even if you can't add more, the most important thing is: <strong>DO NOT STOP your SIP during a crash.</strong> Every unit you buy now is at a discount.`;
+            actionHTML = `
+                <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+                    <button onclick="closeBearNudge()" style="padding:10px 20px; background:linear-gradient(135deg,#10b981,#059669); border:none; border-radius:10px; color:#000; font-weight:900; font-size:13px; cursor:pointer;">
+                        ✅ I will NOT stop my SIP
+                    </button>
+                </div>`;
+        } else {
+            nudgeMsg += ` This is actually the best time to START investing. Open a Zerodha or Groww account today and start even ₹500/month.`;
+            actionHTML = `
+                <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+                    <a href="https://zerodha.com" target="_blank" rel="noopener" style="padding:10px 20px; background:linear-gradient(135deg,#6366f1,#4f46e5); border:none; border-radius:10px; color:#fff; font-weight:900; font-size:13px; cursor:pointer; text-decoration:none;">
+                        Open Zerodha Account ↗
+                    </a>
+                    <button onclick="closeBearNudge()" style="padding:10px 16px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:10px; color:rgba(255,255,255,0.6); font-weight:700; font-size:12px; cursor:pointer;">
+                        Dismiss
+                    </button>
+                </div>`;
+        }
+
+        showBearNudge(nudgeMsg, actionHTML);
+    } else {
+        // Bull mode — hide nudge if shown
+        closeBearNudge();
+    }
+}
+
+function showBearNudge(msg, actionHTML) {
+    let overlay = document.getElementById('bear-nudge-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'bear-nudge-overlay';
+        overlay.style.cssText = `
+            position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+            width:min(420px,92vw); z-index:9990;
+            background:linear-gradient(135deg,rgba(20,10,0,0.97),rgba(30,15,0,0.97));
+            border:2px solid rgba(245,158,11,0.5); border-radius:16px;
+            padding:20px; box-shadow:0 8px 40px rgba(245,158,11,0.25);
+            animation: slideUpNudge 0.4s cubic-bezier(0.16,1,0.3,1) both;
+        `;
+        document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+        <div style="display:flex; align-items:flex-start; gap:12px;">
+            <div style="font-size:28px; line-height:1;">🩸</div>
+            <div style="flex:1;">
+                <div style="font-weight:900; font-size:14px; color:#f59e0b; margin-bottom:8px; line-height:1.3;">
+                    Market is bleeding. This is a SALE.
+                </div>
+                <div style="font-size:12px; color:rgba(255,255,255,0.7); line-height:1.6;">${msg}</div>
+                ${actionHTML}
+            </div>
+            <button onclick="closeBearNudge()" style="background:none;border:none;color:rgba(255,255,255,0.3);font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;">✕</button>
+        </div>
+    `;
+    overlay.style.display = 'block';
+}
+
+function closeBearNudge() {
+    const overlay = document.getElementById('bear-nudge-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+function applyBearBoost(amount) {
+    // Visually updates the SIP boost indicator and re-runs compute
+    closeBearNudge();
+    // Show a toast confirming
+    const toast = document.createElement('div');
+    toast.style.cssText = `position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;
+        background:linear-gradient(135deg,#10b981,#059669);color:#000;font-weight:900;font-size:13px;
+        padding:12px 20px;border-radius:10px;box-shadow:0 4px 20px rgba(16,185,129,0.5);
+        animation:slideUpNudge 0.3s ease both;`;
+    toast.textContent = `✅ SIP boost of ${formatCurrency(amount)}/mo noted! Update your SIP before 5th of this month.`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4500);
 }
 
 // Close modal on overlay click — deferred to avoid parse-time crash
@@ -1364,6 +1524,13 @@ function refreshProfileTopbar() {
         } catch(e) {}
     }
 
+    // Update nav label: first name only (max 8 chars), fallback "Me"
+    const navLabel = document.getElementById('nav-intake-label');
+    if (navLabel) {
+        const firstName = name ? name.split(' ')[0].slice(0, 8) : '';
+        navLabel.textContent = firstName || 'Base';
+    }
+
     if (name) {
         // Show coloured initial circle
         initialEl.textContent = name[0].toUpperCase();
@@ -1430,6 +1597,42 @@ const PILLAR_DATA = {
     }
 };
 
+// ─── Platform deep link URL map ──────────────────────────────────────────────
+const PLATFORM_URLS = {
+    'RBI Retail Direct — rbidirect.rbi.org.in': 'https://rbidirect.rbi.org.in',
+    'Wint Wealth': 'https://www.wintweath.in',
+    'GoldenPi': 'https://goldenpi.com',
+    'Groww Fixed Income': 'https://groww.in/fixed-income',
+    'Groww': 'https://groww.in',
+    'Zerodha Coin': 'https://coin.zerodha.com',
+    'Kuvera': 'https://kuvera.in',
+    'Smallcase': 'https://www.smallcase.com',
+    '12% Club': 'https://12percentclub.com',
+    'Faircent': 'https://www.faircent.com',
+    'Zerodha (Momentum ETFs)': 'https://zerodha.com',
+    'Zerodha': 'https://zerodha.com',
+    'Any Nationalized Bank': null,
+    'Groww (during SGB issuance window)': 'https://groww.in/gold',
+    'enps.nsdl.com': 'https://enps.nsdl.com',
+};
+
+function platformTagHTML(platformStr) {
+    return platformStr.split('·').map(p => {
+        const name = p.trim();
+        // Find best matching URL
+        let url = null;
+        for (const [key, val] of Object.entries(PLATFORM_URLS)) {
+            if (name.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(name.toLowerCase())) {
+                url = val; break;
+            }
+        }
+        if (url) {
+            return `<a href="${url}" target="_blank" rel="noopener" class="lib-platform-tag lib-platform-link">${name} <span style="font-size:9px;opacity:0.6;">↗</span></a>`;
+        }
+        return `<span class="lib-platform-tag">${name}</span>`;
+    }).join('');
+}
+
 function openPillarModal(key) {
     const d = PILLAR_DATA[key];
     if (!d) return;
@@ -1466,8 +1669,8 @@ function openPillarModal(key) {
             <div class="lib-cons"><strong>⚠️ Considerations</strong>${d.cons.split('\n').map(l=>'<div>'+l+'</div>').join('')}</div>
         </div>
         <div style="margin-top:20px;">
-            <div class="lib-modal-section-title">Trusted Platforms</div>
-            <div class="lib-platforms">${d.platform.split('·').map(p=>`<span class="lib-platform-tag">${p.trim()}</span>`).join('')}</div>
+            <div class="lib-modal-section-title">Trusted Platforms — tap to open</div>
+            <div class="lib-platforms">${platformTagHTML(d.platform)}</div>
         </div>
     `;
     document.getElementById('pillar-modal-overlay').style.display = 'block';
@@ -1846,6 +2049,7 @@ const ASSET_DEFAULT_RATES = {
     savings: 3.5, fd: 7.5, rd: 7.0, corp_bonds: 10.0, po_schemes: 7.7,
     mutual_fund: 12.0, stocks_mid: 15.0, stocks_small: 18.0, stocks_in: 13.0,
     mutual_debt: 7.5, stocks_us: 13.0, etf: 12.0,
+    trading_intraday: 0, trading_swing: 0, trading_options: 0,
     epf: 8.1, ppf: 7.1, nps: 10.0, endowment: 4.5,
     ulip: 8.0, gold_physical: 8.5, sgb: 10.0, real_estate: 10.0,
     crypto: 20.0, reit: 10.0, p2p: 12.0
@@ -1875,6 +2079,9 @@ const ASSET_LABELS = {
     reit: { label: '🏢 REIT', liq: true },
     p2p:  { label: '🔗 P2P Lending', liq: false },
     crypto: { label: '₿ Cryptocurrency', liq: true },
+    trading_intraday: { label: '⚡ Intraday/F&O Capital', liq: true, isTrading: true },
+    trading_swing:    { label: '📉 Swing Trading Capital', liq: true, isTrading: true },
+    trading_options:  { label: '🎯 Options Selling Capital', liq: true, isTrading: true },
 };
 
 function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = null) {
@@ -1925,6 +2132,11 @@ function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = n
                     <option value="crypto">₿ Cryptocurrency (20%) ⚠️High Risk</option>
                     <option value="ulip">🔒 ULIP (8%)</option>
                 </optgroup>
+                <optgroup label="⚡ Active Trading">
+                    <option value="trading_intraday">⚡ Intraday / F&O Trading Capital</option>
+                    <option value="trading_swing">📉 Swing Trading Capital</option>
+                    <option value="trading_options">🎯 Options Selling Capital</option>
+                </optgroup>
             </select>
         </div>
         <div class="form-group" style="margin:0;">
@@ -1936,7 +2148,7 @@ function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = n
             <input type="number" class="a-p" style="width:100%;box-sizing:border-box;" placeholder="0" value="${defValue || ''}" min="0" inputmode="numeric" pattern="[0-9]*" oninput="updatePortfolioTotal()">
         </div>
         <div class="form-group" style="margin:0;">
-            <label>Return % p.a. <span style="color:var(--rose);">*</span></label>
+            <label class="a-r-label">Return % p.a. <span style="color:var(--rose);">*</span></label>
             <input type="number" class="a-r" required value="${rate}" step="0.1" min="0.1" max="100" inputmode="decimal" pattern="[0-9.]*" style="border-color:var(--amber);width:100%;box-sizing:border-box;">
         </div>
     `;
@@ -1951,8 +2163,32 @@ function onAssetTypeChange(sel) {
     const row = sel.closest('.dy-account');
     if (!row) return;
     const rateInput = row.querySelector('.a-r');
-    if (rateInput && ASSET_DEFAULT_RATES[sel.value] !== undefined) {
-        rateInput.value = ASSET_DEFAULT_RATES[sel.value];
+    const rateLabel = row.querySelector('.a-r-label');
+    const isTrading = ASSET_LABELS[sel.value] && ASSET_LABELS[sel.value].isTrading;
+
+    if (isTrading) {
+        // Trading capital: rate = user's actual profit % (could be negative!)
+        if (rateInput) { rateInput.value = 0; rateInput.min = -100; rateInput.placeholder = 'e.g. 25 or -10'; }
+        if (rateLabel) rateLabel.innerHTML = 'Monthly Profit Rate % <span style="color:#F59E0B;font-size:10px;">(your actual avg, can be negative)</span>';
+        // Show a trading warning if not already there
+        let warn = row.querySelector('.trading-warn');
+        if (!warn) {
+            warn = document.createElement('div');
+            warn.className = 'trading-warn';
+            warn.style.cssText = 'margin-top:8px;padding:10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);border-radius:8px;font-size:11px;color:#fbbf24;line-height:1.5;';
+            warn.innerHTML = `⚡ <strong>Active Trading Bucket:</strong> This capital is tracked separately. Profits are periodically "harvested" into your safe long-term portfolio — they do NOT compound as a stable investment. Only enter capital you can afford to lose entirely. <strong>Keep this under 5–10% of your total portfolio.</strong>`;
+            rateInput.closest('.form-group').after(warn);
+        }
+    } else {
+        // Remove trading warning if switching away
+        const warn = row.querySelector('.trading-warn');
+        if (warn) warn.remove();
+        if (rateInput && ASSET_DEFAULT_RATES[sel.value] !== undefined) {
+            rateInput.value = ASSET_DEFAULT_RATES[sel.value];
+            rateInput.min = 0.1;
+            rateInput.placeholder = '';
+        }
+        if (rateLabel) rateLabel.innerHTML = 'Return % p.a. <span style="color:var(--rose);">*</span>';
     }
 }
 
@@ -2193,6 +2429,8 @@ function calculateStrategy(silentMode = false) {
                 astGold += bal; break; // bucket real estate with alternatives
             case 'p2p':
                 astEq += bal; break;   // bucket P2P with equity-risk assets
+            case 'trading_intraday': case 'trading_swing': case 'trading_options':
+                astEq += bal; break;   // trading capital = speculative equity bucket
             default:
                 astCash += bal;
         }
@@ -2547,15 +2785,38 @@ function calculateStrategy(silentMode = false) {
         </div>
         <div class="ladder-phase ${p1_secure ? 'phase-unlocked' : 'phase-locked'}">
             <div class="ladder-icon">${p1_secure ? '<i data-lucide="trending-up"></i>' : '<i data-lucide="lock"></i>'}</div>
-            <div class="ladder-content"><h4>Step 2: Start Investing (₹0 to ₹5L)</h4><p>${p1_secure ? '<strong>ACTION REQUIRED:</strong> Open a brokerage account (e.g., Zerodha, Groww) and start monthly SIPs in a Nifty 50 Index Fund and a Mid Cap Fund. Try to increase your SIP by 10% every year.' : '<strong>ACTION REQUIRED:</strong> First complete Step 1 (clear debts, buy insurance, build an FD). Only then should you open a brokerage account to buy Mutual Funds.'}</p></div>
+            <div class="ladder-content">
+                <h4>Step 2: Start Investing (₹0 to ₹5L)</h4>
+                <p>${p1_secure ? '<strong>ACTION REQUIRED:</strong> Open a brokerage account and start monthly SIPs in a Nifty 50 Index Fund and a Mid Cap Fund. Increase SIP by 10% every year.' : '<strong>ACTION REQUIRED:</strong> First complete Step 1. Only then open a brokerage account to buy Mutual Funds.'}</p>
+                ${p1_secure ? `<div class="ladder-links">
+                    <a href="https://coin.zerodha.com" target="_blank" rel="noopener" class="ladder-cta-link">View on Zerodha Coin ↗</a>
+                    <a href="https://groww.in" target="_blank" rel="noopener" class="ladder-cta-link">View on Groww ↗</a>
+                    <a href="https://kuvera.in" target="_blank" rel="noopener" class="ladder-cta-link">View on Kuvera ↗</a>
+                </div>` : ''}
+            </div>
         </div>
         <div class="ladder-phase ${p3_secure ? 'phase-unlocked' : 'phase-locked'}">
             <div class="ladder-icon">${p3_secure ? '<i data-lucide="landmark"></i>' : '<i data-lucide="lock"></i>'}</div>
-            <div class="ladder-content"><h4>Step 3: Diversify to Bonds (₹5L+)</h4><p>${p3_secure ? '<strong>ACTION REQUIRED:</strong> You have more than ₹5L in stocks. We recommend adding Corporate Bonds (via GoldenPi or WintWealth) for safety.' : '<strong>ACTION REQUIRED:</strong> Keep buying Nifty 50 Mutual Funds until your portfolio crosses ₹5 Lakhs. Only then should you seek out Corporate Bonds.'}</p></div>
+            <div class="ladder-content">
+                <h4>Step 3: Diversify to Bonds (₹5L+)</h4>
+                <p>${p3_secure ? '<strong>ACTION REQUIRED:</strong> You have more than ₹5L in stocks. Add Corporate Bonds (AA+ rated only) for stability.' : '<strong>ACTION REQUIRED:</strong> Keep buying Nifty 50 Mutual Funds until your portfolio crosses ₹5 Lakhs. Only then seek Corporate Bonds.'}</p>
+                ${p3_secure ? `<div class="ladder-links">
+                    <a href="https://wintweath.in" target="_blank" rel="noopener" class="ladder-cta-link">View on Wint Wealth ↗</a>
+                    <a href="https://goldenpi.com" target="_blank" rel="noopener" class="ladder-cta-link">View on GoldenPi ↗</a>
+                    <a href="https://groww.in/fixed-income" target="_blank" rel="noopener" class="ladder-cta-link">View on Groww Fixed Income ↗</a>
+                </div>` : ''}
+            </div>
         </div>
         <div class="ladder-phase ${p4_secure ? 'phase-unlocked' : 'phase-locked'}">
             <div class="ladder-icon">${p4_secure ? '<i data-lucide="globe"></i>' : '<i data-lucide="lock"></i>'}</div>
-            <div class="ladder-content"><h4>Step 4: Go Global (₹20L+)</h4><p>${p4_secure ? '<strong>ACTION REQUIRED:</strong> Your wealth has crossed ₹20L. You should now use apps like Indmoney or Vested to invest in US Stocks (like the Nasdaq-100).' : '<strong>ACTION REQUIRED:</strong> Focus on growing your Indian Mutual Funds to ₹20 Lakhs before you worry about buying US Stocks or international funds.'}</p></div>
+            <div class="ladder-content">
+                <h4>Step 4: Go Global (₹20L+)</h4>
+                <p>${p4_secure ? '<strong>ACTION REQUIRED:</strong> Your wealth has crossed ₹20L. Invest in US Stocks (Nasdaq-100) for USD exposure and global diversification.' : '<strong>ACTION REQUIRED:</strong> Focus on growing your Indian Mutual Funds to ₹20 Lakhs before buying US Stocks or international funds.'}</p>
+                ${p4_secure ? `<div class="ladder-links">
+                    <a href="https://indmoney.com" target="_blank" rel="noopener" class="ladder-cta-link">View on INDmoney ↗</a>
+                    <a href="https://vestedfinance.com" target="_blank" rel="noopener" class="ladder-cta-link">View on Vested Finance ↗</a>
+                </div>` : ''}
+            </div>
         </div>
     `;
     
@@ -2620,10 +2881,21 @@ function calculateStrategy(silentMode = false) {
         taxSection.style.display = 'block';
         let taxHTML = '';
         taxAlerts.forEach(a => {
-            taxHTML += `<div style="margin-bottom:10px; padding:10px; background:rgba(0,0,0,0.15); border-left:3px solid ${a.color}; border-radius:4px;">
-                <div style="font-weight:800; font-size:12px; color:${a.color};">${a.icon} ${a.title}</div>
-                <div style="font-size:11px; color:rgba(255,255,255,0.6); margin-top:4px; line-height:1.5;">${a.message}</div>
-            </div>`;
+            if (a.isBanner) {
+                // Prominent "YOU ARE LEAVING MONEY" banner
+                taxHTML += `
+                <div style="margin-bottom:16px; padding:16px; background:linear-gradient(135deg,rgba(239,68,68,0.15),rgba(239,68,68,0.05)); border:2px solid rgba(239,68,68,0.5); border-radius:12px; position:relative; overflow:hidden;">
+                    <div style="position:absolute;top:0;right:0;width:80px;height:80px;background:rgba(239,68,68,0.08);border-radius:50%;transform:translate(20px,-20px);"></div>
+                    <div style="font-weight:900; font-size:15px; color:#EF4444; margin-bottom:8px; line-height:1.3;">${a.icon} ${a.title}</div>
+                    <div style="font-size:12px; color:rgba(255,255,255,0.75); line-height:1.6;">${a.message}</div>
+                    <div style="margin-top:10px; font-size:10px; font-weight:800; color:rgba(239,68,68,0.8); text-transform:uppercase; letter-spacing:0.5px;">💡 ACT NOW — this compounds every year you delay</div>
+                </div>`;
+            } else {
+                taxHTML += `<div style="margin-bottom:10px; padding:12px; background:rgba(0,0,0,0.15); border-left:3px solid ${a.color}; border-radius:6px;">
+                    <div style="font-weight:800; font-size:12px; color:${a.color};">${a.icon} ${a.title}</div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.6); margin-top:4px; line-height:1.6;">${a.message}</div>
+                </div>`;
+            }
         });
         taxContent.innerHTML = taxHTML;
     }
