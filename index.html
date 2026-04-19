@@ -6,7 +6,7 @@
     <title>Aarth Sutra | The Logic of Wealth. The Code of Wisdom.</title>
     <meta name="description" content="Aarth Sutra — Precision wealth planning for the modern professional. 100% Secure, 100% Local.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:ital,wght@0,600;0,700;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=202604190005">
+    <link rel="stylesheet" href="styles.css?v=202604190006">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -326,6 +326,42 @@
              TAB 2: BLUEPRINT
         ═══════════════════════════════════════ -->
         <section id="pg-dash" class="pg">
+
+            <!-- ══ IMMEDIATE ACTION ALERT BLOCK ══ -->
+            <div id="action-alerts-block" style="display:none; margin-bottom:16px;"></div>
+
+            <!-- ══ FI PROGRESS WHIP BAR ══ -->
+            <div class="fi-whip-card" id="fi-whip-card">
+                <div class="fi-whip-header">
+                    <div class="fi-whip-label">
+                        <span class="fi-whip-icon">🎯</span>
+                        <span>Financial Independence Progress</span>
+                    </div>
+                    <div class="fi-whip-pct" id="fi-whip-pct">0%</div>
+                </div>
+                <div class="fi-whip-track">
+                    <div class="fi-whip-fill" id="fi-whip-fill" style="width:0%"></div>
+                    <div class="fi-whip-glow" id="fi-whip-glow" style="left:0%"></div>
+                </div>
+                <div class="fi-whip-footer">
+                    <span id="fi-whip-corpus">Current: —</span>
+                    <span id="fi-whip-target">Target: —</span>
+                </div>
+            </div>
+
+            <!-- ══ 10% STEP-UP CONTRACT ══ -->
+            <div class="stepup-contract-card" id="stepup-contract-card" style="display:none;">
+                <div class="stepup-contract-header">
+                    <div class="stepup-contract-badge">📋 YOUR SIP CONTRACT</div>
+                    <div class="stepup-contract-title">To hit your FI date, you must follow this exact step-up schedule</div>
+                </div>
+                <div class="stepup-bars-row" id="stepup-bars-row">
+                    <!-- bars injected by JS -->
+                </div>
+                <div class="stepup-contract-note">
+                    💡 Each year, increase your SIP by 10%. This one discipline compresses your FIRE date by years.
+                </div>
+            </div>
 
             <!-- Daily Insight -->
             <div class="daily-insight-card" id="daily-insight-card">

@@ -1167,6 +1167,207 @@ function validateForm() {
     }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD LAYER 1 — FI PROGRESS WHIP BAR
+// Animates from 0 → target% with a "whip" easing on render
+// ══════════════════════════════════════════════════════════════════════════════
+function renderFIWhipBar(totalAssets, totalExp) {
+    const safeAssets = isFinite(totalAssets) && totalAssets > 0 ? totalAssets : 0;
+    const safeExp    = isFinite(totalExp)    && totalExp    > 0 ? totalExp    : 1;
+    const fiTarget   = safeExp * 12 * 25; // 25× rule
+    const pct        = Math.min((safeAssets / fiTarget) * 100, 100);
+
+    const fillEl  = document.getElementById('fi-whip-fill');
+    const glowEl  = document.getElementById('fi-whip-glow');
+    const pctEl   = document.getElementById('fi-whip-pct');
+    const corpEl  = document.getElementById('fi-whip-corpus');
+    const tgtEl   = document.getElementById('fi-whip-target');
+    if (!fillEl) return;
+
+    // Reset to 0 first so the animation always fires even on re-compute
+    fillEl.style.transition = 'none';
+    glowEl.style.transition = 'none';
+    fillEl.style.width = '0%';
+    glowEl.style.left  = '0%';
+
+    // Force reflow then animate
+    fillEl.getBoundingClientRect();
+    fillEl.style.transition = 'width 1.1s cubic-bezier(0.16,1,0.3,1)';
+    glowEl.style.transition = 'left 1.1s cubic-bezier(0.16,1,0.3,1)';
+
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            fillEl.style.width = pct + '%';
+            glowEl.style.left  = Math.min(pct, 99) + '%';
+        }, 80);
+    });
+
+    // Animate counter 0 → pct
+    if (pctEl) {
+        let start = 0;
+        const end = pct;
+        const duration = 1100;
+        const startTime = performance.now();
+        function tick(now) {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // ease-out expo
+            const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+            const current = start + (end - start) * ease;
+            pctEl.textContent = current.toFixed(1) + '%';
+            // colour shift: red < 25%, amber < 60%, green ≥ 60%
+            pctEl.style.color = current < 25 ? '#ef4444' : current < 60 ? '#f59e0b' : '#34d399';
+            if (progress < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    }
+
+    if (corpEl) corpEl.textContent = 'Current: ' + formatCurrency(safeAssets);
+    if (tgtEl)  tgtEl.textContent  = 'FI Target: ' + formatCurrency(fiTarget);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD LAYER 2 — IMMEDIATE ACTION ALERTS
+// Priority-ordered, conditional, high-visibility banners
+// ══════════════════════════════════════════════════════════════════════════════
+function renderActionAlerts({ hasTermIns, hasMedIns, hasBadDebt, dArr, sip, totalExp, totalAssets, income }) {
+    const block = document.getElementById('action-alerts-block');
+    if (!block) return;
+
+    const alerts = [];
+    let priority = 1;
+
+    // ── P1: No Term Insurance ───────────────────────────────────────────────
+    if (!hasTermIns) {
+        const annualIncome = income * 12;
+        const coverNeeded  = annualIncome * 10; // 10× income rule
+        alerts.push({
+            level: 'red',
+            icon: '🚨',
+            label: `Priority ${priority++}`,
+            title: 'You have no Term Life Insurance. Stop investing until this is fixed.',
+            msg: `A ${formatCurrency(coverNeeded)} term cover costs only ₹600–900/month for a 30-year-old. Without this, your entire wealth-building plan collapses if something happens to you. Buy term insurance FIRST — before any SIP.`
+        });
+    }
+
+    // ── P1: No Medical Insurance ────────────────────────────────────────────
+    if (!hasMedIns) {
+        alerts.push({
+            level: 'red',
+            icon: '🏥',
+            label: `Priority ${priority++}`,
+            title: 'No health cover detected. One hospital bill can wipe your entire portfolio.',
+            msg: `A ₹10L family floater health plan costs ₹8,000–15,000/year. A single hospitalisation without cover can destroy years of savings in one day. Fix this before your next SIP installment.`
+        });
+    }
+
+    // ── P2: High-interest bad debt ──────────────────────────────────────────
+    if (hasBadDebt) {
+        const worstDebt = dArr.reduce((max, d) => d.rt > max.rt ? d : max, { rt: 0, n: '' });
+        alerts.push({
+            level: 'red',
+            icon: '🔥',
+            label: `Priority ${priority++}`,
+            title: `Stop equity SIPs — crush your ${worstDebt.rt}% ${worstDebt.n} first.`,
+            msg: `No equity fund reliably returns ${worstDebt.rt}% guaranteed. Every rupee sitting in a SIP while you carry ${worstDebt.rt}% debt is a net loss. Pause discretionary SIPs and divert all surplus to kill this loan by the Avalanche method — highest rate first.`
+        });
+    }
+
+    // ── P3: Emergency fund insufficient ─────────────────────────────────────
+    const emFundReq = totalExp * 6;
+    const hasEmFund = totalAssets >= emFundReq;
+    if (!hasEmFund && alerts.length < 3) {
+        const shortfall = emFundReq - Math.min(totalAssets, emFundReq);
+        alerts.push({
+            level: 'amber',
+            icon: '⚡',
+            label: `Priority ${priority++}`,
+            title: `Emergency fund incomplete — you are ${formatCurrency(shortfall)} short of 6 months cover.`,
+            msg: `Before any investment, park ${formatCurrency(emFundReq)} in a liquid FD or savings account. This is your runway if you lose your job tomorrow. Without it, you will be forced to sell investments at the worst possible time.`
+        });
+    }
+
+    // ── All clear ───────────────────────────────────────────────────────────
+    if (alerts.length === 0) {
+        alerts.push({
+            level: 'green',
+            icon: '✅',
+            label: 'Foundation Secured',
+            title: 'All critical bases covered. Focus 100% on growing your corpus.',
+            msg: `Insurance active, emergency fund healthy, no toxic debt. Your financial foundation is solid — every rupee now goes to compounding.`
+        });
+    }
+
+    block.style.display = 'block';
+    block.innerHTML = alerts.map((a, i) => `
+        <div class="action-alert action-alert-${a.level}" style="animation-delay:${i * 80}ms">
+            <div class="action-alert-icon">${a.icon}</div>
+            <div class="action-alert-body">
+                <div class="action-alert-priority">${a.label}</div>
+                <div class="action-alert-title">${a.title}</div>
+                <div class="action-alert-msg">${a.msg}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD LAYER 3 — 10% STEP-UP CONTRACT + STAIRCASE CHART
+// Shows the required SIP schedule for next 5 years, bars animate in sequentially
+// ══════════════════════════════════════════════════════════════════════════════
+function renderStepUpContract(baseSIP, stepUpPct = 10, years = 5) {
+    const card = document.getElementById('stepup-contract-card');
+    const row  = document.getElementById('stepup-bars-row');
+    if (!card || !row || baseSIP <= 0) return;
+
+    card.style.display = 'block';
+
+    // Build data
+    const barColors = [
+        'linear-gradient(180deg,#6366f1,#4f46e5)',
+        'linear-gradient(180deg,#8b5cf6,#7c3aed)',
+        'linear-gradient(180deg,#a855f7,#9333ea)',
+        'linear-gradient(180deg,#c084fc,#a855f7)',
+        'linear-gradient(180deg,#e879f9,#d946ef)',
+    ];
+    const data = [];
+    let sipVal = baseSIP;
+    for (let y = 0; y < years; y++) {
+        data.push({ year: y + 1, sip: Math.round(sipVal) });
+        sipVal *= (1 + stepUpPct / 100);
+    }
+
+    const maxSIP = data[data.length - 1].sip;
+
+    row.innerHTML = data.map((d, i) => `
+        <div class="stepup-bar-col" id="stepup-col-${i}">
+            <div class="stepup-bar-amount">${formatCurrency(d.sip)}</div>
+            <div class="stepup-bar-wrap">
+                <div class="stepup-bar-fill" id="stepup-bar-${i}"
+                     style="background:${barColors[i % barColors.length]}; height:0%">
+                </div>
+            </div>
+            <div class="stepup-bar-year">Yr ${d.year}</div>
+        </div>
+    `).join('');
+
+    // Animate bars in sequentially with stagger
+    data.forEach((d, i) => {
+        const colEl = document.getElementById(`stepup-col-${i}`);
+        const barEl = document.getElementById(`stepup-bar-${i}`);
+        const heightPct = (d.sip / maxSIP) * 100;
+
+        setTimeout(() => {
+            if (colEl) colEl.classList.add('visible');
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    if (barEl) barEl.style.height = heightPct + '%';
+                }, 50);
+            });
+        }, 200 + i * 160); // stagger 160ms per bar
+    });
+}
+
 // ==================== SURVIVAL RUNWAY ====================
 function calcSurvivalRunway(astCash, totalExp) {
     const safeCash = isFinite(astCash) && !isNaN(astCash) ? astCash : 0;
@@ -2844,6 +3045,18 @@ function calculateStrategy(silentMode = false) {
     calcSurvivalRunway(astCash, totalExp);
     const { dailyEarning } = calcFreedomMeter(totalAssets, totalExp);
     renderDailyInsight(totalAssets);
+
+    // ── Dashboard Layer 1: FI Whip Bar ──────────────────────────────────────
+    renderFIWhipBar(totalAssets, totalExp);
+
+    // ── Dashboard Layer 2: Action Alerts ────────────────────────────────────
+    renderActionAlerts({
+        hasTermIns, hasMedIns, hasBadDebt,
+        dArr, sip, totalExp, totalAssets, income
+    });
+
+    // ── Dashboard Layer 3: Step-Up Contract ─────────────────────────────────
+    renderStepUpContract(sip, stepUpPercent || 10, 5);
 
     // ─── Insurance Shield Status (Gold if protected, Broken if at risk) ───
     updateInsuranceShield(hasTermIns, hasMedIns);
