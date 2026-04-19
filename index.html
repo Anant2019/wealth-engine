@@ -6,7 +6,7 @@
     <title>Aarth Sutra | The Logic of Wealth. The Code of Wisdom.</title>
     <meta name="description" content="Aarth Sutra — Precision wealth planning for the modern professional. 100% Secure, 100% Local.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:ital,wght@0,600;0,700;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=202604190006">
+    <link rel="stylesheet" href="styles.css?v=202604190001">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -654,6 +654,24 @@
         ═══════════════════════════════════════ -->
         <section id="pg-sim" class="pg">
 
+            <!-- GENDER PICKER OVERLAY — shown before simulation starts -->
+            <div id="j2-gender-overlay" style="display:none;">
+                <div class="j2-gender-card">
+                    <div class="j2-gender-title">Who is the hero of your story?</div>
+                    <div class="j2-gender-subtitle">Pick your character — your partner will appear when the time comes</div>
+                    <div class="j2-gender-btns">
+                        <button class="j2-gender-btn j2-gender-male" onclick="j2StartWithGender('male')">
+                            <span class="j2-gender-emoji">👨</span>
+                            <span class="j2-gender-lbl">Male</span>
+                        </button>
+                        <button class="j2-gender-btn j2-gender-female" onclick="j2StartWithGender('female')">
+                            <span class="j2-gender-emoji">👩</span>
+                            <span class="j2-gender-lbl">Female</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- CINEMA CANVAS -->
             <div class="sim-cinema-wrap">
                 <canvas id="j2-canvas"></canvas>
@@ -1238,7 +1256,7 @@
     </div>
 </div>
 
-<script src="script.js?v=202604170010"></script>
+<script src="script.js?v=202604190003"></script>
 <script src="library.js?v=202604170010"></script>
 
 <!-- ══════════════════════════════════════════════════
