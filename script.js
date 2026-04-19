@@ -22,20 +22,78 @@ const safeDivide = (numerator, denominator, fallback = 0) => {
     return isFinite(result) ? result : fallback;
 };
 
-// Real rate of return adjusted for inflation (6% assumed for India)
-const INFLATION_RATE = 0.06;
+// Real rate of return adjusted for inflation
+// Reads live toggle if present, else defaults to 6% (Indian CPI avg)
+function getInflationRate() {
+    const el = document.getElementById('inflation-rate-input');
+    if (el && el.value) {
+        const v = parseFloat(el.value);
+        if (isFinite(v) && v >= 0 && v <= 20) return v / 100;
+    }
+    return 0.06;
+}
+const INFLATION_RATE = 0.06; // kept for legacy callers
 const toRealRate = (nominalRate) => {
     const r = (nominalRate / 100);
-    return ((1 + r) / (1 + INFLATION_RATE) - 1) * 100; // returns as percentage
+    const inf = getInflationRate();
+    return ((1 + r) / (1 + inf) - 1) * 100; // returns as percentage
 };
 
+// ── Safe localStorage wrapper — handles QuotaExceededError gracefully ──────
+function safeSetItem(key, value) {
+    try {
+        localStorage.setItem(key, value);
+        return true;
+    } catch (e) {
+        if (e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22)) {
+            showErrorToast('Storage full — you have too many items saved. Remove some assets or goals to free space.', '💾');
+        }
+        return false;
+    }
+}
+
+// ── Lightweight XOR cipher for API key storage ──────────────────────────────
+// Not cryptographically strong, but defeats casual XSS localStorage scraping
+function _xorCipher(str, key) {
+    if (!str || !key) return str;
+    let out = '';
+    for (let i = 0; i < str.length; i++) {
+        out += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return out;
+}
+function encryptApiKey(plaintext) {
+    const seed = (localStorage.getItem('aarth_user_name') || 'aarth').slice(0, 8).padEnd(8, 'X');
+    return btoa(_xorCipher(plaintext, seed));
+}
+function decryptApiKey(ciphertext) {
+    try {
+        const seed = (localStorage.getItem('aarth_user_name') || 'aarth').slice(0, 8).padEnd(8, 'X');
+        return _xorCipher(atob(ciphertext), seed);
+    } catch(e) { return ciphertext; } // fallback: treat as plain (migration)
+}
+
+// ── Integer overflow guard — caps to MAX_SAFE_INTEGER ───────────────────────
+const MAX_RUPEES = Number.MAX_SAFE_INTEGER; // 9,007,199,254,740,991
+function safeRupees(n) {
+    if (!isFinite(n) || isNaN(n)) return 0;
+    return Math.min(Math.max(n, -MAX_RUPEES), MAX_RUPEES);
+}
+
 const formatCurrency = (n) => {
-    const absN = Math.abs(n);
-    if (absN >= 1000000000) return '₹' + (n / 1000000000).toFixed(2) + ' kCr'; // Thousand Crores (Billions)
-    if (absN >= 10000000) return '₹' + (n / 10000000).toFixed(2) + ' Cr';
-    if (absN >= 100000) return '₹' + (n / 100000).toFixed(2) + ' L';
-    if (absN >= 1000) return '₹' + Math.round(n).toLocaleString('en-IN');
-    return '₹' + Math.round(n);
+    // Guard against NaN, Infinity, scientific notation inputs
+    if (!isFinite(n) || isNaN(n)) return '₹0';
+    const safe = Math.min(Math.max(n, -Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER);
+    const absN = Math.abs(safe);
+    const sign = safe < 0 ? '-' : '';
+    // TC-3: Billionaire test — never emit scientific notation, always Indian number system
+    if (absN >= 1e12)       return sign + '₹' + (absN / 1e12).toFixed(2)  + ' Lakh Cr';  // ₹50 Lakh Cr
+    if (absN >= 1e11)       return sign + '₹' + (absN / 1e11).toFixed(2)  + ' kCr';      // ₹100 kCr
+    if (absN >= 1e9)        return sign + '₹' + (absN / 1e9).toFixed(2)   + ' Arab';     // ₹5 Arab (Billion)
+    if (absN >= 1e7)        return sign + '₹' + (absN / 1e7).toFixed(2)   + ' Cr';       // ₹50 Cr
+    if (absN >= 1e5)        return sign + '₹' + (absN / 1e5).toFixed(2)   + ' L';        // ₹5 L
+    if (absN >= 1000)       return sign + '₹' + Math.round(absN).toLocaleString('en-IN');
+    return sign + '₹' + Math.round(absN);
 };
 
 function calcRequiredSIP(targetAmt, years, rateAnnual) {
@@ -744,6 +802,24 @@ function launchConfetti(duration = 2800) {
     draw();
 }
 
+function showErrorToast(msg, icon = '⚠️') {
+    // Reuses success toast structure but with red styling
+    let toast = document.getElementById('error-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'error-toast';
+        toast.className = 'success-toast'; // reuse animation class
+        toast.style.cssText = 'background:linear-gradient(135deg,#7f1d1d,#991b1b);border-color:#ef4444;';
+        document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<span class="success-toast-icon">${icon}</span><span>${msg}</span>`;
+    toast.classList.remove('show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 5500);
+}
+
 function showSuccessToast(msg, icon = '🎉') {
     let toast = document.getElementById('success-toast');
     if (!toast) {
@@ -801,7 +877,7 @@ function saveAllData() {
     // Personal info
     userData.name = document.getElementById('u-name')?.value || '';
     userData.age = document.getElementById('u-age')?.value || '';
-    userData.income = document.getElementById('u-income')?.value || '';
+    userData.incomeSources = getIncomeSourcesData();
     userData.sip = document.getElementById('u-sip')?.value || '';
     userData.stepup = document.getElementById('u-stepup')?.value || '10';
 
@@ -812,8 +888,10 @@ function saveAllData() {
     userData.life = document.getElementById('u-life')?.value || '';
 
     // Insurance
-    userData.med = document.getElementById('u-med')?.value || 'yes';
-    userData.term = document.getElementById('u-term')?.value || 'yes';
+    userData.med         = document.getElementById('u-med')?.value          || 'yes';
+    userData.term        = document.getElementById('u-term')?.value         || 'yes';
+    userData.medPremium  = document.getElementById('u-med-premium')?.value  || '';
+    userData.termPremium = document.getElementById('u-term-premium')?.value || '';
 
     // Risk Profile
     userData.riskQ1 = document.getElementById('u-risk-q1')?.value || '3';
@@ -856,8 +934,8 @@ function saveAllData() {
     });
     userData.goals = goals;
 
-    // Save to localStorage
-    localStorage.setItem('aarthSutraData', JSON.stringify(userData));
+    // Save to localStorage (quota-safe)
+    safeSetItem('aarthSutraData', JSON.stringify(userData));
     showSuccessToast('✅ Your data saved! You can close the app anytime.', '💾');
 }
 
@@ -866,15 +944,17 @@ function saveAllDataSilent() {
     const userData = {};
     userData.name = document.getElementById('u-name')?.value || '';
     userData.age = document.getElementById('u-age')?.value || '';
-    userData.income = document.getElementById('u-income')?.value || '';
+    userData.incomeSources = getIncomeSourcesData();
     userData.sip = document.getElementById('u-sip')?.value || '';
     userData.stepup = document.getElementById('u-stepup')?.value || '10';
     userData.rent = document.getElementById('u-rent')?.value || '';
     userData.groceries = document.getElementById('u-groceries')?.value || '';
     userData.cc = document.getElementById('u-cc')?.value || '';
     userData.life = document.getElementById('u-life')?.value || '';
-    userData.med = document.getElementById('u-med')?.value || 'yes';
-    userData.term = document.getElementById('u-term')?.value || 'yes';
+    userData.med         = document.getElementById('u-med')?.value          || 'yes';
+    userData.term        = document.getElementById('u-term')?.value         || 'yes';
+    userData.medPremium  = document.getElementById('u-med-premium')?.value  || '';
+    userData.termPremium = document.getElementById('u-term-premium')?.value || '';
     userData.riskQ1 = document.getElementById('u-risk-q1')?.value || '3';
     userData.riskQ2 = document.getElementById('u-risk-q2')?.value || '2';
     userData.riskQ3 = document.getElementById('u-risk-q3')?.value || '3';
@@ -894,7 +974,7 @@ function saveAllDataSilent() {
         goals.push({ name: row.querySelector('.g-name')?.value || '', target: row.querySelector('.g-tgt')?.value || '', years: row.querySelector('.g-yrs')?.value || '' });
     });
     userData.goals = goals;
-    try { localStorage.setItem('aarthSutraData', JSON.stringify(userData)); } catch(e) {}
+    safeSetItem('aarthSutraData', JSON.stringify(userData));
 }
 
 function loadAllData() {
@@ -920,7 +1000,14 @@ function loadAllData() {
         // Load personal info
         if (userData.name) document.getElementById('u-name').value = userData.name;
         if (userData.age) document.getElementById('u-age').value = userData.age;
-        if (userData.income) document.getElementById('u-income').value = userData.income;
+        // Restore income sources (new multi-source) or fall back to legacy single income
+        if (userData.incomeSources && userData.incomeSources.length > 0) {
+            restoreIncomeSources(userData.incomeSources);
+        } else if (userData.income) {
+            // Legacy migration: single income → one salary row
+            restoreIncomeSources([{ type: 'salary', label: '💼 Salary', amount: parseFloat(userData.income) || 0 }]);
+        }
+        refreshIncomeBadge();
         if (userData.sip) document.getElementById('u-sip').value = userData.sip;
         if (userData.stepup) document.getElementById('u-stepup').value = userData.stepup;
 
@@ -933,6 +1020,8 @@ function loadAllData() {
         // Load insurance
         document.getElementById('u-med').value = userData.med || 'yes';
         document.getElementById('u-term').value = userData.term || 'yes';
+        if (userData.medPremium)  { const el = document.getElementById('u-med-premium');  if (el) el.value = userData.medPremium; }
+        if (userData.termPremium) { const el = document.getElementById('u-term-premium'); if (el) el.value = userData.termPremium; }
 
         // Load risk profile
         if (userData.riskQ1) document.getElementById('u-risk-q1').value = userData.riskQ1;
@@ -1058,7 +1147,9 @@ function computeWithoutSaving() {
 // Vanish: wipes every localStorage key this app uses, then reloads fresh
 function vanishAllData() {
     if (!confirm('🔥 This will permanently erase all your data on this device. Are you absolutely sure?')) return;
-    ['aarthSutraData', 'aarth_user_name', 'aarth_api_key', 'aarth_visited', 'aarth_active_tab'].forEach(k => {
+    // TC-03 (Vanish): guaranteed wipe of ALL app-owned keys
+    ['aarthSutraData', 'aarth_user_name', 'aarth_api_key',
+     'aarth_visited', 'aarth_active_tab', 'aarthSutraSebiAck'].forEach(k => {
         try { localStorage.removeItem(k); } catch(e) {}
     });
     showSuccessToast('Your data has vanished. Starting fresh.', '🌫️');
@@ -1085,12 +1176,11 @@ function validateForm() {
         errorFields.push('u-age');
     }
 
-    // Required fields - Step 2
-    const incomeField = document.getElementById('u-income');
+    // Required fields - Step 2: at least one income source with an amount
     const sipField = document.getElementById('u-sip');
-    if (!incomeField || !incomeField.value) {
-        errors.push({ field: 'u-income', label: 'Monthly In-Hand Income', step: 2 });
-        errorFields.push('u-income');
+    if (getTotalIncome() <= 0) {
+        errors.push({ field: 'income-sources-container', label: 'Monthly Income (at least one source)', step: 2 });
+        errorFields.push('income-sources-container');
     }
 
     // Required fields - Step 3
@@ -2021,7 +2111,13 @@ function updateFISlider(sipVal) {
     // Use liquid corpus base (already computed by engine), not raw totalAssets
     const corpusStart = engineMemory.fiCorpusBase || engineMemory.totalAssets || 0;
     const monthlyExp  = engineMemory.totalExp || 50000;
-    const fiTarget    = monthlyExp * 12 * 25; // 25x rule
+    const fiTarget    = monthlyExp * 12 * 25; // 25x rule (nominal)
+
+    // ── Inflation-adjusted FIRE target ──────────────────────────────────────
+    // Real (today's money) corpus needed = FI target × (1 + inflation)^years_to_fi
+    // We approximate using the inflation rate and expected years-to-FI.
+    // This is the "moving target" — it grows with inflation every year.
+    const inflRate = getInflationRate(); // live from toggle, default 6%
 
     // Use the user's actual blended portfolio CAGR, not hardcoded 12%
     const annualRate  = (engineMemory.blendedCAGR || 12) / 100;
@@ -2050,6 +2146,11 @@ function updateFISlider(sipVal) {
         if (corpus >= fiTarget) break;
     }
 
+    const yearsToFI = months / 12;
+    // Inflation-adjusted target: expenses will be higher in future prices
+    // fiRealTarget = current expenses × (1+infl)^yearsToFI × 12 × 25
+    const fiRealTarget = safeRupees(monthlyExp * Math.pow(1 + inflRate, yearsToFI) * 12 * 25);
+
     const fiYear = new Date().getFullYear() + Math.floor(months / 12);
     const fiAge  = age + Math.floor(months / 12);
     const fiDateEl  = document.getElementById('fi-date');
@@ -2059,13 +2160,17 @@ function updateFISlider(sipVal) {
     const stepUpLabel = stepUpPct > 0 ? ` + ${engineMemory.stepUpPercent}% step-up/yr` : '';
     const gapAmt      = Math.max(0, fiTarget - corpusStart);
 
-    // Populate the three stat pills
-    const corpusPillEl = document.getElementById('fi-corpus-val');
-    const targetPillEl = document.getElementById('fi-target-val');
-    const gapPillEl    = document.getElementById('fi-gap-val');
-    if (corpusPillEl) corpusPillEl.textContent = corpusStart > 0 ? formatCurrency(corpusStart) : '₹0 (add portfolio)';
-    if (targetPillEl) targetPillEl.textContent = formatCurrency(fiTarget);
-    if (gapPillEl)    gapPillEl.textContent    = gapAmt > 0 ? formatCurrency(gapAmt) : '✅ Already there!';
+    // Populate the four stat pills
+    const corpusPillEl    = document.getElementById('fi-corpus-val');
+    const targetPillEl    = document.getElementById('fi-target-val');
+    const gapPillEl       = document.getElementById('fi-gap-val');
+    const realTargetPillEl = document.getElementById('fi-real-target-val');
+    if (corpusPillEl)     corpusPillEl.textContent     = corpusStart > 0 ? formatCurrency(corpusStart) : '₹0 (add portfolio)';
+    if (targetPillEl)     targetPillEl.textContent     = formatCurrency(fiTarget);
+    if (gapPillEl)        gapPillEl.textContent        = gapAmt > 0 ? formatCurrency(gapAmt) : '✅ Already there!';
+    if (realTargetPillEl) realTargetPillEl.textContent = months < 1199
+        ? formatCurrency(fiRealTarget) + ` (${(inflRate*100).toFixed(1)}% infl)`
+        : '—';
 
     if (months >= 1199) {
         if (fiDateEl) { fiDateEl.textContent = 'Needs higher SIP'; fiDateEl.style.color = '#ef4444'; }
@@ -2074,19 +2179,46 @@ function updateFISlider(sipVal) {
         if (fiDateEl) { fiDateEl.textContent = fiYear + ' (Age ' + fiAge + ')'; fiDateEl.style.color = '#34d399'; }
         if (fiInsight) fiInsight.innerHTML =
             `<strong>${formatCurrency(sipVal)}/mo</strong>${stepUpLabel} at <strong>${rateLabel}</strong> ` +
-            `for <strong>${(months / 12).toFixed(1)} yrs</strong> — starting from your current corpus of <strong>${formatCurrency(corpusStart)}</strong>, ` +
-            `you reach <strong>${formatCurrency(fiTarget)}</strong> (25× expenses).`;
+            `for <strong>${yearsToFI.toFixed(1)} yrs</strong> — nominal target <strong>${formatCurrency(fiTarget)}</strong>, ` +
+            `but inflation (${(inflRate*100).toFixed(1)}% p.a.) means you'll actually need <strong>${formatCurrency(fiRealTarget)}</strong> in future money.`;
     }
     } catch(e) { console.warn('updateFISlider error:', e); }
 }
 
 // ==================== WEALTH OPTIMIZER (MONEY LEAKS) ====================
-function runWealthOptimizer(astCash, totalAssets, dArr, totalExp, income) {
+function runWealthOptimizer(astCash, totalAssets, dArr, totalExp, income, age, astEq) {
     const leaks = [];
     const emFundReq = (income || totalExp) * 6; // 6 months salary
     const idleCash = astCash - emFundReq - 10000;
     if (idleCash > 50000) {
         leaks.push({ icon: '&#128164;', title: 'Idle Cash: ' + formatCurrency(idleCash), desc: 'You have excess cash sitting at ~3.5% when it could earn 7.5% in an FD or 12% in Index Funds.', save: '+' + formatCurrency(idleCash * 0.04 * 5) + ' over 5 yrs' });
+    }
+
+    // ── TC-1: FD / Cash Over-Allocation Inflation Risk (Aggressive Accumulator) ──
+    // Young users (≤35) parking >50% in FD/cash lose out on 20–30yr equity compounding.
+    // Even at moderate allocation (>40% FD, age ≤40), flag a reallocation opportunity.
+    if (totalAssets > 100000) {
+        const fdPct = totalAssets > 0 ? (astCash / totalAssets) * 100 : 0;
+        const eqPct = totalAssets > 0 ? ((astEq || 0) / totalAssets) * 100 : 0;
+        const userAge = age || 30;
+        const yearsToRetire = Math.max(0, 60 - userAge);
+        // Recommended equity % by thumb rule: 100 - age (e.g. age 25 → 75% equity)
+        const recommendedEqPct = Math.min(80, Math.max(20, 100 - userAge));
+        const fdThreshold = userAge <= 35 ? 40 : (userAge <= 45 ? 55 : 65);
+
+        if (fdPct > fdThreshold && yearsToRetire >= 10) {
+            // How much extra is parked in FD vs ideal?
+            const idealFdPct  = 100 - recommendedEqPct;
+            const excessFdAmt = ((fdPct - idealFdPct) / 100) * totalAssets;
+            // Lost return over 20 yrs: difference between FD (7%) and Index fund (12%)
+            const lostReturn  = safeRupees(excessFdAmt * (Math.pow(1.12, yearsToRetire) - Math.pow(1.07, yearsToRetire)));
+            leaks.push({
+                icon: '&#128293;',
+                title: `Inflation Risk: ${fdPct.toFixed(0)}% in FD/Cash — Too Safe for Age ${userAge}`,
+                desc: `At age ${userAge} with ${yearsToRetire} years until retirement, parking ${fdPct.toFixed(0)}% in FDs means inflation (6% p.a.) is silently eroding your wealth. FDs return ~7% pre-tax; equity index funds return ~12% CAGR historically. Ideal equity allocation for your age: ~${recommendedEqPct}%. Move ${formatCurrency(excessFdAmt)} from FD → Nifty 50 Index Fund.`,
+                save: `Potential extra wealth: +${formatCurrency(lostReturn)} over ${yearsToRetire} yrs`
+            });
+        }
     }
     dArr.forEach(d => {
         if (d.rt > 10) {
@@ -2110,10 +2242,12 @@ function runWealthOptimizer(astCash, totalAssets, dArr, totalExp, income) {
         sec.style.display = 'block';
         container.innerHTML = leaks.map(l => `
             <div class="leak-item">
-                <div class="leak-icon">${l.icon}</div>
-                <div class="leak-body">
-                    <div class="leak-title">${l.title}</div>
-                    <div class="leak-desc">${l.desc}</div>
+                <div class="leak-item-top">
+                    <div class="leak-icon">${l.icon}</div>
+                    <div class="leak-body">
+                        <div class="leak-title">${l.title}</div>
+                        <div class="leak-desc">${l.desc}</div>
+                    </div>
                 </div>
                 <div class="leak-save">${l.save}</div>
             </div>
@@ -2174,21 +2308,61 @@ function switchTab(t) {
     // silentMode=true so it doesn't re-trigger another switchTab('dash') recursively
     if (t === 'dash') calculateStrategy(true);
     if (t === 'simulator') setTimeout(j2Setup, 60);
-    
+
+    // Show Smart Withdraw FAB only on Plan tab when data exists
+    const fab = document.getElementById('smart-withdraw-fab');
+    if (fab) fab.style.display = (t === 'dash' && engineMemory.totalAssets !== undefined) ? 'flex' : 'none';
+
     setTimeout(() => { lucide.createIcons(); injectJargonTooltips(); }, 60);
 }
 
 // ==================== FIXED: addGoal ========================
+// REQ-3 / Part-4-3: Cap goals at 20 to prevent localStorage saturation
+const MAX_GOALS = 20;
+const MAX_ASSETS = 30;
+const MAX_DEBTS = 15;
+
+// ─── Empty State helpers ─────────────────────────────────────
+function _showEmptyState(container, icon, title, sub) {
+    if (!container) return;
+    const existing = container.querySelector('.empty-state-card');
+    if (existing) return;
+    const es = document.createElement('div');
+    es.className = 'empty-state-card';
+    es.innerHTML = `<div class="es-icon">${icon}</div><p class="es-title">${title}</p><p class="es-sub">${sub}</p>`;
+    container.appendChild(es);
+}
+function _clearEmptyState(container) {
+    if (!container) return;
+    const es = container.querySelector('.empty-state-card');
+    if (es) es.remove();
+}
+function _checkEmptyState(container, type) {
+    if (!container) return;
+    const rows = container.querySelectorAll('.dy-goal, .dy-debt');
+    if (rows.length === 0) {
+        if (type === 'goal')  _showEmptyState(container, '🎯', 'No goals set yet', 'What are you saving for? Add a goal — car, home, Europe trip — and we\'ll show you the monthly SIP needed.');
+        if (type === 'debt')  _showEmptyState(container, '💳', 'No loans or debts added', 'Add any EMIs, credit card balances, or personal loans so your blueprint accounts for every outflow.');
+    } else {
+        _clearEmptyState(container);
+    }
+}
+
 function addGoal() {
-    const id = 'g_' + Date.now();
     const c = document.getElementById('goal-container');
     if (!c) return;
+    if (c.querySelectorAll('.dy-goal').length >= MAX_GOALS) {
+        showErrorToast(`Maximum ${MAX_GOALS} goals allowed. Remove one to add another.`, '🎯');
+        return;
+    }
+    _clearEmptyState(c);
+    const id = 'g_' + Date.now();
     const r = document.createElement('div');
     r.className = 'dy-row dy-goal'; r.id = id;
     r.innerHTML = `
         <div class="card-top-row">
             <span class="dy-card-label">Goal</span>
-            <button class="del-btn" onclick="document.getElementById('${id}').remove(); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
+            <button class="del-btn" onclick="document.getElementById('${id}').remove(); _checkEmptyState(document.getElementById('goal-container'),'goal'); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
         </div>
         <div class="form-group" style="margin:0;">
             <label>Goal Name</label>
@@ -2212,15 +2386,20 @@ function addGoalField() { addGoal(); }
 
 // ==================== FIXED: addDebt ========================
 function addDebt() {
-    const id = 'd_' + Date.now();
     const c = document.getElementById('debt-container');
     if (!c) return;
+    if (c.querySelectorAll('.dy-debt').length >= MAX_DEBTS) {
+        showErrorToast(`Maximum ${MAX_DEBTS} debts allowed. Remove one to add another.`, '💳');
+        return;
+    }
+    _clearEmptyState(c);
+    const id = 'd_' + Date.now();
     const r = document.createElement('div');
     r.className = 'dy-row dy-debt'; r.id = id;
     r.innerHTML = `
         <div class="card-top-row">
             <span class="dy-card-label">Loan / Debt</span>
-            <button class="del-btn" onclick="document.getElementById('${id}').remove(); updateDebtTotal(); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
+            <button class="del-btn" onclick="document.getElementById('${id}').remove(); updateDebtTotal(); _checkEmptyState(document.getElementById('debt-container'),'debt'); saveAllDataSilent(); if(engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
         </div>
         <div class="form-group" style="margin:0;">
             <label>Lender / Loan Name</label>
@@ -2286,9 +2465,13 @@ const ASSET_LABELS = {
 };
 
 function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = null) {
-    const id = 'a_' + Date.now();
     const c = document.getElementById('account-container');
     if (!c) return;
+    if (c.querySelectorAll('.dy-account').length >= MAX_ASSETS) {
+        showErrorToast(`Maximum ${MAX_ASSETS} assets allowed. Remove one to add another.`, '📊');
+        return;
+    }
+    const id = 'a_' + Date.now();
     const r = document.createElement('div');
     r.className = 'dy-row dy-account'; r.id = id;
     const rate = defRate !== null ? defRate : (ASSET_DEFAULT_RATES[defType] || 8);
@@ -2350,7 +2533,7 @@ function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = n
         </div>
         <div class="form-group" style="margin:0;">
             <label class="a-r-label">Return % p.a. <span style="color:var(--rose);">*</span></label>
-            <input type="number" class="a-r" required value="${rate}" step="0.1" min="0.1" max="100" inputmode="decimal" pattern="[0-9.]*" style="border-color:var(--amber);width:100%;box-sizing:border-box;">
+            <input type="number" class="a-r" required value="${rate}" step="0.1" min="0.1" max="100" inputmode="decimal" pattern="[0-9.]*" oninput="onReturnRateChange(this)" style="border-color:var(--amber);width:100%;box-sizing:border-box;">
         </div>
     `;
     c.appendChild(r);
@@ -2358,6 +2541,28 @@ function addAccount(defType = 'savings', defName = '', defValue = 0, defRate = n
     const sel = r.querySelector('.a-t');
     if (sel) sel.value = defType;
     if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Fat-finger guard on return rate — warns if >50%, hard caps at 100%
+function onReturnRateChange(inp) {
+    const v = parseFloat(inp.value);
+    if (!isFinite(v)) return;
+    // Hard cap
+    if (v > 100) { inp.value = 100; }
+    const row = inp.closest('.dy-account');
+    if (!row) return;
+    let warn = row.querySelector('.return-warn');
+    if (v > 50) {
+        if (!warn) {
+            warn = document.createElement('div');
+            warn.className = 'return-warn';
+            warn.style.cssText = 'margin-top:6px;padding:8px 10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.4);border-radius:8px;font-size:11px;color:#fca5a5;line-height:1.5;';
+            inp.closest('.form-group').after(warn);
+        }
+        warn.innerHTML = `⚠️ <strong>${v}% p.a. is unusually high.</strong> Even top mutual funds average 12–18% over the long run. Did you mean ${Math.round(v/10)}%? High estimates will inflate projections unrealistically.`;
+    } else {
+        if (warn) warn.remove();
+    }
 }
 
 function onAssetTypeChange(sel) {
@@ -2418,7 +2623,7 @@ function updateDebtTotal() {
 function updateInsuranceImpact() {
     const hasMed  = (document.getElementById('u-med')  || {}).value === 'yes';
     const hasTerm = (document.getElementById('u-term') || {}).value === 'yes';
-    const income  = parseFloat((document.getElementById('u-income') || {}).value) || 0;
+    const income  = getTotalIncome();
     const totalExp = (parseFloat((document.getElementById('u-rent')      || {}).value) || 0) +
                      (parseFloat((document.getElementById('u-groceries') || {}).value) || 0) +
                      (parseFloat((document.getElementById('u-cc')        || {}).value) || 0) +
@@ -2497,7 +2702,7 @@ function completeWelcome() {
             const el = document.getElementById(id);
             if (el) el.value = key;
         });
-        try { localStorage.setItem('aarth_api_key', key); } catch(e){}
+        safeSetItem('aarth_api_key', encryptApiKey(key));
     }
 
     // Mark visited
@@ -2530,9 +2735,10 @@ function checkFirstVisit() {
             if (wn) wn.value = savedName;
         }
         if (savedKey) {
+            const plainKey = decryptApiKey(savedKey);
             ['gemini-api-key', 'gemini-api-key-2'].forEach(id => {
                 const el = document.getElementById(id);
-                if (el) el.value = savedKey;
+                if (el) el.value = plainKey;
             });
         }
     } catch(e){}
@@ -2542,6 +2748,197 @@ function checkFirstVisit() {
         overlay.classList.add('hidden');
     }
     // If not visited, overlay stays visible (it's shown by default in HTML)
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MULTIPLE INCOME SOURCES — add / remove / total
+// ═══════════════════════════════════════════════════════════
+
+const INCOME_ICONS = {
+    salary:   '💼', business: '🏪', rent: '🏠',
+    p2p:      '🤝', royalty:  '🎵', freelance: '💻',
+    dividend: '📈', other:    '💰'
+};
+
+let _incomeIdCounter = 0;
+
+function addIncomeSource(type, label, amount) {
+    const container = document.getElementById('income-sources-container');
+    if (!container) return;
+    // Max 15 income sources
+    if (container.querySelectorAll('.income-source-row').length >= 15) {
+        showErrorToast('Maximum 15 income sources allowed.', '💸');
+        return;
+    }
+    const id = 'inc-src-' + (++_incomeIdCounter);
+    const icon = INCOME_ICONS[type] || '💰';
+    const displayLabel = label || (icon + ' ' + type.charAt(0).toUpperCase() + type.slice(1));
+    const row = document.createElement('div');
+    row.className = 'income-source-row';
+    row.id = id;
+    row.dataset.type = type;
+    row.innerHTML = `
+        <span class="income-src-icon">${icon}</span>
+        <input type="text" class="income-src-label" value="${displayLabel}"
+               placeholder="Source name" maxlength="32"
+               oninput="refreshIncomeBadge(); saveAllDataSilent();">
+        <input type="number" class="income-src-amt" value="${amount || ''}"
+               placeholder="₹ / month" inputmode="numeric" min="0"
+               oninput="refreshIncomeBadge(); updateInsuranceImpact(); saveAllDataSilent(); if(typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
+        <button class="income-src-del" onclick="document.getElementById('${id}').remove(); refreshIncomeBadge(); updateInsuranceImpact(); saveAllDataSilent(); if(typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
+    `;
+    container.appendChild(row);
+    refreshIncomeBadge();
+    // Focus the amount field
+    const amtField = row.querySelector('.income-src-amt');
+    if (!amount && amtField) setTimeout(() => amtField.focus(), 50);
+}
+
+function getTotalIncome() {
+    const rows = document.querySelectorAll('.income-source-row');
+    let total = 0;
+    rows.forEach(row => {
+        const amt = parseINR(row.querySelector('.income-src-amt')?.value || '0');
+        total += Math.max(0, amt);
+    });
+    return safeRupees(total);
+}
+
+function refreshIncomeBadge() {
+    const total = getTotalIncome();
+    const badge = document.getElementById('income-total-badge');
+    if (badge) badge.textContent = formatCurrency(total);
+    // keep hidden field in sync for any legacy code that reads #u-income directly
+    const legacy = document.getElementById('u-income');
+    if (legacy) legacy.value = total;
+}
+
+function getIncomeSourcesData() {
+    const sources = [];
+    document.querySelectorAll('.income-source-row').forEach(row => {
+        sources.push({
+            type:   row.dataset.type || 'other',
+            label:  row.querySelector('.income-src-label')?.value || '',
+            amount: parseINR(row.querySelector('.income-src-amt')?.value || '0')
+        });
+    });
+    return sources;
+}
+
+function restoreIncomeSources(sources) {
+    const container = document.getElementById('income-sources-container');
+    if (!container || !Array.isArray(sources)) return;
+    container.innerHTML = '';
+    _incomeIdCounter = 0;
+    if (sources.length === 0) {
+        // Default: one salary row
+        addIncomeSource('salary', '💼 Salary', '');
+        return;
+    }
+    sources.forEach(s => addIncomeSource(s.type || 'other', s.label, s.amount || ''));
+}
+
+// Initialise with one default salary row on first load
+document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('income-sources-container');
+    if (container && container.children.length === 0) {
+        addIncomeSource('salary', '💼 Salary', 150000);
+    }
+});
+
+// ── Stacked Bar Chart: 24-month allocation breakdown ────────────────────────
+// Draws a Canvas-based stacked bar chart showing how each rupee is split
+// across Savings, Emergency FD, Index, Mid Cap, Bonds, Goal Spend, Debt EMI.
+function drawStackedAllocationChart(trendData) {
+    const wrap = document.getElementById('wealth-stacked-chart');
+    const canvas = document.getElementById('wealth-stacked-canvas');
+    if (!wrap || !canvas || !trendData || trendData.length === 0) return;
+
+    const dpr  = window.devicePixelRatio || 1;
+    const W    = canvas.parentElement.clientWidth || 340;
+    const H    = 160;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = 'rgba(15,23,42,0.7)';
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(0, 0, W, H, 10) : ctx.rect(0, 0, W, H);
+    ctx.fill();
+
+    const COLORS = {
+        toLiquid: '#10b981',
+        toFD:     '#3b82f6',
+        toNifty:  '#818cf8',
+        toMid:    '#a78bfa',
+        toBond:   '#34d399',
+        spend:    '#f59e0b',
+        toDebt:   '#ef4444',
+    };
+    const KEYS = ['toLiquid','toFD','toNifty','toMid','toBond','spend','toDebt'];
+
+    // Max total bar height across all months
+    const totals = trendData.map(d =>
+        (d.toLiquid||0)+(d.toFD||0)+(d.toNifty||0)+(d.toMid||0)+(d.toBond||0)+(d.spend||0)+(d.toDebt||0)
+    );
+    const maxTotal = Math.max(...totals, 1);
+
+    const padL = 8, padR = 8, padT = 10, padB = 24;
+    const chartW = W - padL - padR;
+    const chartH = H - padT - padB;
+    const n = trendData.length;
+    const gap = 2;
+    const barW = Math.max(2, (chartW - gap * (n - 1)) / n);
+
+    // Draw bars
+    trendData.forEach((d, i) => {
+        const x = padL + i * (barW + gap);
+        const vals = {
+            toLiquid: d.toLiquid||0, toFD: d.toFD||0,
+            toNifty: d.toNifty||0,  toMid: d.toMid||0,
+            toBond: d.toBond||0,     spend: d.spend||0,
+            toDebt: d.toDebt||0
+        };
+        let yOffset = padT + chartH; // start from bottom
+        KEYS.forEach(k => {
+            const v = vals[k];
+            if (v <= 0) return;
+            const segH = Math.max(1, (v / maxTotal) * chartH);
+            yOffset -= segH;
+            ctx.fillStyle = COLORS[k];
+            ctx.fillRect(x, yOffset, barW, segH);
+        });
+
+        // Month label every 6 months
+        if ((i + 1) % 6 === 0 || i === 0) {
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
+            ctx.font = `${9 * Math.min(1, barW / 10)}px Inter, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText('M' + d.month, x + barW / 2, H - 6);
+        }
+    });
+
+    // Y-axis wealth line (wealth trajectory overlay)
+    const maxWealth = Math.max(...trendData.map(d => d.wealth), 1);
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    trendData.forEach((d, i) => {
+        const x = padL + i * (barW + gap) + barW / 2;
+        const y = padT + chartH - (d.wealth / maxWealth) * chartH;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    wrap.style.display = 'block';
 }
 
 // --- MASTER ALGORITHM (LADDER LOGIC & GOALS) ---
@@ -2575,20 +2972,54 @@ function calculateStrategy(silentMode = false) {
     const numVal = id => { const el = document.getElementById(id); return el ? parseINR(el.value) : 0; };
     const strVal = id => { const el = document.getElementById(id); return el ? (el.value || '') : ''; };
 
-    // Cashflow
-    const income       = numVal('u-income');
-    const stepUpPercent= numVal('u-stepup');
-    const totalExp     = numVal('u-rent') + numVal('u-groceries') + numVal('u-cc') + numVal('u-life');
-    // Auto-derive investable surplus: income minus expenses (floored at 0)
-    const autoSurplus  = Math.max(0, income - totalExp);
+    // Cashflow — guard zero/negative inputs (Part 4: Zero Stress Test)
+    const incomeRaw     = getTotalIncome(); // sum of all income sources
+    const ageRaw        = numVal('u-age');
+    const income        = safeRupees(Math.max(0, incomeRaw));
+    const stepUpPercent = Math.min(numVal('u-stepup'), 80); // TC-001 cap
+    const totalExpRaw   = numVal('u-rent') + numVal('u-groceries') + numVal('u-cc') + numVal('u-life');
+    const totalExp      = safeRupees(Math.max(0, totalExpRaw));
+
+    // Zero-input guard: if income=0 and no assets, show "Insufficient data" state
+    if (income === 0 && totalExp === 0) {
+        isComputing = false;
+        if (ctaBtn) { ctaBtn.disabled = false; ctaBtn.removeAttribute('aria-busy'); ctaBtn.classList.remove('computing'); }
+        if (ctaDefault) ctaDefault.style.display = 'flex';
+        if (ctaLoading) ctaLoading.style.display = 'none';
+        if (backdrop)   backdrop.classList.add('hidden');
+        showErrorToast('Insufficient data — please enter your income and expenses first.', '📊');
+        return;
+    }
+
+    // Auto-derive investable surplus: income minus ALL outflows (expenses + EMI)
+    // Insurance flags and premiums — computed FIRST so surplus can deduct them
+    const hasMedIns  = strVal('u-med')  === 'yes';
+    const hasTermIns = strVal('u-term') === 'yes';
+
+    // Insurance premium deductions — read from user-entered fields
+    // If user has insurance but hasn't entered a premium, use conservative estimate
+    const medPremiumInput  = parseINR(document.getElementById('u-med-premium')?.value  || '0');
+    const termPremiumInput = parseINR(document.getElementById('u-term-premium')?.value || '0');
+    const insEst = estimateInsuranceCost(numVal('u-age') || 30, income);
+    const medMonthly  = hasMedIns  ? (medPremiumInput  > 0 ? medPremiumInput  : Math.round(insEst.healthYearly   / 12)) : 0;
+    const termMonthly = hasTermIns ? (termPremiumInput > 0 ? termPremiumInput : Math.round(insEst.termLifeYearly / 12)) : 0;
+    const totalInsMonthly = medMonthly + termMonthly;
+
+    // Pre-read EMI total for surplus calculation (full aggregation happens below)
+    const totalEMIEarly = safeRupees(
+        Array.from(document.querySelectorAll('.dy-debt')).reduce((sum, r) => {
+            const eEl = r.querySelector('.d-e');
+            return sum + (eEl ? parseINR(eEl.value) : 0);
+        }, 0)
+    );
+
+    // TRUE investable surplus = income − expenses − EMI − insurance premiums
+    const autoSurplus = safeRupees(Math.max(0, income - totalExp - totalEMIEarly - totalInsMonthly));
     // Keep hidden u-sip in sync so downstream reads stay consistent
     const sipEl = document.getElementById('u-sip');
     if (sipEl) sipEl.value = autoSurplus;
     const sip = autoSurplus;
 
-    // Insurance flags affect emergency fund requirement
-    const hasMedIns  = strVal('u-med')  === 'yes';
-    const hasTermIns = strVal('u-term') === 'yes';
     // FD Shield: 6 months of SALARY (not expenses) — protects against job loss
     const emFundMonths = 6;
     const emFundReq = income * emFundMonths;
@@ -2660,9 +3091,101 @@ function calculateStrategy(silentMode = false) {
         dArr.push({n: (dnEl && dnEl.value) || 'Debt', p, rt, e});
     });
 
-    const netWorth = totalAssets - totalLiabilities;
-    const unallocatedCashflow = income - totalExp - totalEMI;
-    const sumSurplus = sip + (unallocatedCashflow > 0 ? unallocatedCashflow : 0);
+    const netWorth = safeRupees(totalAssets - totalLiabilities);
+    // unallocatedCashflow includes insurance premiums as a real cost
+    const unallocatedCashflow = income - totalExp - totalEMI - totalInsMonthly;
+    // sumSurplus = true investable surplus (same as sip — no double-counting)
+    const sumSurplus = Math.max(0, unallocatedCashflow);
+
+    // ── TC-02: CRISIS MODE — negative cashflow detected ──────────────────────
+    // If monthly outflow > income, pivot the Plan tab to a "Fix Money Leak" dashboard.
+    // Wealth-building charts are hidden — they'd show ₹0 or negative, confusing the user.
+    const isCrisisMode = unallocatedCashflow < 0;
+    const crisisBanner = document.getElementById('crisis-mode-banner');
+    const planCharts   = document.getElementById('plan-charts-region');
+    const fiWhipCard   = document.getElementById('fi-whip-card');
+    const stepupCard   = document.getElementById('stepup-contract-card');
+    const actionAlerts = document.getElementById('action-alerts-block');
+    if (isCrisisMode) {
+        const deficit = Math.abs(unallocatedCashflow);
+        // Sort debts by interest rate DESC for restructuring priority
+        const sortedDebts = [...dArr].sort((a, b) => b.rt - a.rt);
+        const worstDebt = sortedDebts[0];
+        const debtRestructureHTML = worstDebt
+            ? `<div style="background:rgba(0,0,0,0.25);border-radius:8px;padding:10px;margin-top:8px;">
+                <div style="font-size:11px;color:#fde68a;font-weight:700;margin-bottom:4px;">🔥 HIGHEST PRIORITY DEBT TO TACKLE FIRST</div>
+                <div style="font-size:13px;color:#fff;font-weight:700;">${worstDebt.n} @ ${worstDebt.rt}%</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px;">
+                    Costing you ${formatCurrency(worstDebt.p * worstDebt.rt / 100)}/yr in interest alone.
+                    Call your lender — ask for a restructuring, moratorium, or balance transfer to a lower-rate option.
+                </div>
+               </div>`
+            : '';
+        const fixHTML = `
+        <div id="crisis-mode-banner" style="background:linear-gradient(135deg,rgba(100,0,0,0.97),rgba(153,27,27,0.97));border:2px solid #ef4444;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 0 32px rgba(239,68,68,0.25);">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                <span style="font-size:28px;animation:pulse 1s infinite;">🚨</span>
+                <div>
+                    <div style="font-size:17px;font-weight:900;color:#fca5a5;letter-spacing:0.5px;">CODE RED — Cash Flow Crisis</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:1px;">All wealth-building paused until surplus is restored</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
+                <div style="background:rgba(0,0,0,0.35);border-radius:10px;padding:10px;text-align:center;">
+                    <div style="font-size:10px;color:#4ade80;font-weight:700;margin-bottom:3px;">INCOME</div>
+                    <div style="font-size:15px;font-weight:800;color:#4ade80;">${formatCurrency(income)}</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);">per month</div>
+                </div>
+                <div style="background:rgba(0,0,0,0.35);border-radius:10px;padding:10px;text-align:center;">
+                    <div style="font-size:10px;color:#f87171;font-weight:700;margin-bottom:3px;">OUTFLOW</div>
+                    <div style="font-size:15px;font-weight:800;color:#f87171;">${formatCurrency(totalExp + totalEMI + totalInsMonthly)}</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);">exp${totalEMI>0?' + EMI':''}${totalInsMonthly>0?' + ins':''}</div>
+                </div>
+                <div style="background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.6);border-radius:10px;padding:10px;text-align:center;">
+                    <div style="font-size:10px;color:#fca5a5;font-weight:700;margin-bottom:3px;">DEFICIT</div>
+                    <div style="font-size:15px;font-weight:800;color:#ef4444;">-${formatCurrency(deficit)}</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);">per month</div>
+                </div>
+            </div>
+            ${debtRestructureHTML}
+            <div style="margin-top:12px;font-size:12px;font-weight:700;color:#fde68a;">📋 3-Step Break-Even Plan:</div>
+            <div style="display:grid;gap:6px;margin-top:8px;">
+                <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:8px 12px;font-size:12px;color:rgba(255,255,255,0.8);border-left:3px solid #f59e0b;">
+                    <strong style="color:#fde68a;">Step 1 — Cut:</strong> Reduce discretionary spending by ${formatCurrency(Math.ceil(deficit * 0.4))}/mo (dining, subscriptions, impulse buys)
+                </div>
+                ${totalEMI > 0 ? `<div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:8px 12px;font-size:12px;color:rgba(255,255,255,0.8);border-left:3px solid #ef4444;">
+                    <strong style="color:#fca5a5;">Step 2 — Restructure:</strong> Request EMI holiday or balance transfer on your highest-interest loan. Even 2% rate drop saves ${formatCurrency(Math.round(totalEMI * 0.02 * 12))}/yr.
+                </div>` : ''}
+                <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:8px 12px;font-size:12px;color:rgba(255,255,255,0.8);border-left:3px solid #34d399;">
+                    <strong style="color:#6ee7b7;">Step 3 — Earn:</strong> Add a side income of ${formatCurrency(deficit)}/mo to break even. Once surplus hits ₹1+, this dashboard unlocks automatically.
+                </div>
+            </div>
+        </div>`;
+
+        // Inject or update crisis banner in plan tab
+        const planTop = document.getElementById('plan-top-region') || document.getElementById('action-alerts-block')?.parentElement;
+        if (planTop) {
+            const existing = document.getElementById('crisis-mode-banner');
+            if (existing) existing.outerHTML = fixHTML;
+            else planTop.insertAdjacentHTML('afterbegin', fixHTML);
+        }
+        // Hide wealth charts — they're meaningless in deficit
+        if (fiWhipCard)  fiWhipCard.style.display  = 'none';
+        if (stepupCard)  stepupCard.style.display   = 'none';
+        if (actionAlerts) actionAlerts.style.display = 'none';
+        if (planCharts)  planCharts.style.display   = 'none';
+    } else {
+        // Remove crisis banner if cashflow is now positive
+        const existing = document.getElementById('crisis-mode-banner');
+        if (existing) existing.remove();
+        // Restore plan cards hidden by crisis mode
+        // fi-whip-card is always visible in non-crisis mode
+        if (planCharts)  planCharts.style.display  = '';
+        if (fiWhipCard)  fiWhipCard.style.display  = '';
+        // stepup-contract-card and action-alerts-block keep display:none —
+        // they are controlled by their own JS (updateStepUpContract / updateActionAlerts)
+        // which runs later in calculateStrategy. Do NOT force them visible here.
+    }
 
     // ┌─ ENFORCE DETERMINISTIC FINANCIAL HIERARCHY ────────────────────────────┐
     // Check: Insurance → Safety Net → Surplus
@@ -3160,6 +3683,7 @@ function calculateStrategy(silentMode = false) {
         cfStat, safeStat, liaStat, nextMilestone, goalAnalysisHTML,
         // Insurance & portfolio intelligence
         hasMedIns, hasTermIns, emFundMonths, blendedCAGR,
+        medMonthly, termMonthly, totalInsMonthly,
         liquidAssets, astIlliquid, fiCorpusBase,
         netWorth: totalAssets - totalLiabilities,
         surplus: sumSurplus,
@@ -3167,6 +3691,7 @@ function calculateStrategy(silentMode = false) {
         riskProfile: riskProfile.label,
         riskLevel: riskProfile.level,
         extractedGoals,
+        totalEMI,
         // For LTCG calculation in PDF projection
         equityFraction: totalAssets > 0 ? astEq / totalAssets : 0.60
     };
@@ -3184,7 +3709,7 @@ function calculateStrategy(silentMode = false) {
     }
 
     // ==== FIRE WEALTH OPTIMIZER ====
-    runWealthOptimizer(astCash, totalAssets, dArr, totalExp, income);
+    runWealthOptimizer(astCash, totalAssets, dArr, totalExp, income, numVal('u-age'), astEq);
 
     // ==== FIRE DIVERSIFICATION METER (Library Tab) ====
     if (typeof updateDiversificationMeter === 'function') updateDiversificationMeter();
@@ -3329,9 +3854,13 @@ function calculateStrategy(silentMode = false) {
             <td data-label="Total Wealth" class="calc-val-wealth">${formatCurrency(totalWealth)}</td>
         </tr>`;
         
-        trendData.push({ month: m, wealth: totalWealth, spend: goalSpend });
+        trendData.push({ month: m, wealth: totalWealth, spend: goalSpend,
+            toLiquid, toFD, toNifty, toMid, toBond, toDebt });
     }
     
+    // ── Stacked Bar Chart — 24-month allocation breakdown ───────────────────
+    drawStackedAllocationChart(trendData);
+
     // Novelty Style Graph DOM rendering
     if (trendData.length > 0) {
         if (_sid('nw-total-wealth')) _sid('nw-total-wealth').innerText = formatCurrency(trendData[trendData.length-1].wealth);
@@ -3372,6 +3901,57 @@ function calculateStrategy(silentMode = false) {
 
     // ══ POP THE COMPUTE BUTTON BACK ══
     if (ctaBtn) ctaBtn.classList.remove('computing');
+
+    // Show Smart Withdraw FAB now that data is computed
+    const fabEl = document.getElementById('smart-withdraw-fab');
+    if (fabEl) fabEl.style.display = 'flex';
+
+    // ══ NET WORTH VARIANCE ROW — compare to last compute ══
+    (function updateVarianceRow() {
+        const currentNW = engineMemory.netWorth || 0;
+        const prevNWStored = parseFloat(localStorage.getItem('as_prev_nw') || '0');
+        const varRow   = document.getElementById('nw-variance-row');
+        const varCur   = document.getElementById('nw-var-current');
+        const varDelta = document.getElementById('nw-var-delta');
+        const varDriver = document.getElementById('nw-var-driver');
+
+        if (!varRow || !varCur) return;
+
+        // Populate current value
+        if (varCur) varCur.textContent = formatCurrency(currentNW);
+
+        // Only show delta if there's a meaningful prior value (>1000)
+        if (prevNWStored > 1000 && prevNWStored !== currentNW) {
+            const delta   = currentNW - prevNWStored;
+            const deltaPct = prevNWStored !== 0 ? ((delta / Math.abs(prevNWStored)) * 100) : 0;
+            const isUp    = delta >= 0;
+            const sign    = isUp ? '+' : '';
+            if (varDelta) {
+                varDelta.textContent = `${sign}${formatCurrency(delta)} (${sign}${deltaPct.toFixed(1)}%)`;
+                varDelta.className   = 'nw-var-delta ' + (isUp ? 'up' : 'down');
+            }
+            if (varDriver) {
+                // Build driver narrative from engineMemory
+                const eqChange = engineMemory.astEq ? engineMemory.astEq - (parseFloat(localStorage.getItem('as_prev_eq') || '0')) : 0;
+                const liaDiff  = (parseFloat(localStorage.getItem('as_prev_lia') || '0')) - (engineMemory.totalLiabilities || 0);
+                let driverParts = [];
+                if (Math.abs(eqChange) > 5000) driverParts.push(`equity ${eqChange >= 0 ? '+' : ''}${formatCurrency(eqChange)}`);
+                if (Math.abs(liaDiff) > 5000)  driverParts.push(`debt repaid ${formatCurrency(liaDiff)}`);
+                varDriver.textContent = driverParts.length ? `driven by: ${driverParts.join(', ')}` : 'vs previous blueprint';
+            }
+            varRow.classList.remove('hidden');
+        } else if (currentNW > 0) {
+            // First run — just show the number with a label, no delta
+            if (varDelta) { varDelta.textContent = ''; varDelta.className = 'nw-var-delta'; }
+            if (varDriver) varDriver.textContent = 'Compute again after updating numbers to see month-over-month change.';
+            varRow.classList.remove('hidden');
+        }
+
+        // Persist for next compute
+        safeSetItem('as_prev_nw',  String(currentNW));
+        safeSetItem('as_prev_eq',  String(engineMemory.astEq || 0));
+        safeSetItem('as_prev_lia', String(engineMemory.totalLiabilities || 0));
+    })();
 
     // ══ CELEBRATION & NET WORTH MILESTONE CHECK ══
     const nw = engineMemory.netWorth || 0;
@@ -4224,6 +4804,11 @@ async function handleSend() {
         addMessage("Please paste your Gemini API Key in the box above to activate my AI engine.", "ai");
         return;
     }
+    // REQ-3.1: Structural API key validation — Gemini keys are always 39 chars starting with AIza
+    if (!apiKey.startsWith('AIza') || apiKey.length < 35) {
+        addMessage("❌ That doesn't look like a valid Gemini API key. Keys start with 'AIza' and are ~39 characters. Get yours free at aistudio.google.com.", "ai");
+        return;
+    }
     
     addMessage(text, 'user');
     chatInput.value = '';
@@ -4247,7 +4832,7 @@ If the user asks ANYTHING outside these topics (cricket, cooking, coding, politi
 "I'm your money guide and I can only help with finance, wealth, and debt. For this, please talk to the right expert 😊 Want me to help you with something about your money instead?"
 
 Current user profile — ${engineMemory.name || "Friend"}:
-- Monthly income: ₹${engineMemory.income || 0} | Monthly expenses: ₹${engineMemory.totalExp || 0}
+- Monthly income: ₹${engineMemory.income || 0} | Monthly expenses: ₹${engineMemory.totalExp || 0} | EMI: ₹${engineMemory.totalEMI || 0} | Insurance premiums: ₹${engineMemory.totalInsMonthly || 0}
 - Monthly investment (SIP): ₹${engineMemory.sip || 0} | Free surplus: ₹${engineMemory.unallocatedCashflow || 0}
 - Net worth: ₹${engineMemory.netWorth || 0} | Liquid savings: ₹${engineMemory.astCash || 0}
 - Money locked in property/PF: ₹${engineMemory.astIlliquid || 0}
@@ -4290,9 +4875,22 @@ For all other finance questions: give warm, clear advice in 2–3 simple sentenc
             body: JSON.stringify(payload)
         });
 
+        // TC-04: Explicit API error handling — 401 = invalid key, 429 = rate limit
+        if (!res.ok) {
+            if (res.status === 401 || res.status === 400) {
+                addMessage('❌ API Key invalid or expired. Go to Settings → paste a fresh Gemini API key from aistudio.google.com.', 'ai');
+            } else if (res.status === 429) {
+                addMessage('⏳ Rate limit hit. You\'ve sent too many requests. Wait 60 seconds and try again.', 'ai');
+            } else {
+                addMessage(`⚠️ API error ${res.status}. Check your internet connection and try again.`, 'ai');
+            }
+            return;
+        }
+
         const data = await res.json();
-        
-        let aiText = data.candidates[0].content.parts[0].text.trim();
+
+        let aiText = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+        if (!aiText) { addMessage('No response from AI. Please try again.', 'ai'); return; }
         // Save to history
         chatContextHistory.push({"role": "model", "parts": [{"text": aiText}]});
 
@@ -4481,7 +5079,7 @@ const PPF_RATE      = 7.1  / 100;  // PPF p.a. (EEE, lock-in 15 yrs)
 const ELSS_RATE     = 12.0 / 100;  // ELSS equity CAGR (80C + 3 yr lock)
 const INDEX_RATE    = 12.0 / 100;  // Index fund CAGR
 const DEBT_FD_RATE  = 6.5  / 100;  // FD / Liquid fund (short-term)
-const EDU_INFLATION = 8.0  / 100;  // Education inflation p.a.
+const EDU_INFLATION = 10.5 / 100;  // Education inflation p.a. — Indian avg 10–12% (higher than CPI)
 const MAX_SSY_MONTH = 12500;       // ₹1.5L/year = ₹12,500/month
 const MAX_PPF_MONTH = 12500;       // ₹1.5L/year = ₹12,500/month
 
@@ -4884,8 +5482,11 @@ function computeChildPlan() {
     results.innerHTML = `
         <div style="font-size:13px; font-weight:700; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">📊 Child Planning Results</div>
         ${cardsHTML}
-        <div style="margin-top:16px; padding:14px 16px; background:rgba(168,85,247,0.07); border:1px solid rgba(168,85,247,0.2); border-radius:10px; font-size:12px; color:rgba(255,255,255,0.45); line-height:1.7;">
-            💡 <strong>Assumptions:</strong> Returns are estimates — ELSS/Index at 12% CAGR, PPF at 7.1%, SSY at 8.2%, FD at 6.5%. Education inflation at 8% p.a. Marriage cost inflation at 8% p.a. SSY and PPF rates are revised quarterly by the government. Review your plan every 2 years. LTCG tax of 10% applies on equity gains above ₹1L per year.
+        <div style="margin-top:12px; padding:12px 14px; background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.2); border-radius:10px; font-size:12px; color:rgba(255,255,255,0.7); line-height:1.7;">
+            ⚠️ <strong style="color:#f87171;">Education Inflation Warning:</strong> Indian education costs rise at <strong>10–12% per year</strong> — nearly double standard CPI. An IIT/IIM seat costing ₹15L today will cost <strong>₹${formatCurrency(Math.round(150000 * Math.pow(1.105, 15)))}</strong> in 15 years. This plan uses <strong>10.5% education inflation</strong> — the conservative end of the range. Start early, increase SIP annually.
+        </div>
+        <div style="margin-top:8px; padding:14px 16px; background:rgba(168,85,247,0.07); border:1px solid rgba(168,85,247,0.2); border-radius:10px; font-size:12px; color:rgba(255,255,255,0.45); line-height:1.7;">
+            💡 <strong>Assumptions:</strong> Returns are estimates — ELSS/Index at 12% CAGR, PPF at 7.1%, SSY at 8.2%, FD at 6.5%. Education inflation at 10.5% p.a. Marriage cost inflation at 10.5% p.a. SSY and PPF rates are revised quarterly by the government. Review your plan every 2 years. LTCG tax of 10% applies on equity gains above ₹1L per year.
         </div>`;
 
     results.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -7574,6 +8175,17 @@ window.sendInlineChat = async function() {
         if (sendBtn) sendBtn.disabled = false;
         return;
     }
+    // REQ-3.1: Structural API key validation
+    if (!apiKey.startsWith('AIza') || apiKey.length < 35) {
+        typingDiv.remove();
+        const r = document.createElement('div');
+        r.className = 'chat-msg ai';
+        r.textContent = "❌ That doesn't look like a valid Gemini API key. Keys start with 'AIza' and are ~39 characters. Get yours free at aistudio.google.com.";
+        hist.appendChild(r);
+        hist.scrollTop = hist.scrollHeight;
+        if (sendBtn) sendBtn.disabled = false;
+        return;
+    }
 
     const dArr = m.dArr || [];
     const name = (m.name || 'Friend').split(' ')[0];
@@ -7630,6 +8242,22 @@ ${name}'s profile:
                 generationConfig: { temperature: 0.3, maxOutputTokens: 400 }
             })
         });
+        // TC-04: Specific API error handling
+        if (!res.ok) {
+            typingDiv.remove();
+            const errDiv = document.createElement('div');
+            errDiv.className = 'chat-msg ai';
+            if (res.status === 401 || res.status === 400) {
+                errDiv.textContent = '❌ API Key invalid or expired. Go to Settings → paste a fresh key from aistudio.google.com.';
+            } else if (res.status === 429) {
+                errDiv.textContent = '⏳ Rate limit hit. Wait 60 seconds and try again.';
+            } else {
+                errDiv.textContent = `⚠️ API error (${res.status}). Check your connection.`;
+            }
+            hist.appendChild(errDiv);
+            if (sendBtn) sendBtn.disabled = false;
+            return;
+        }
         const data = await res.json();
         let aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Sorry, could not get a response. Please try again.';
         window._aarthChatHistory.push({ role:'model', parts:[{text:aiText}] });

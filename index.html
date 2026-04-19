@@ -6,7 +6,7 @@
     <title>Aarth Sutra | The Logic of Wealth. The Code of Wisdom.</title>
     <meta name="description" content="Aarth Sutra — Precision wealth planning for the modern professional. 100% Secure, 100% Local.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:ital,wght@0,600;0,700;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=202604190001">
+    <link rel="stylesheet" href="styles.css?v=202604200001">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -127,22 +127,44 @@
 
                 <!-- ── STEP 2: INCOME & STRATEGY ── -->
                 <div class="intake-section">
-                    <div class="intake-section-label"><i data-lucide="trending-up"></i> Step 2 — Income & Investment Strategy</div>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label>Monthly In-Hand Income (₹)</label>
-                            <input type="number" id="u-income" placeholder="e.g. 150000" value="150000" inputmode="numeric" pattern="[0-9]*" oninput="updateInsuranceImpact()">
+                    <div class="intake-section-label"><i data-lucide="trending-up"></i> Step 2 — Income Sources & Strategy</div>
+
+                    <!-- Income Sources Header -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <div style="font-size:12px;color:rgba(255,255,255,0.5);">Add all your monthly income streams</div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:11px;color:rgba(255,255,255,0.4);">Total:</span>
+                            <span id="income-total-badge" style="font-size:14px;font-weight:800;color:#34d399;font-family:var(--font-mono);">₹0</span>
                         </div>
-                        <input type="hidden" id="u-sip" value="50000">
-                        <div class="form-group">
-                            <label>Annual SIP Step-Up</label>
-                            <select id="u-stepup">
-                                <option value="0">None (0%) — Flat SIP</option>
-                                <option value="5">Conservative (5%)</option>
-                                <option value="10" selected>Wealth Builder (10%) — Recommended</option>
-                                <option value="15">Aggressive (15%)</option>
-                            </select>
-                        </div>
+                    </div>
+
+                    <!-- Dynamic income rows container -->
+                    <div id="income-sources-container"></div>
+
+                    <!-- Quick-add buttons -->
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 14px;">
+                        <button class="income-add-btn" onclick="addIncomeSource('salary','💼 Salary')">+ Salary</button>
+                        <button class="income-add-btn" onclick="addIncomeSource('business','🏪 Business')">+ Business</button>
+                        <button class="income-add-btn" onclick="addIncomeSource('rent','🏠 Rent')">+ Rent</button>
+                        <button class="income-add-btn" onclick="addIncomeSource('p2p','🤝 P2P Lending')">+ P2P</button>
+                        <button class="income-add-btn" onclick="addIncomeSource('royalty','🎵 Royalty')">+ Royalty</button>
+                        <button class="income-add-btn" onclick="addIncomeSource('freelance','💻 Freelance')">+ Freelance</button>
+                        <button class="income-add-btn" onclick="addIncomeSource('dividend','📈 Dividends')">+ Dividends</button>
+                        <button class="income-add-btn" onclick="addIncomeSource('other','💰 Other')">+ Other</button>
+                    </div>
+
+                    <!-- Hidden legacy field for backward compat -->
+                    <input type="hidden" id="u-income" value="0">
+                    <input type="hidden" id="u-sip" value="50000">
+
+                    <div class="form-group" style="margin-top:4px;">
+                        <label>Annual <span class="tip" data-tip="SIP — Systematic Investment Plan. An automatic monthly investment in mutual funds, usually ₹500 or more.">SIP</span> Step-Up</label>
+                        <select id="u-stepup">
+                            <option value="0">None (0%) — Flat SIP</option>
+                            <option value="5">Conservative (5%)</option>
+                            <option value="10" selected>Wealth Builder (10%) — Recommended</option>
+                            <option value="15">Aggressive (15%)</option>
+                        </select>
                     </div>
                 </div>
 
@@ -175,17 +197,27 @@
                     <div class="grid-2">
                         <div class="form-group">
                             <label>Health Insurance</label>
-                            <select id="u-med" onchange="updateInsuranceImpact()">
+                            <select id="u-med" onchange="updateInsuranceImpact(); if(typeof calculateStrategy==='function'&&typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
                                 <option value="no">❌ Not Yet — I Need One</option>
                                 <option value="yes" selected>✅ Active — I'm Covered</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Term Life Insurance</label>
-                            <select id="u-term" onchange="updateInsuranceImpact()">
+                            <select id="u-term" onchange="updateInsuranceImpact(); if(typeof calculateStrategy==='function'&&typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
                                 <option value="no">❌ Not Yet — I Need One</option>
                                 <option value="yes" selected>✅ Active — Family Protected</option>
                             </select>
+                        </div>
+                        <div class="form-group" id="med-premium-group">
+                            <label>Health Premium <span style="color:rgba(255,255,255,0.35);font-size:10px;">(₹/month)</span></label>
+                            <input type="number" id="u-med-premium" placeholder="e.g. 1200" value="" min="0" inputmode="numeric"
+                                oninput="if(typeof calculateStrategy==='function'&&typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
+                        </div>
+                        <div class="form-group" id="term-premium-group">
+                            <label>Term Premium <span style="color:rgba(255,255,255,0.35);font-size:10px;">(₹/month)</span></label>
+                            <input type="number" id="u-term-premium" placeholder="e.g. 1500" value="" min="0" inputmode="numeric"
+                                oninput="if(typeof calculateStrategy==='function'&&typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
                         </div>
                     </div>
                     <div id="insurance-warning" style="display:none;margin-top:14px;"></div>
@@ -301,8 +333,8 @@
                     <div class="compute-cta-inner cta-default">
                         <i data-lucide="cpu"></i>
                         <div class="compute-cta-text">
-                            <span class="compute-cta-title">Compute My Wealth Blueprint</span>
-                            <span class="compute-cta-sub">Generate FI date · Portfolio analysis · Debt strategy · Goal feasibility</span>
+                            <span class="compute-cta-title">Build My Wealth Blueprint</span>
+                            <span class="compute-cta-sub">See your FI date · Portfolio health · Debt payoff order · Goal feasibility</span>
                         </div>
                         <i data-lucide="arrow-right"></i>
                     </div>
@@ -320,12 +352,50 @@
                 </button>
 
             </div>
+
+            <!-- ── SEBI COMPLIANCE FOOTER (Intake Tab) ── -->
+            <div class="sebi-footer-block">
+                <div class="sebi-footer-title">⚖️ Important Disclosures</div>
+                <p class="sebi-footer-body">
+                    <strong>Mutual fund investments are subject to market risks. Read all scheme-related documents carefully. Past performance is not indicative of future returns.</strong>
+                    Aarth Sutra is <strong>not a SEBI-registered Investment Adviser or Research Analyst</strong>.
+                    All calculations, projections, and AI responses are for personal tracking and general financial education only —
+                    they do not constitute investment advice, a solicitation, or a recommendation to buy or sell any security.
+                    Consult a <strong>SEBI-registered Investment Adviser</strong> before making any investment decision.
+                    Your data is stored only on your device and never on any server.
+                </p>
+                <div class="sebi-grievance-block">
+                    📋 <strong>Grievance Redressal:</strong> Write to <a href="mailto:support@aarth-sutra.in">support@aarth-sutra.in</a>.
+                    You may also file a complaint on SEBI's SCORES portal:
+                    <a href="https://scores.sebi.gov.in" target="_blank" rel="noopener">scores.sebi.gov.in</a>
+                    or the ODR portal:
+                    <a href="https://smartodr.in" target="_blank" rel="noopener">smartodr.in</a>.
+                </div>
+                <div class="sebi-footer-links">
+                    <a href="https://www.sebi.gov.in/investors.html" target="_blank" rel="noopener">SEBI Investor Portal</a>
+                    <a href="https://scores.sebi.gov.in" target="_blank" rel="noopener">SCORES — File Complaint</a>
+                    <a href="https://smartodr.in" target="_blank" rel="noopener">ODR Portal</a>
+                    <a href="https://www.sebi.gov.in/sebiweb/other/OtherAction.do?doRecognisedFpi=yes&intmId=13" target="_blank" rel="noopener">Find SEBI-Registered Adviser</a>
+                </div>
+            </div>
+
         </section>
 
         <!-- ═══════════════════════════════════════
              TAB 2: BLUEPRINT
         ═══════════════════════════════════════ -->
         <section id="pg-dash" class="pg">
+
+        <!-- ══ NET WORTH VARIANCE ROW — populated by JS after each compute ══ -->
+        <div id="nw-variance-row" class="nw-variance-row hidden">
+            <span class="nw-var-label">NET WORTH</span>
+            <span class="nw-var-current" id="nw-var-current">—</span>
+            <span class="nw-var-delta" id="nw-var-delta"></span>
+            <span class="nw-var-driver" id="nw-var-driver"></span>
+        </div>
+
+        <!-- ══ PLAN TOP REGION — crisis banner injected here ══ -->
+        <div id="plan-top-region">
 
             <!-- ══ IMMEDIATE ACTION ALERT BLOCK ══ -->
             <div id="action-alerts-block" style="display:none; margin-bottom:16px;"></div>
@@ -352,7 +422,7 @@
             <!-- ══ 10% STEP-UP CONTRACT ══ -->
             <div class="stepup-contract-card" id="stepup-contract-card" style="display:none;">
                 <div class="stepup-contract-header">
-                    <div class="stepup-contract-badge">📋 YOUR SIP CONTRACT</div>
+                    <div class="stepup-contract-badge">📋 YOUR <span class="tip" data-tip="SIP — Systematic Investment Plan. An automatic monthly mutual fund investment.">SIP</span> CONTRACT</div>
                     <div class="stepup-contract-title">To hit your FI date, you must follow this exact step-up schedule</div>
                 </div>
                 <div class="stepup-bars-row" id="stepup-bars-row">
@@ -362,6 +432,11 @@
                     💡 Each year, increase your SIP by 10%. This one discipline compresses your FIRE date by years.
                 </div>
             </div>
+
+        </div><!-- /#plan-top-region -->
+
+        <!-- ══ PLAN CHARTS REGION — hidden during crisis mode ══ -->
+        <div id="plan-charts-region">
 
             <!-- Daily Insight -->
             <div class="daily-insight-card" id="daily-insight-card">
@@ -433,13 +508,18 @@
                 </div>
 
                 <div class="accel-card" style="margin-bottom:0; flex:1; display:flex; flex-direction:column; justify-content:center;">
-                    <div class="accel-fi-label">PROJECTED FINANCIAL INDEPENDENCE</div>
+                    <div class="accel-fi-label">PROJECTED FINANCIAL INDEPENDENCE
+                        <span class="plan-disclaimer-pill" title="Projections use assumed returns. Actual returns will differ.">
+                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="7"/><path d="M8 7v4M8 5h.01"/></svg>
+                            Planning estimate only
+                        </span>
+                    </div>
                     <div class="accel-fi-date" id="fi-date">Analyzing...</div>
 
                     <!-- FI stat pills: corpus head-start + target -->
                     <div style="display:flex; gap:8px; flex-wrap:wrap; margin: 10px 0 14px;">
                         <div class="fi-stat-pill" id="fi-corpus-pill" style="background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.25);">
-                            <span style="font-size:10px; color:rgba(255,255,255,0.4); display:block; margin-bottom:2px;">Your Head Start</span>
+                            <span style="font-size:10px; color:rgba(255,255,255,0.4); display:block; margin-bottom:2px;">Your Head Start (<span class="tip" data-tip="Corpus — Total invested amount plus growth accumulated so far.">Corpus</span>)</span>
                             <span id="fi-corpus-val" style="font-size:13px; font-weight:700; color:#818cf8;">—</span>
                         </div>
                         <div class="fi-stat-pill" style="background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.2);">
@@ -450,6 +530,20 @@
                             <span style="font-size:10px; color:rgba(255,255,255,0.4); display:block; margin-bottom:2px;">Still to Build</span>
                             <span id="fi-gap-val" style="font-size:13px; font-weight:700; color:#f59e0b;">—</span>
                         </div>
+                        <div class="fi-stat-pill" style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2);">
+                            <span style="font-size:10px; color:rgba(255,255,255,0.4); display:block; margin-bottom:2px;">Real Target (inflation-adj)</span>
+                            <span id="fi-real-target-val" style="font-size:13px; font-weight:700; color:#f87171;">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Inflation toggle row -->
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.18);border-radius:10px;padding:8px 12px;">
+                        <span style="font-size:11px;color:rgba(255,255,255,0.55);white-space:nowrap;">🌡️ Inflation Rate</span>
+                        <input type="number" id="inflation-rate-input" value="6" min="0" max="20" step="0.5"
+                               style="width:64px;background:rgba(0,0,0,0.35);border:1px solid rgba(239,68,68,0.3);border-radius:6px;color:#f87171;font-size:13px;font-weight:700;padding:4px 8px;font-family:var(--font-mono);text-align:center;"
+                               oninput="updateFISlider(document.getElementById('fi-slider').value)"
+                               title="Indian CPI average ≈ 6%. Adjust to see how inflation changes your real FIRE target.">
+                        <span style="font-size:11px;color:rgba(255,255,255,0.55);">% p.a. (Indian CPI avg 6%)</span>
                     </div>
 
                     <div class="accel-slider-label">Drag to try different monthly investment amounts</div>
@@ -526,14 +620,35 @@
             </div>
 
             <div class="premium-card">
-                <div class="card-hd"><i data-lucide="target"></i> Goal Feasibility Orbit</div>
+                <div class="card-hd">
+                    <i data-lucide="target"></i> Goal Feasibility Orbit
+                    <span class="plan-disclaimer-pill">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="7"/><path d="M8 7v4M8 5h.01"/></svg>
+                        Assumes 12% equity, 7% debt
+                    </span>
+                </div>
                 <div id="goal-protocol-blocks" style="font-size: 14px; color: var(--slate-light);"></div>
             </div>
 
             <!-- Where Your Money Goes Every Month -->
             <div class="premium-card">
                 <div class="card-hd"><i data-lucide="terminal"></i> Where Your Money Goes Every Month</div>
-                <p style="font-size:11px; color:var(--slate-light); margin-bottom:12px;">Your 24-month roadmap — see exactly where each rupee is invested</p>
+                <p style="font-size:11px; color:var(--slate-light); margin-bottom:4px;">Your 24-month roadmap — see exactly where each rupee is invested</p>
+
+                <!-- Stacked bar chart -->
+                <div id="wealth-stacked-chart" style="display:none;margin-bottom:16px;">
+                    <canvas id="wealth-stacked-canvas" height="160" style="width:100%;border-radius:10px;"></canvas>
+                    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:11px;">
+                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#10b981;display:inline-block;"></span>Savings</span>
+                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#3b82f6;display:inline-block;"></span>Em. FD</span>
+                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#818cf8;display:inline-block;"></span>Index</span>
+                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#a78bfa;display:inline-block;"></span>Mid Cap</span>
+                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#34d399;display:inline-block;"></span>Bonds</span>
+                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#f59e0b;display:inline-block;"></span>Goal Spend</span>
+                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#ef4444;display:inline-block;"></span>Debt EMI</span>
+                    </div>
+                </div>
+
                 <div class="calc-table-wrapper" style="overflow-x:auto;">
                     <table class="calc-table">
                         <thead>
@@ -559,6 +674,26 @@
                     <strong>Bonds & Debt Funds</strong> = Stable, low-risk, added when portfolio crosses ₹5L.
                 </p>
             </div>
+
+        </div><!-- /#plan-charts-region -->
+
+            <!-- ── SEBI COMPLIANCE FOOTER (Plan Tab) ── -->
+            <div class="sebi-footer-block">
+                <div class="sebi-footer-title">⚖️ Risk Disclosures & Compliance</div>
+                <p class="sebi-footer-body">
+                    <strong>Mutual fund investments are subject to market risks. Past performance is not indicative of future returns.</strong>
+                    Projections shown are based on assumed returns (equity 12% p.a., debt 7% p.a.) and <strong>are planning estimates, not guarantees</strong>.
+                    Aarth Sutra is <strong>not a SEBI-registered Investment Adviser or Research Analyst</strong> — information here is for personal financial tracking and education only.
+                    Stock/fund prices may be delayed. Do not use for trading decisions.
+                </p>
+                <div class="sebi-grievance-block">
+                    Need help?
+                    <a href="mailto:support@aarth-sutra.in">support@aarth-sutra.in</a> ·
+                    SEBI SCORES: <a href="https://scores.sebi.gov.in" target="_blank" rel="noopener">scores.sebi.gov.in</a> ·
+                    ODR: <a href="https://smartodr.in" target="_blank" rel="noopener">smartodr.in</a>
+                </div>
+            </div>
+
         </section>
 
         <!-- ═══════════════════════════════════════
@@ -959,7 +1094,7 @@
                 </button>
                 <button class="withdraw-option-btn" onclick="withdrawStep2('low')">
                     <div class="withdraw-option-icon">📉</div>
-                    <div><div class="withdraw-option-title">No — Market is down / uncertain</div><div class="withdraw-option-sub">Selling at a discount destroys your CAGR.</div></div>
+                    <div><div class="withdraw-option-title">No — Market is down / uncertain</div><div class="withdraw-option-sub">Selling at a discount destroys your <span class="tip" data-tip="CAGR — Compounded Annual Growth Rate. Your true annual return accounting for compounding.">CAGR</span>.</div></div>
                 </button>
             </div>
 
@@ -1256,7 +1391,7 @@
     </div>
 </div>
 
-<script src="script.js?v=202604190003"></script>
+<script src="script.js?v=202604200001"></script>
 <script src="library.js?v=202604170010"></script>
 
 <!-- ══════════════════════════════════════════════════
@@ -1281,6 +1416,13 @@
         <div class="compute-spinner-text">Calculating your wealth blueprint…</div>
     </div>
 </div>
+
+
+<\!-- ══ SMART WITHDRAW FLOATING ACTION BUTTON ══ -->
+<button id="smart-withdraw-fab" class="smart-withdraw-fab" onclick="openWithdrawModal()" title="Smart Withdraw — safe emergency cash" style="display:none;">
+    <span class="fab-icon">🏦</span>
+    <span class="fab-label">Smart Withdraw</span>
+</button>
 
 </body>
 </html>

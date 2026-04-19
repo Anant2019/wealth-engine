@@ -689,6 +689,125 @@ body {
 .dy-goal { grid-template-columns: 2fr 1.5fr 1fr auto; }
 .dy-debt { grid-template-columns: 2fr 1.5fr 1fr 1fr auto; }
 
+/* ===================== INCOME SOURCES ===================== */
+
+.income-source-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 1fr 28px;
+    align-items: center;
+    gap: 8px;
+    background: rgba(52, 211, 153, 0.06);
+    border: 1px solid rgba(52, 211, 153, 0.18);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    transition: border-color 0.2s;
+}
+.income-source-row:hover {
+    border-color: rgba(52, 211, 153, 0.35);
+}
+.income-src-icon {
+    font-size: 16px;
+    text-align: center;
+    user-select: none;
+}
+.income-src-label {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 7px;
+    color: rgba(255,255,255,0.85);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 10px;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--font-sans);
+    transition: border-color 0.2s;
+}
+.income-src-label:focus {
+    outline: none;
+    border-color: rgba(52, 211, 153, 0.5);
+}
+.income-src-amt {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    border-radius: 7px;
+    color: #34d399;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 7px 10px;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--font-mono);
+    transition: border-color 0.2s;
+}
+.income-src-amt:focus {
+    outline: none;
+    border-color: #34d399;
+    box-shadow: 0 0 0 2px rgba(52,211,153,0.15);
+}
+.income-src-amt::placeholder { color: rgba(52,211,153,0.35); }
+.income-src-del {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 6px;
+    color: #f87171;
+    font-size: 12px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    padding: 0;
+    flex-shrink: 0;
+}
+.income-src-del:hover {
+    background: rgba(239,68,68,0.25);
+    border-color: rgba(239,68,68,0.5);
+}
+
+/* Quick-add income buttons */
+.income-add-btn {
+    background: rgba(52,211,153,0.08);
+    border: 1px solid rgba(52,211,153,0.2);
+    border-radius: 20px;
+    color: #34d399;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, transform 0.1s;
+    font-family: var(--font-sans);
+    white-space: nowrap;
+}
+.income-add-btn:hover {
+    background: rgba(52,211,153,0.18);
+    border-color: rgba(52,211,153,0.45);
+    transform: translateY(-1px);
+}
+.income-add-btn:active { transform: translateY(0); }
+
+@media (max-width: 480px) {
+    .income-source-row {
+        grid-template-columns: 24px 1fr 28px;
+        grid-template-rows: auto auto;
+    }
+    .income-src-label {
+        grid-column: 2 / 3;
+        grid-row: 1;
+    }
+    .income-src-amt {
+        grid-column: 1 / 3;
+        grid-row: 2;
+    }
+    .income-src-del {
+        grid-column: 3;
+        grid-row: 1;
+    }
+}
+
 /* ===================== CARD TOP ROW ===================== */
 /* label LEFT, ✕ button RIGHT — pure flex, zero absolute positioning */
 .card-top-row {
@@ -1118,18 +1237,48 @@ input[type="range"].accel-slider::-moz-range-thumb {
 
 /* ===================== WEALTH OPTIMIZER ===================== */
 .leak-item {
-    display: flex; gap: 14px; align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     padding: 14px 16px;
     background: rgba(245, 158, 11, 0.06);
     border: 1px solid var(--amber-border);
     border-radius: var(--r-md);
     margin-bottom: 10px;
 }
-.leak-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+.leak-item-top {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+.leak-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
 .leak-body { flex: 1; min-width: 0; }
-.leak-title { font-weight: 800; font-size: 13px; color: var(--slate-light); margin-bottom: 3px; }
-.leak-desc { font-size: 12px; color: var(--slate); line-height: 1.5; }
-.leak-save { font-size: 10px; font-weight: 800; color: var(--amber); background: rgba(245,158,11,0.12); padding: 4px 10px; border-radius: 4px; white-space: nowrap; align-self: flex-start; font-family: var(--font-mono); flex-shrink: 0; }
+.leak-title {
+    font-weight: 800;
+    font-size: 13px;
+    color: var(--slate-light);
+    margin-bottom: 4px;
+    word-break: break-word;
+    line-height: 1.4;
+}
+.leak-desc {
+    font-size: 12px;
+    color: var(--slate);
+    line-height: 1.6;
+    word-break: break-word;
+}
+.leak-save {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--amber);
+    background: rgba(245,158,11,0.12);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    word-break: break-word;
+    align-self: flex-start;
+}
 
 /* ===================== WEALTH LADDER ===================== */
 .ladder-phase {
@@ -4560,4 +4709,258 @@ body {
         border-top-color: transparent;
         border-bottom-color: rgba(99,102,241,0.30);
     }
+}
+
+/* ===================== SMART WITHDRAW FAB ===================== */
+.smart-withdraw-fab {
+    position: fixed;
+    bottom: 84px; /* above bottom nav */
+    right: 16px;
+    z-index: 900;
+    display: none; /* shown by JS after compute */
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #b45309, #d97706);
+    border: none;
+    border-radius: 28px;
+    padding: 12px 18px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(180,83,9,0.45);
+    transition: transform 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+}
+.smart-withdraw-fab:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 28px rgba(180,83,9,0.6);
+}
+.smart-withdraw-fab:active { transform: translateY(0); }
+.fab-icon { font-size: 16px; }
+.fab-label { letter-spacing: 0.3px; }
+
+@media (max-width: 480px) {
+    .smart-withdraw-fab { bottom: 76px; right: 12px; padding: 10px 14px; font-size: 12px; }
+}
+
+/* ===================== PULSE KEYFRAME (crisis mode) ===================== */
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.15); }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SEBI COMPLIANCE FOOTER
+   Mandatory SEBI risk disclosure + grievance block. Min 12px text.
+════════════════════════════════════════════════════════════════════ */
+.sebi-footer-block {
+    background: rgba(15, 20, 27, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-top: 2px solid rgba(251, 191, 36, 0.25);
+    border-radius: 12px;
+    padding: 18px 18px 14px;
+    margin-top: 32px;
+    margin-bottom: 8px;
+}
+.sebi-footer-block .sebi-footer-title {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: rgba(251, 191, 36, 0.7);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.sebi-footer-block .sebi-footer-body {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.38);
+    line-height: 1.75;
+    margin: 0 0 12px;
+}
+.sebi-footer-block .sebi-footer-body strong {
+    color: rgba(255, 255, 255, 0.55);
+    font-weight: 600;
+}
+.sebi-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.sebi-footer-links a {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(99, 102, 241, 0.8);
+    text-decoration: none;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 6px;
+    padding: 4px 10px;
+}
+.sebi-footer-links a:hover { color: #818cf8; background: rgba(99, 102, 241, 0.15); }
+.sebi-grievance-block {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    line-height: 1.7;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.sebi-grievance-block a {
+    color: rgba(52, 211, 153, 0.7);
+    text-decoration: none;
+    font-weight: 600;
+}
+.sebi-grievance-block a:hover { color: #34d399; text-decoration: underline; }
+
+/* ════════════════════════════════════════════════════════════════════
+   JARGON TOOLTIPS
+   Dotted-underline terms with hover tooltip bubble.
+════════════════════════════════════════════════════════════════════ */
+.tip {
+    position: relative;
+    display: inline;
+    border-bottom: 1px dashed rgba(99, 102, 241, 0.5);
+    cursor: help;
+    color: inherit;
+}
+.tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-radius: 8px;
+    padding: 7px 11px;
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.82);
+    white-space: nowrap;
+    max-width: 220px;
+    white-space: normal;
+    line-height: 1.5;
+    text-align: center;
+    z-index: 9000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.tip:hover::after, .tip:focus::after { opacity: 1; }
+
+/* ════════════════════════════════════════════════════════════════════
+   NET WORTH VARIANCE ROW
+   Shows "₹X,XX,XXX — up ₹Y (Z%) vs last month" at top of Plan tab.
+════════════════════════════════════════════════════════════════════ */
+.nw-variance-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(16, 185, 129, 0.06);
+    border: 1px solid rgba(16, 185, 129, 0.18);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.nw-variance-row.hidden { display: none; }
+.nw-variance-row .nw-var-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+.nw-variance-row .nw-var-current {
+    font-size: 15px;
+    font-weight: 800;
+    color: #34d399;
+    font-family: var(--font-mono);
+}
+.nw-variance-row .nw-var-delta {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-family: var(--font-mono);
+}
+.nw-variance-row .nw-var-delta.up {
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.1);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+}
+.nw-variance-row .nw-var-delta.down {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.nw-variance-row .nw-var-driver {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+    flex-basis: 100%;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   AT-POINT DISCLAIMER PILLS
+   Small contextual disclaimers next to projections.
+════════════════════════════════════════════════════════════════════ */
+.plan-disclaimer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: rgba(251, 191, 36, 0.65);
+    background: rgba(251, 191, 36, 0.06);
+    border: 1px solid rgba(251, 191, 36, 0.18);
+    border-radius: 20px;
+    padding: 3px 9px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.plan-disclaimer-pill svg { width: 10px; height: 10px; flex-shrink: 0; }
+
+/* ════════════════════════════════════════════════════════════════════
+   EMPTY STATE CARDS
+   Friendly empty states for Goals, Debts, Assets containers.
+════════════════════════════════════════════════════════════════════ */
+.empty-state-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px 20px;
+    text-align: center;
+    border: 1.5px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    background: rgba(255, 255, 255, 0.02);
+}
+.empty-state-card .es-icon { font-size: 28px; }
+.empty-state-card .es-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.65);
+    margin: 0;
+}
+.empty-state-card .es-sub {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.35);
+    line-height: 1.6;
+    max-width: 280px;
+}
+
+@media (max-width: 480px) {
+    .sebi-footer-block { padding: 14px 14px 12px; margin-top: 24px; }
+    .tip::after { font-size: 10px; }
 }
