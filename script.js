@@ -1082,6 +1082,17 @@ function loadAllData() {
 
         // No toast on load — silently restoring data is the expected behaviour
         updateInsuranceImpact();
+        // Sync range sliders to restored values
+        if (typeof _setSliderField === 'function') {
+            _setSliderField('u-rent',      'u-rent-range',      parseFloat(userData.rent)||0);
+            _setSliderField('u-groceries', 'u-groceries-range', parseFloat(userData.groceries)||0);
+            _setSliderField('u-cc',        'u-cc-range',        parseFloat(userData.cc)||0);
+            _setSliderField('u-life',      'u-life-range',      parseFloat(userData.life)||0);
+        }
+        if (typeof updateLiveBar === 'function') updateLiveBar();
+        if (typeof checkProgressiveDisclosure === 'function') {
+            setTimeout(checkProgressiveDisclosure, 80);
+        }
     } catch(e) {
         console.error('Error loading data:', e);
         // On parse failure fall back to defaults so the page isn't blank
@@ -1784,16 +1795,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     refreshProfileTopbar(); // run once on load
 
-    // Restore last active tab
-    const lastTab = (() => { try { return localStorage.getItem('aarth_active_tab') || 'intake'; } catch(e) { return 'intake'; } })();
-
-    // Run initial calculation in silent mode (no tab switch), then restore tab
+    // Always land on the intake (My Numbers) tab — never auto-restore to Plan/Dash.
+    // The user should always start with their data in front of them, not a stale result.
     const welcomeOverlay = document.getElementById('welcome-overlay');
     if (!welcomeOverlay || welcomeOverlay.classList.contains('hidden')) {
         setTimeout(() => {
-            calculateStrategy(true); // silentMode = don't switch to dash
-            switchTab(lastTab);      // restore the tab user was on before refresh
-            refreshProfileTopbar();  // ensure initial is correct after data load
+            switchTab('intake');     // always start on intake
+            calculateStrategy(true); // silent background recalc — no spinner
+            refreshProfileTopbar();
         }, 200);
     }
 });
@@ -2788,8 +2797,8 @@ function addIncomeSource(type, label, amount) {
                oninput="refreshIncomeBadge(); saveAllDataSilent();">
         <input type="number" class="income-src-amt" value="${amount || ''}"
                placeholder="₹ / month" inputmode="numeric" min="0"
-               oninput="refreshIncomeBadge(); updateInsuranceImpact(); saveAllDataSilent(); if(typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
-        <button class="income-src-del" onclick="document.getElementById('${id}').remove(); refreshIncomeBadge(); updateInsuranceImpact(); saveAllDataSilent(); if(typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
+               oninput="refreshIncomeBadge(); updateInsuranceImpact(); updateLiveBar(); if(typeof checkProgressiveDisclosure==='function') checkProgressiveDisclosure(); saveAllDataSilent(); if(typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
+        <button class="income-src-del" onclick="document.getElementById('${id}').remove(); refreshIncomeBadge(); updateInsuranceImpact(); updateLiveBar(); if(typeof checkProgressiveDisclosure==='function') checkProgressiveDisclosure(); saveAllDataSilent(); if(typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);" title="Remove">✕</button>
     `;
     container.appendChild(row);
     refreshIncomeBadge();
@@ -2956,14 +2965,19 @@ function calculateStrategy(silentMode = false) {
     const ctaLoading = document.querySelector('.cta-loading');
     const backdrop   = document.getElementById('compute-backdrop');
 
-    // TC-002: Hard-disable the button at the HTML level to block all input events
-    if (ctaBtn) { ctaBtn.disabled = true; ctaBtn.setAttribute('aria-busy', 'true'); }
+    // ── Silent-mode recalculations (triggered by live-input changes) must NOT
+    //    show the loading spinner, disable the CTA, or flash the backdrop.
+    //    Only explicit user-initiated "Build Blueprint" clicks get the full UI.
+    if (!silentMode) {
+        // TC-002: Hard-disable the button at the HTML level to block all input events
+        if (ctaBtn) { ctaBtn.disabled = true; ctaBtn.setAttribute('aria-busy', 'true'); }
 
-    // ── STATE ON CLICK: Show button loading state + full-screen guard backdrop ──
-    if (ctaBtn)     ctaBtn.classList.add('computing');
-    if (ctaDefault) ctaDefault.style.display = 'none';
-    if (ctaLoading) ctaLoading.style.display = 'flex';
-    if (backdrop)   backdrop.classList.remove('hidden');
+        // ── STATE ON CLICK: Show button loading state + full-screen guard backdrop ──
+        if (ctaBtn)     ctaBtn.classList.add('computing');
+        if (ctaDefault) ctaDefault.style.display = 'none';
+        if (ctaLoading) ctaLoading.style.display = 'flex';
+        if (backdrop)   backdrop.classList.remove('hidden');
+    }
 
     // ── rAF + setTimeout ensures browser PAINTS the guard backdrop + spinner
     //    before the heavy synchronous calculation blocks the thread ──
@@ -2987,11 +3001,13 @@ function calculateStrategy(silentMode = false) {
     // Zero-input guard: if income=0 and no assets, show "Insufficient data" state
     if (income === 0 && totalExp === 0) {
         isComputing = false;
-        if (ctaBtn) { ctaBtn.disabled = false; ctaBtn.removeAttribute('aria-busy'); ctaBtn.classList.remove('computing'); }
-        if (ctaDefault) ctaDefault.style.display = 'flex';
-        if (ctaLoading) ctaLoading.style.display = 'none';
-        if (backdrop)   backdrop.classList.add('hidden');
-        showErrorToast('Insufficient data — please enter your income and expenses first.', '📊');
+        if (!silentMode) {
+            if (ctaBtn) { ctaBtn.disabled = false; ctaBtn.removeAttribute('aria-busy'); ctaBtn.classList.remove('computing'); }
+            if (ctaDefault) ctaDefault.style.display = 'flex';
+            if (ctaLoading) ctaLoading.style.display = 'none';
+            if (backdrop)   backdrop.classList.add('hidden');
+            showErrorToast('Insufficient data — please enter your income and expenses first.', '📊');
+        }
         return;
     }
 
@@ -3906,7 +3922,7 @@ function calculateStrategy(silentMode = false) {
     if (_sid('monthly-allocator-body')) _sid('monthly-allocator-body').innerHTML = allocHTML;
 
     // ══ POP THE COMPUTE BUTTON BACK ══
-    if (ctaBtn) ctaBtn.classList.remove('computing');
+    if (!silentMode && ctaBtn) ctaBtn.classList.remove('computing');
 
     // Show Smart Withdraw FAB now that data is computed
     const fabEl = document.getElementById('smart-withdraw-fab');
@@ -4003,22 +4019,24 @@ function calculateStrategy(silentMode = false) {
 
     } catch(err) {
         console.error('calculateStrategy error:', err);
-        showSuccessToast('Something went wrong — please fill in your numbers and try again.', '⚠️');
+        if (!silentMode) showSuccessToast('Something went wrong — please fill in your numbers and try again.', '⚠️');
     } finally {
         // ── STATE COMPLETION: Hide guard backdrop + restore button ──
         isComputing = false; // State back to false — allow next computation
 
-        // Hide backdrop to show celebration/dashboard underneath
-        if (backdrop) backdrop.classList.add('hidden');
+        if (!silentMode) {
+            // Hide backdrop to show celebration/dashboard underneath
+            if (backdrop) backdrop.classList.add('hidden');
 
-        // Restore button to default state whether calculation succeeded or failed
-        if (ctaBtn) {
-            ctaBtn.classList.remove('computing');
-            ctaBtn.disabled = false;
-            ctaBtn.removeAttribute('aria-busy');
+            // Restore button to default state whether calculation succeeded or failed
+            if (ctaBtn) {
+                ctaBtn.classList.remove('computing');
+                ctaBtn.disabled = false;
+                ctaBtn.removeAttribute('aria-busy');
+            }
+            if (ctaDefault) ctaDefault.style.display = 'flex';
+            if (ctaLoading) ctaLoading.style.display = 'none';
         }
-        if (ctaDefault) ctaDefault.style.display = 'flex';
-        if (ctaLoading) ctaLoading.style.display = 'none';
 
         // ── DOM CLEANUP: Ensure no stale references remain ──
         // (The hidden class uses display: none, so the element stays in DOM but is invisible)
@@ -8570,16 +8588,353 @@ function updateRiskBadge() {
 
 // ── On DOMContentLoaded: initialise live bar and insurance defaults ────────────
 document.addEventListener('DOMContentLoaded', () => {
-    // Give all initial default values a moment to settle, then paint the live bar
     setTimeout(() => {
         updateLiveBar();
-
-        // Make sure insurance premium groups start in the correct visible state
-        // (both default to "yes", so both premium groups should be visible)
         const medGroup  = document.getElementById('med-premium-group');
         const termGroup = document.getElementById('term-premium-group');
         if (medGroup)  medGroup.style.display  = '';
         if (termGroup) termGroup.style.display = '';
     }, 120);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  GUIDED DISCOVERY ENGINE — v202604200005
+//  Progressive disclosure · sliders · age defaults · surplus banner · pulse
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Slider sync helpers ───────────────────────────────────────────────────────
+// Called by range → number sync (drag updates the text field)
+function syncSlider(numId, rangeId) {
+    const num   = document.getElementById(numId);
+    const range = document.getElementById(rangeId);
+    if (!num || !range) return;
+    num.value = range.value;
+    _updateRangeFill(range);
+}
+
+// Called by number → range sync (typing updates the thumb)
+function syncInput(numId, rangeId) {
+    const num   = document.getElementById(numId);
+    const range = document.getElementById(rangeId);
+    if (!num || !range) return;
+    const v = Math.min(parseFloat(num.value) || 0, parseFloat(range.max) || 999999);
+    range.value = v;
+    _updateRangeFill(range);
+}
+
+// Paints the green filled portion of the track using a CSS custom property
+function _updateRangeFill(rangeEl) {
+    if (!rangeEl) return;
+    const min = parseFloat(rangeEl.min) || 0;
+    const max = parseFloat(rangeEl.max) || 1;
+    const val = parseFloat(rangeEl.value) || 0;
+    const pct = Math.round(((val - min) / (max - min)) * 100);
+    rangeEl.style.setProperty('--val', pct + '%');
+}
+
+// Initialise all range fills on page load
+function initAllRangeFills() {
+    document.querySelectorAll('input[type="range"]').forEach(r => _updateRangeFill(r));
+}
+
+// ── Income quick-set slider ───────────────────────────────────────────────────
+// Dragging the income slider updates/creates the first salary row
+function syncIncomeSlider(val) {
+    val = Math.round(parseFloat(val) || 0);
+    // Update the number display
+    const numEl = document.getElementById('income-quickset-num');
+    if (numEl) numEl.value = val || '';
+    // Update range fill
+    _updateRangeFill(document.getElementById('income-quickset-range'));
+    // Push into the first income-source-row (salary) or create one
+    _pushSalaryRow(val);
+    refreshIncomeBadge();
+    updateLiveBar();
+    checkProgressiveDisclosure();
+}
+
+function syncIncomeSliderFromNum(val) {
+    val = Math.round(parseFloat(val) || 0);
+    const rangeEl = document.getElementById('income-quickset-range');
+    if (rangeEl) {
+        rangeEl.value = Math.min(val, parseFloat(rangeEl.max) || 500000);
+        _updateRangeFill(rangeEl);
+    }
+    _pushSalaryRow(val);
+    refreshIncomeBadge();
+    updateLiveBar();
+    checkProgressiveDisclosure();
+}
+
+function _pushSalaryRow(val) {
+    // Find the first salary-type row and update it, or create one
+    const container = document.getElementById('income-sources-container');
+    if (!container) return;
+    let firstRow = container.querySelector('.income-source-row');
+    if (!firstRow) {
+        addIncomeSource('salary', '💼 Salary', val);
+        return;
+    }
+    const amtField = firstRow.querySelector('.income-src-amt');
+    if (amtField) amtField.value = val > 0 ? val : '';
+}
+
+// ── fillExpensePreset override — also syncs sliders ─────────────────────────
+// Override the earlier fillExpensePreset to also update the range thumbs
+const _origFillExpensePreset = (typeof fillExpensePreset !== 'undefined') ? fillExpensePreset : null;
+function fillExpensePreset(preset) {
+    const presets = {
+        metro:  { rent: 30000, groceries: 15000, cc: 18000, life: 12000 },
+        tier2:  { rent: 15000, groceries: 10000, cc: 10000, life:  8000 },
+        frugal: { rent: 10000, groceries:  8000, cc:  5000, life:  5000 }
+    };
+    const p = presets[preset];
+    if (!p) return;
+
+    _setSliderField('u-rent',      'u-rent-range',      p.rent);
+    _setSliderField('u-groceries', 'u-groceries-range', p.groceries);
+    _setSliderField('u-cc',        'u-cc-range',        p.cc);
+    _setSliderField('u-life',      'u-life-range',      p.life);
+
+    const dot = document.getElementById('dot-expenses');
+    if (dot) {
+        dot.style.background  = '#34d399';
+        dot.style.borderColor = '#34d399';
+        dot.style.boxShadow   = '0 0 0 6px rgba(52,211,153,0.18)';
+        setTimeout(() => { dot.style.background=''; dot.style.borderColor=''; dot.style.boxShadow=''; }, 900);
+    }
+    updateLiveBar();
+    checkProgressiveDisclosure();
+    if (typeof updateInsuranceImpact === 'function') updateInsuranceImpact();
+}
+
+function _setSliderField(numId, rangeId, val) {
+    const num   = document.getElementById(numId);
+    const range = document.getElementById(rangeId);
+    if (num)   num.value   = val;
+    if (range) { range.value = Math.min(val, parseFloat(range.max)||999999); _updateRangeFill(range); }
+}
+
+// ── Age-based smart defaults ──────────────────────────────────────────────────
+// Called when the user changes the age field. Pre-fills expense sliders with
+// sensible Indian averages so the user adjusts rather than invents numbers.
+function applyAgeDefaults(ageRaw) {
+    const age = parseInt(ageRaw) || 0;
+    if (age < 18 || age > 80) return;
+
+    // Only auto-fill if the user hasn't manually changed any expense field yet
+    const currentTotal = (parseFloat(document.getElementById('u-rent')      ?.value)||0) +
+                         (parseFloat(document.getElementById('u-groceries')  ?.value)||0) +
+                         (parseFloat(document.getElementById('u-cc')         ?.value)||0) +
+                         (parseFloat(document.getElementById('u-life')        ?.value)||0);
+    if (currentTotal > 0) return; // already customised, don't overwrite
+
+    // Age-tiered Indian expense defaults
+    let d;
+    if      (age < 24) d = { rent:  9000, groceries: 6000, cc:  5000, life:  5000 };
+    else if (age < 28) d = { rent: 14000, groceries: 9000, cc:  8000, life:  7000 };
+    else if (age < 33) d = { rent: 20000, groceries:12000, cc: 12000, life: 10000 };
+    else if (age < 40) d = { rent: 26000, groceries:14000, cc: 15000, life: 12000 };
+    else if (age < 50) d = { rent: 28000, groceries:16000, cc: 18000, life: 14000 };
+    else               d = { rent: 22000, groceries:14000, cc: 12000, life: 10000 };
+
+    _setSliderField('u-rent',      'u-rent-range',      d.rent);
+    _setSliderField('u-groceries', 'u-groceries-range', d.groceries);
+    _setSliderField('u-cc',        'u-cc-range',        d.cc);
+    _setSliderField('u-life',      'u-life-range',      d.life);
+
+    // Show the notice
+    const notice = document.getElementById('age-default-notice');
+    if (notice) {
+        notice.classList.add('show');
+        setTimeout(() => notice.classList.remove('show'), 6000);
+    }
+
+    updateLiveBar();
+
+    // Age hint
+    const hintEl = document.getElementById('hint-age');
+    if (hintEl && age > 0) {
+        const yearsToRetire = Math.max(0, 60 - age);
+        hintEl.className = 'inline-hint';
+        hintEl.textContent = `${yearsToRetire} years to typical retirement · FI could be much sooner.`;
+    }
+}
+
+// ── Progressive Disclosure ────────────────────────────────────────────────────
+// Called on every input change. Unlocks sections as the user fills in data.
+function checkProgressiveDisclosure() {
+    try {
+        const name   = (document.getElementById('u-name') || {}).value || '';
+        const age    = parseInt((document.getElementById('u-age') || {}).value) || 0;
+        const income = getTotalIncome();
+        const incomeQuick = parseFloat(document.getElementById('income-quickset-num')?.value || '0') || 0;
+        const totalIncome = Math.max(income, incomeQuick);
+
+        const anyExp = (parseFloat(document.getElementById('u-rent')?.value)||0) +
+                       (parseFloat(document.getElementById('u-groceries')?.value)||0) +
+                       (parseFloat(document.getElementById('u-cc')?.value)||0) +
+                       (parseFloat(document.getElementById('u-life')?.value)||0);
+
+        // Step 1 → Step 2: name has ≥2 chars OR valid age
+        const step1Done = name.trim().length >= 2 || (age >= 18 && age <= 80);
+
+        // Step 2 → Step 3: income entered
+        const step2Done = step1Done && totalIncome > 0;
+
+        // Step 3 → Steps 4-8: any expense entered
+        const step3Done = step2Done && anyExp > 0;
+
+        // Personalised greeting once name is entered
+        if (name.trim().length >= 2) {
+            const hero = document.querySelector('.intake-hero-title');
+            if (hero && !hero.dataset.personalised) {
+                hero.dataset.personalised = '1';
+                const firstName = name.trim().split(' ')[0];
+                hero.textContent = `Hi ${firstName}, let's map your money 👋`;
+            }
+        }
+
+        if (step1Done) unlockSection('section-income');
+        if (step2Done) unlockSection('section-expenses');
+
+        if (step3Done) {
+            // Cascade unlock with stagger so it feels like a reward sequence
+            unlockSection('section-insurance');
+            setTimeout(() => unlockSection('section-portfolio'),  80);
+            setTimeout(() => unlockSection('section-debts'),     160);
+            setTimeout(() => unlockSection('section-goals'),     240);
+            setTimeout(() => unlockSection('section-risk'),      320);
+        }
+
+        // Update surplus banner
+        updateSurplusBanner(totalIncome, anyExp);
+
+    } catch(e) { /* silent */ }
+}
+
+// Unlocks a single section with a smooth reveal animation
+function unlockSection(id) {
+    const el = document.getElementById(id);
+    if (!el || !el.classList.contains('section-locked')) return;
+    el.classList.remove('section-locked');
+    el.classList.add('section-unlocking');
+    // Pulse the dot
+    const dot = el.querySelector('.section-dot');
+    if (dot) {
+        dot.style.background  = '#34d399';
+        dot.style.borderColor = '#34d399';
+        setTimeout(() => { dot.style.background=''; dot.style.borderColor=''; }, 1200);
+    }
+    setTimeout(() => el.classList.remove('section-unlocking'), 600);
+}
+
+// ── Floating Surplus Banner ───────────────────────────────────────────────────
+function updateSurplusBanner(income, expenses) {
+    const banner = document.getElementById('surplus-float');
+    const amtEl  = document.getElementById('surplus-float-amount');
+    const subEl  = document.getElementById('surplus-float-sub');
+    const lblEl  = document.getElementById('surplus-float-label');
+    if (!banner || !amtEl) return;
+
+    if (income <= 0) { banner.classList.remove('visible','danger','warn'); return; }
+
+    const surplus = income - expenses;
+    const fmt = n => {
+        if (Math.abs(n) >= 100000) return '₹' + (n/100000).toFixed(1) + 'L';
+        if (Math.abs(n) >= 1000)   return '₹' + (n/1000).toFixed(0)   + 'K';
+        return '₹' + Math.round(n).toLocaleString('en-IN');
+    };
+
+    amtEl.textContent = fmt(Math.abs(surplus));
+    banner.classList.remove('danger','warn');
+
+    if (surplus < 0) {
+        banner.classList.add('danger');
+        lblEl.textContent = 'Monthly shortfall ⚠️';
+        subEl.textContent = 'Expenses exceed income — let\'s fix this first.';
+    } else if (surplus < income * 0.10) {
+        banner.classList.add('warn');
+        lblEl.textContent = 'Available to invest';
+        subEl.textContent = 'Savings rate under 10% — aim for 20%+ to build wealth.';
+    } else {
+        const rate = Math.round(surplus / income * 100);
+        lblEl.textContent = 'Available to invest this month 🎯';
+        subEl.textContent = `${rate}% savings rate${rate >= 30 ? ' — excellent! 🚀' : rate >= 20 ? ' — on track 👍' : ' — room to grow'}`;
+    }
+
+    banner.classList.add('visible');
+}
+
+// ── Insurance Confetti Pulse ──────────────────────────────────────────────────
+// Override setInsurance to add the visual celebration when user says "yes"
+const _origSetInsurance = (typeof setInsurance !== 'undefined') ? null : null; // marker
+function setInsurance(type, val) {
+    try {
+        const isYes = val === 'yes';
+        const selectEl = document.getElementById('u-' + type);
+        if (selectEl) { selectEl.value = isYes ? 'yes' : 'no'; selectEl.dispatchEvent(new Event('change')); }
+
+        const yesBtn = document.getElementById('btn-' + type + '-yes');
+        const noBtn  = document.getElementById('btn-' + type + '-no');
+        if (yesBtn) yesBtn.className = 'ins-toggle-btn' + (isYes ? ' active-yes' : '');
+        if (noBtn)  noBtn.className  = 'ins-toggle-btn' + (!isYes ? ' active-no'  : '');
+
+        const premGroup = document.getElementById(type + '-premium-group');
+        if (premGroup) premGroup.style.display = isYes ? '' : 'none';
+        if (!isYes) { const p = document.getElementById('u-' + type + '-premium'); if (p) p.value = ''; }
+
+        // ── Confetti burst on the section dot when covered ──
+        if (isYes) {
+            const dot = document.getElementById('dot-insurance');
+            if (dot) {
+                // Pulse the dot
+                dot.classList.remove('dot-ins-pulse');
+                void dot.offsetWidth; // reflow
+                dot.classList.add('dot-ins-pulse');
+                dot.style.background  = '#34d399';
+                dot.style.borderColor = '#34d399';
+                // Spawn confetti children
+                for (let i = 0; i < 6; i++) {
+                    const c = document.createElement('span');
+                    c.className = 'confetti-burst';
+                    dot.style.position = 'relative'; // ensure parent is positioned
+                    dot.appendChild(c);
+                    setTimeout(() => c.remove(), 580);
+                }
+                setTimeout(() => {
+                    dot.classList.remove('dot-ins-pulse');
+                    dot.style.background  = '';
+                    dot.style.borderColor = '';
+                }, 700);
+            }
+        }
+
+        // Insurance badge
+        const medVal  = (document.getElementById('u-med')  || {}).value || 'yes';
+        const termVal = (document.getElementById('u-term') || {}).value || 'yes';
+        const insBadge = document.getElementById('badge-insurance');
+        if (insBadge) {
+            if (medVal === 'yes' && termVal === 'yes') {
+                insBadge.textContent = '✅ Covered'; insBadge.style.color = '#34d399';
+            } else if (medVal === 'no' && termVal === 'no') {
+                insBadge.textContent = '⚠️ At risk'; insBadge.style.color = '#f87171';
+            } else {
+                insBadge.textContent = 'Partially covered'; insBadge.style.color = '#fbbf24';
+            }
+        }
+        updateLiveBar();
+    } catch(e) { /* silent */ }
+}
+
+// ── Boot: initialise range fills and run initial disclosure check ─────────────
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        initAllRangeFills();
+        checkProgressiveDisclosure();
+        // If restoring from localStorage, run disclosure check after data loads
+        // (saveAllDataSilent / loadSavedData typically runs in the first 300ms)
+        setTimeout(checkProgressiveDisclosure, 350);
+    }, 150);
 });
 

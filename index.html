@@ -6,7 +6,7 @@
     <title>Aarth Sutra | The Logic of Wealth. The Code of Wisdom.</title>
     <meta name="description" content="Aarth Sutra — Precision wealth planning for the modern professional. 100% Secure, 100% Local.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:ital,wght@0,600;0,700;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=202604200001">
+    <link rel="stylesheet" href="styles.css?v=202604200005">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -146,29 +146,50 @@
                     <div class="grid-2">
                         <div class="form-group">
                             <label>Your Name</label>
-                            <input type="text" id="u-name" placeholder="e.g. Priya Sharma" value=""
-                                oninput="updateLiveBar()">
+                            <input type="text" id="u-name" placeholder="e.g. Priya" value=""
+                                oninput="updateLiveBar(); checkProgressiveDisclosure();">
                         </div>
                         <div class="form-group">
-                            <label>Current Age</label>
-                            <input type="number" id="u-age" placeholder="e.g. 28" value="28" min="18" max="65" inputmode="numeric" pattern="[0-9]*"
-                                oninput="updateLiveBar()">
+                            <label>Your age</label>
+                            <input type="number" id="u-age" placeholder="e.g. 28" value="" min="18" max="80" inputmode="numeric" pattern="[0-9]*"
+                                oninput="updateLiveBar(); checkProgressiveDisclosure(); applyAgeDefaults(this.value);">
                             <div class="inline-hint" id="hint-age"></div>
                         </div>
+                    </div>
+                    <div class="age-default-notice" id="age-default-notice">
+                        ✨ We've pre-filled typical Indian expenses for your age group — adjust to match your actual life.
                     </div>
                 </div>
 
                 <!-- ── 2. HOW MUCH DO YOU EARN ── -->
-                <div class="intake-section" id="section-income">
+                <div class="intake-section section-locked" id="section-income">
                     <div class="section-dot" id="dot-income"></div>
                     <div class="section-header-row">
                         <div>
-                            <div class="section-title">💰 What do you earn every month?</div>
-                            <div class="section-subtitle">Add every income source — salary, rent, freelance, dividends</div>
+                            <div class="section-title">💰 What hits your bank account every month?</div>
+                            <div class="section-subtitle">Every rupee in — salary, freelance, rent, dividends</div>
                         </div>
                         <span class="section-badge" id="badge-income">Add income</span>
                     </div>
 
+                    <!-- Primary income quick-set slider -->
+                    <div class="slider-field" style="margin-bottom:16px;" id="income-quickset-wrap">
+                        <label>Drag to set your main monthly take-home</label>
+                        <div class="slider-wrap income-slider">
+                            <input type="range" id="income-quickset-range"
+                                   min="0" max="500000" step="1000" value="0"
+                                   oninput="syncIncomeSlider(this.value)">
+                            <div class="slider-end-labels"><span>₹0</span><span>₹5L</span></div>
+                        </div>
+                        <div class="slider-value-row income-val">
+                            <span class="slider-rupee">₹</span>
+                            <input type="number" id="income-quickset-num"
+                                   placeholder="0" value="" inputmode="numeric" min="0" max="500000"
+                                   oninput="syncIncomeSliderFromNum(this.value)">
+                        </div>
+                    </div>
+
+                    <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">+ More income sources</div>
                     <div id="income-sources-container"></div>
 
                     <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 14px;">
@@ -198,50 +219,88 @@
                 </div>
 
                 <!-- ── 3. WHAT DO YOU SPEND ── -->
-                <div class="intake-section" id="section-expenses">
+                <div class="intake-section section-locked" id="section-expenses">
                     <div class="section-dot" id="dot-expenses"></div>
                     <div class="section-header-row">
                         <div>
-                            <div class="section-title">🛒 What do you spend every month?</div>
-                            <div class="section-subtitle">Rough numbers are fine — you can update these anytime</div>
+                            <div class="section-title">🛒 Where does the money go?</div>
+                            <div class="section-subtitle">Drag to set — rough numbers are totally fine</div>
                         </div>
                         <span class="section-badge" id="badge-expenses">Required</span>
                     </div>
 
-                    <div class="expense-chips">
+                    <div class="expense-chips" style="margin-bottom:16px;">
                         <span style="font-size:10px;color:rgba(255,255,255,0.3);align-self:center;">Quick fill:</span>
                         <button class="expense-chip" onclick="fillExpensePreset('metro')">🏙️ Metro city</button>
                         <button class="expense-chip" onclick="fillExpensePreset('tier2')">🏘️ Tier-2 city</button>
                         <button class="expense-chip" onclick="fillExpensePreset('frugal')">🌿 Frugal</button>
                     </div>
 
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label>Rent &amp; Utilities</label>
-                            <input type="number" id="u-rent" placeholder="e.g. 20,000" value="25000" inputmode="numeric" pattern="[0-9]*"
-                                oninput="updateInsuranceImpact(); updateLiveBar()">
+                    <!-- Slider: Rent & Utilities -->
+                    <div class="slider-field" style="margin-bottom:20px;">
+                        <label>🏠 How much goes to the landlord &amp; bills?</label>
+                        <div class="slider-wrap" id="wrap-rent">
+                            <input type="range" id="u-rent-range" min="0" max="80000" step="500" value="0"
+                                   oninput="syncSlider('u-rent','u-rent-range'); updateInsuranceImpact(); updateLiveBar(); checkProgressiveDisclosure();">
+                            <div class="slider-end-labels"><span>₹0</span><span>₹80K</span></div>
                         </div>
-                        <div class="form-group">
-                            <label>Food &amp; Groceries</label>
-                            <input type="number" id="u-groceries" placeholder="e.g. 12,000" value="15000" inputmode="numeric" pattern="[0-9]*"
-                                oninput="updateInsuranceImpact(); updateLiveBar()">
-                        </div>
-                        <div class="form-group">
-                            <label>EMIs &amp; Recurring Bills</label>
-                            <input type="number" id="u-cc" placeholder="e.g. 10,000" value="15000" inputmode="numeric" pattern="[0-9]*"
-                                oninput="updateInsuranceImpact(); updateLiveBar()">
-                        </div>
-                        <div class="form-group">
-                            <label>Lifestyle &amp; Miscellaneous</label>
-                            <input type="number" id="u-life" placeholder="e.g. 8,000" value="10000" inputmode="numeric" pattern="[0-9]*"
-                                oninput="updateInsuranceImpact(); updateLiveBar()">
+                        <div class="slider-value-row">
+                            <span class="slider-rupee">₹</span>
+                            <input type="number" id="u-rent" placeholder="0" value="0" min="0" max="200000" inputmode="numeric"
+                                   oninput="syncInput('u-rent','u-rent-range'); updateInsuranceImpact(); updateLiveBar(); checkProgressiveDisclosure();">
                         </div>
                     </div>
-                    <div class="inline-hint" id="hint-expenses"></div>
+
+                    <!-- Slider: Food & Groceries -->
+                    <div class="slider-field" style="margin-bottom:20px;">
+                        <label>🍱 Food, groceries, and eating out?</label>
+                        <div class="slider-wrap" id="wrap-groceries">
+                            <input type="range" id="u-groceries-range" min="0" max="40000" step="500" value="0"
+                                   oninput="syncSlider('u-groceries','u-groceries-range'); updateInsuranceImpact(); updateLiveBar();">
+                            <div class="slider-end-labels"><span>₹0</span><span>₹40K</span></div>
+                        </div>
+                        <div class="slider-value-row">
+                            <span class="slider-rupee">₹</span>
+                            <input type="number" id="u-groceries" placeholder="0" value="0" min="0" max="100000" inputmode="numeric"
+                                   oninput="syncInput('u-groceries','u-groceries-range'); updateInsuranceImpact(); updateLiveBar();">
+                        </div>
+                    </div>
+
+                    <!-- Slider: EMIs & Bills -->
+                    <div class="slider-field" style="margin-bottom:20px;">
+                        <label>💳 EMIs, subscriptions &amp; recurring bills?</label>
+                        <div class="slider-wrap" id="wrap-cc">
+                            <input type="range" id="u-cc-range" min="0" max="80000" step="500" value="0"
+                                   oninput="syncSlider('u-cc','u-cc-range'); updateInsuranceImpact(); updateLiveBar();">
+                            <div class="slider-end-labels"><span>₹0</span><span>₹80K</span></div>
+                        </div>
+                        <div class="slider-value-row">
+                            <span class="slider-rupee">₹</span>
+                            <input type="number" id="u-cc" placeholder="0" value="0" min="0" max="200000" inputmode="numeric"
+                                   oninput="syncInput('u-cc','u-cc-range'); updateInsuranceImpact(); updateLiveBar();">
+                        </div>
+                    </div>
+
+                    <!-- Slider: Lifestyle -->
+                    <div class="slider-field" style="margin-bottom:8px;">
+                        <label>🎉 Fun money — shopping, outings, everything else?</label>
+                        <div class="slider-wrap" id="wrap-life">
+                            <input type="range" id="u-life-range" min="0" max="60000" step="500" value="0"
+                                   oninput="syncSlider('u-life','u-life-range'); updateInsuranceImpact(); updateLiveBar();">
+                            <div class="slider-end-labels"><span>₹0</span><span>₹60K</span></div>
+                        </div>
+                        <div class="slider-value-row">
+                            <span class="slider-rupee">₹</span>
+                            <input type="number" id="u-life" placeholder="0" value="0" min="0" max="200000" inputmode="numeric"
+                                   oninput="syncInput('u-life','u-life-range'); updateInsuranceImpact(); updateLiveBar();">
+                        </div>
+                    </div>
+
+                    <div class="inline-hint" id="hint-expenses" style="margin-top:10px;"></div>
                 </div>
 
                 <!-- ── 4. PROTECTION ── -->
-                <div class="intake-section" id="section-insurance">
+                <div class="intake-section section-locked" id="section-insurance">
                     <div class="section-dot" id="dot-insurance"></div>
                     <div class="section-header-row">
                         <div>
@@ -290,7 +349,7 @@
                 </div>
 
                 <!-- ── 5. YOUR MONEY SO FAR ── -->
-                <div class="intake-section" id="section-portfolio">
+                <div class="intake-section section-locked" id="section-portfolio">
                     <div class="section-dot" id="dot-portfolio"></div>
                     <div class="section-header-row">
                         <div>
@@ -316,7 +375,7 @@
                 </div>
 
                 <!-- ── 6. LOANS & DEBTS ── -->
-                <div class="intake-section" style="border-color:rgba(245,158,11,0.15);" id="section-debts">
+                <div class="intake-section section-locked" style="border-color:rgba(245,158,11,0.15);" id="section-debts">
                     <div class="section-dot" style="border-color:rgba(245,158,11,0.5);" id="dot-debts"></div>
                     <div class="section-header-row">
                         <div>
@@ -335,7 +394,7 @@
                 </div>
 
                 <!-- ── 7. GOALS (collapsible) ── -->
-                <div class="intake-section" style="border-color:rgba(129,140,248,0.15);" id="section-goals">
+                <div class="intake-section section-locked" style="border-color:rgba(129,140,248,0.15);" id="section-goals">
                     <div class="section-dot" style="border-color:rgba(129,140,248,0.5);" id="dot-goals"></div>
                     <div class="section-header-row" style="margin-bottom:0;">
                         <div>
@@ -367,7 +426,7 @@
                 </div>
 
                 <!-- ── 8. RISK COMFORT (collapsible) ── -->
-                <div class="intake-section" style="border-color:rgba(168,85,247,0.15);" id="section-risk">
+                <div class="intake-section section-locked" style="border-color:rgba(168,85,247,0.15);" id="section-risk">
                     <div class="section-dot" style="border-color:rgba(168,85,247,0.5);" id="dot-risk"></div>
                     <div class="section-header-row" style="margin-bottom:0;">
                         <div>
@@ -1498,7 +1557,7 @@
     </div>
 </div>
 
-<script src="script.js?v=202604200004"></script>
+<script src="script.js?v=202604200006"></script>
 <script src="library.js?v=202604170010"></script>
 
 <!-- ══════════════════════════════════════════════════
@@ -1531,5 +1590,18 @@
     <span class="fab-label">Smart Withdraw</span>
 </button>
 
+<!-- ── FLOATING SURPLUS BANNER ── -->
+<div class="surplus-float" id="surplus-float">
+    <div class="surplus-float-inner">
+        <div class="surplus-float-left">
+            <div class="surplus-float-label" id="surplus-float-label">Available to invest this month</div>
+            <div class="surplus-float-amount" id="surplus-float-amount">₹—</div>
+            <div class="surplus-float-sub" id="surplus-float-sub">Fill in your income &amp; expenses above</div>
+        </div>
+        <button class="surplus-float-action" onclick="document.getElementById('compute-btn')?.scrollIntoView({behavior:'smooth',block:'center'})">
+            Build<br>Blueprint ↓
+        </button>
+    </div>
+</div>
 </body>
 </html>
