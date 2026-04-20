@@ -8297,3 +8297,289 @@ ${name}'s profile:
     if (sendBtn) sendBtn.disabled = false;
 };
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  INTAKE FORM — LIVE HELPERS (v202604200004)
+//  Called by the seamless conversational intake form in index.html
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── updateLiveBar ─────────────────────────────────────────────────────────────
+// Reads the current income, expense, and portfolio inputs and updates the four
+// "running total" cells in the live snapshot bar at the top of the intake form.
+function updateLiveBar() {
+    try {
+        // Income — sum all income-source rows (or fall back to hidden field)
+        const income = getTotalIncome();
+
+        // Expenses — four fixed expense fields
+        const rent      = parseINR((document.getElementById('u-rent')       || {}).value);
+        const groceries = parseINR((document.getElementById('u-groceries')  || {}).value);
+        const cc        = parseINR((document.getElementById('u-cc')         || {}).value);
+        const life      = parseINR((document.getElementById('u-life')       || {}).value);
+        const medPrem   = parseINR((document.getElementById('u-med-premium') || {}).value);
+        const termPrem  = parseINR((document.getElementById('u-term-premium')|| {}).value);
+        const totalExp  = rent + groceries + cc + life + medPrem + termPrem;
+
+        // Portfolio — sum all asset values
+        let totalAssets = 0;
+        document.querySelectorAll('.dy-account .a-p').forEach(inp => {
+            totalAssets += parseINR(inp.value);
+        });
+
+        // Debts — sum all debt principals (for net worth)
+        let totalDebts = 0;
+        document.querySelectorAll('.dy-debt .d-p').forEach(inp => {
+            totalDebts += parseINR(inp.value);
+        });
+
+        const investable = Math.max(0, income - totalExp);
+        const netWorth   = totalAssets - totalDebts;
+
+        // Render helpers
+        const fmt = (n) => {
+            if (!n || n === 0) return '₹—';
+            if (n >= 10000000) return '₹' + (n / 10000000).toFixed(1) + 'Cr';
+            if (n >= 100000)   return '₹' + (n / 100000).toFixed(1) + 'L';
+            if (n >= 1000)     return '₹' + (n / 1000).toFixed(0) + 'K';
+            return '₹' + Math.round(n).toLocaleString('en-IN');
+        };
+
+        const setCell = (id, value, colorClass) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = fmt(value);
+            el.className = 'bar-value ' + (colorClass || '');
+        };
+
+        setCell('bar-income',    income,     income > 0 ? 'positive' : '');
+        setCell('bar-expenses',  totalExp,   totalExp > income && income > 0 ? 'negative' : '');
+        setCell('bar-investable',investable, investable > 0 ? 'positive' : (investable < 0 ? 'negative' : ''));
+        setCell('bar-networth',  netWorth,   netWorth > 0 ? 'positive' : (netWorth < 0 ? 'negative' : ''));
+
+        // Inline hint on expenses section
+        const hintEl = document.getElementById('hint-expenses');
+        if (hintEl && income > 0) {
+            const savingsRate = (investable / income * 100).toFixed(0);
+            if (investable < 0) {
+                hintEl.className = 'inline-hint warn';
+                hintEl.textContent = '⚠️ Expenses exceed income — review the numbers above.';
+            } else if (savingsRate < 10) {
+                hintEl.className = 'inline-hint warn';
+                hintEl.textContent = `Savings rate: ${savingsRate}% — aim for at least 20% to build wealth.`;
+            } else {
+                hintEl.className = 'inline-hint good';
+                hintEl.textContent = `Savings rate: ${savingsRate}% — ${savingsRate >= 30 ? 'excellent! 🚀' : savingsRate >= 20 ? 'good 👍' : 'room to grow.'}`;
+            }
+        } else if (hintEl) {
+            hintEl.textContent = '';
+        }
+
+        // Inline hint on income section
+        const incHintEl = document.getElementById('hint-income');
+        if (incHintEl && income > 0) {
+            if (income >= 200000) {
+                incHintEl.className = 'inline-hint good';
+                incHintEl.textContent = `₹${(income/100000).toFixed(1)}L/mo — strong income base to build serious wealth.`;
+            } else if (income >= 50000) {
+                incHintEl.className = 'inline-hint good';
+                incHintEl.textContent = `₹${(income/1000).toFixed(0)}K/mo — you can build real wealth at this income.`;
+            } else if (income > 0) {
+                incHintEl.className = 'inline-hint';
+                incHintEl.textContent = `₹${(income/1000).toFixed(0)}K/mo — every rupee invested now compounds significantly.`;
+            }
+        }
+
+        // Also keep the section badges updated
+        const incomeBadge = document.getElementById('badge-income');
+        if (incomeBadge && income > 0) {
+            incomeBadge.textContent = fmt(income) + '/mo';
+        }
+
+    } catch(e) {
+        // Silent — never break the form on a display error
+    }
+}
+
+// ── setInsurance ──────────────────────────────────────────────────────────────
+// Handles the visual toggle buttons for health and term insurance.
+// Updates the hidden <select> fields that calculateStrategy() reads,
+// and toggles the premium input group visibility.
+function setInsurance(type, val) {
+    try {
+        const isYes = val === 'yes';
+
+        // Update hidden select (backward-compat with calculateStrategy)
+        const selectEl = document.getElementById('u-' + type);
+        if (selectEl) {
+            selectEl.value = isYes ? 'yes' : 'no';
+            // Fire change event so any listeners on the select also trigger
+            selectEl.dispatchEvent(new Event('change'));
+        }
+
+        // Toggle button active states
+        const yesBtn = document.getElementById('btn-' + type + '-yes');
+        const noBtn  = document.getElementById('btn-' + type + '-no');
+        if (yesBtn) {
+            yesBtn.className = 'ins-toggle-btn' + (isYes ? ' active-yes' : '');
+        }
+        if (noBtn) {
+            noBtn.className = 'ins-toggle-btn' + (!isYes ? ' active-no' : '');
+        }
+
+        // Premium group: show when covered (so they can optionally enter premium)
+        // hide when "not yet" (premium is irrelevant)
+        const premGroup = document.getElementById(type + '-premium-group');
+        if (premGroup) {
+            premGroup.style.display = isYes ? '' : 'none';
+        }
+
+        // Clear the premium field when toggling to "no"
+        if (!isYes) {
+            const premInput = document.getElementById('u-' + type + '-premium');
+            if (premInput) premInput.value = '';
+        }
+
+        // Refresh the insurance section badge
+        const medVal  = (document.getElementById('u-med')  || {}).value || 'yes';
+        const termVal = (document.getElementById('u-term') || {}).value || 'yes';
+        const insBadge = document.getElementById('badge-insurance');
+        if (insBadge) {
+            if (medVal === 'yes' && termVal === 'yes') {
+                insBadge.textContent = '✅ Covered';
+                insBadge.style.color = '#34d399';
+            } else if (medVal === 'no' && termVal === 'no') {
+                insBadge.textContent = '⚠️ At risk';
+                insBadge.style.color = '#f87171';
+            } else {
+                insBadge.textContent = 'Partially covered';
+                insBadge.style.color = '#fbbf24';
+            }
+        }
+
+        updateLiveBar();
+
+    } catch(e) { /* silent */ }
+}
+
+// ── fillExpensePreset ─────────────────────────────────────────────────────────
+// Fills the four expense fields with sensible presets for common Indian city tiers.
+function fillExpensePreset(preset) {
+    const presets = {
+        metro:  { rent: 30000, groceries: 15000, cc: 18000, life: 12000 },
+        tier2:  { rent: 15000, groceries: 10000, cc: 10000, life:  8000 },
+        frugal: { rent: 10000, groceries:  8000, cc:  5000, life:  5000 }
+    };
+    const p = presets[preset];
+    if (!p) return;
+
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) { el.value = val; }
+    };
+
+    setVal('u-rent',       p.rent);
+    setVal('u-groceries',  p.groceries);
+    setVal('u-cc',         p.cc);
+    setVal('u-life',       p.life);
+
+    // Animate the section dot briefly to acknowledge the preset
+    const dot = document.getElementById('dot-expenses');
+    if (dot) {
+        dot.style.background  = '#34d399';
+        dot.style.borderColor = '#34d399';
+        dot.style.boxShadow   = '0 0 0 6px rgba(52,211,153,0.18)';
+        setTimeout(() => {
+            dot.style.background  = '';
+            dot.style.borderColor = '';
+            dot.style.boxShadow   = '';
+        }, 900);
+    }
+
+    updateLiveBar();
+    if (typeof updateInsuranceImpact === 'function') updateInsuranceImpact();
+}
+
+// ── toggleSection ─────────────────────────────────────────────────────────────
+// Opens or closes a collapsible intake section (goals, risk).
+// The toggle button gets rotated chevron; the collapsible gets max-height animation.
+function toggleSection(name) {
+    try {
+        const collapsible = document.getElementById(name + '-collapsible');
+        const toggle      = document.getElementById(name + '-toggle');
+        if (!collapsible) return;
+
+        const isOpen = collapsible.classList.contains('open');
+
+        if (isOpen) {
+            collapsible.classList.remove('open');
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', 'false');
+                // Rotate chevron back
+                const arrow = toggle.querySelector('.toggle-arrow');
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+            }
+        } else {
+            collapsible.classList.add('open');
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', 'true');
+                const arrow = toggle.querySelector('.toggle-arrow');
+                if (arrow) arrow.style.transform = 'rotate(180deg)';
+            }
+
+            // Seed empty state for goals if no rows exist yet
+            if (name === 'goals') {
+                const gc = document.getElementById('goal-container');
+                if (gc && gc.querySelectorAll('.dy-goal').length === 0) {
+                    if (typeof _checkEmptyState === 'function') _checkEmptyState(gc, 'goal');
+                }
+            }
+
+            // Smooth scroll so the newly opened section is visible
+            setTimeout(() => {
+                if (toggle) toggle.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 50);
+        }
+    } catch(e) { /* silent */ }
+}
+
+// ── updateRiskBadge ───────────────────────────────────────────────────────────
+// Called after any risk question changes. Reads the current risk profile and
+// updates the section badge (#badge-risk) in the risk section header.
+function updateRiskBadge() {
+    try {
+        const profile = (typeof getRiskProfile === 'function') ? getRiskProfile() : null;
+        if (!profile) return;
+
+        const badge = document.getElementById('badge-risk');
+        if (!badge) return;
+
+        const labels = {
+            conservative: { text: '🛡️ Conservative', color: '#60a5fa' },
+            moderate:     { text: '⚖️ Moderate',     color: '#34d399' },
+            aggressive:   { text: '🚀 Growth',        color: '#fbbf24' },
+            very_aggressive: { text: '⚡ Aggressive',  color: '#f87171' }
+        };
+
+        const lvl = labels[profile.level] || labels.moderate;
+        badge.textContent = lvl.text;
+        badge.style.color = lvl.color;
+        badge.style.borderColor = lvl.color + '55';
+        badge.style.background  = lvl.color + '15';
+
+    } catch(e) { /* silent */ }
+}
+
+// ── On DOMContentLoaded: initialise live bar and insurance defaults ────────────
+document.addEventListener('DOMContentLoaded', () => {
+    // Give all initial default values a moment to settle, then paint the live bar
+    setTimeout(() => {
+        updateLiveBar();
+
+        // Make sure insurance premium groups start in the correct visible state
+        // (both default to "yes", so both premium groups should be visible)
+        const medGroup  = document.getElementById('med-premium-group');
+        const termGroup = document.getElementById('term-premium-group');
+        if (medGroup)  medGroup.style.display  = '';
+        if (termGroup) termGroup.style.display = '';
+    }, 120);
+});
+

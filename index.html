@@ -95,13 +95,33 @@
              TAB 1: INTAKE
         ═══════════════════════════════════════ -->
         <section id="pg-onboard" class="pg on animated-fade">
-            <div class="app-card glow-indigo" style="padding:0; overflow:visible; background:transparent; border:none; box-shadow:none;">
+            <div style="padding:0; overflow:visible; background:transparent; border:none; box-shadow:none;">
 
-                <!-- ── HERO ── -->
-                <div class="intake-hero">
+                <!-- ── MINIMAL HERO ── -->
+                <div class="intake-hero" style="padding:24px 20px 16px;">
                     <div class="intake-hero-badge">🔒 100% Local · Zero Data Sent · Math Verified</div>
-                    <h2 class="intake-hero-title">Build Your Wealth Blueprint</h2>
-                    <p class="intake-hero-sub">Fill in your details below. Our engine will compute your personalized financial independence strategy.</p>
+                    <h2 class="intake-hero-title">Tell us about your money</h2>
+                    <p class="intake-hero-sub">Answer a few questions and we'll map out your full financial picture — FI date, debt strategy, and what to do this month.</p>
+                </div>
+
+                <!-- ── LIVE SNAPSHOT BAR ── -->
+                <div class="intake-live-bar" id="intake-live-bar">
+                    <div class="bar-cell">
+                        <div class="bar-label">Monthly In</div>
+                        <div class="bar-value" id="bar-income">₹—</div>
+                    </div>
+                    <div class="bar-cell">
+                        <div class="bar-label">Monthly Out</div>
+                        <div class="bar-value" id="bar-expenses">₹—</div>
+                    </div>
+                    <div class="bar-cell investable">
+                        <div class="bar-label">Can Invest</div>
+                        <div class="bar-value" id="bar-investable">₹—</div>
+                    </div>
+                    <div class="bar-cell">
+                        <div class="bar-label">Net Worth</div>
+                        <div class="bar-value" id="bar-networth">₹—</div>
+                    </div>
                 </div>
 
                 <!-- ── VALIDATION ERROR CONTAINER ── -->
@@ -110,176 +130,175 @@
                     <ul class="validation-error-list" id="validation-error-list"></ul>
                 </div>
 
-                <!-- ── STEP 1: PERSONAL PROFILE ── -->
-                <div class="intake-section">
-                    <div class="intake-section-label"><i data-lucide="user"></i> Step 1 — Personal Profile</div>
+                <!-- ══════════════════ FLOWING FORM ══════════════════ -->
+                <div class="intake-flow">
+
+                <!-- ── 1. WHO ARE YOU ── -->
+                <div class="intake-section" id="section-profile">
+                    <div class="section-dot" id="dot-profile"></div>
+                    <div class="section-header-row">
+                        <div>
+                            <div class="section-title">👋 Who are you?</div>
+                            <div class="section-subtitle">Just your name and age — nothing else needed here</div>
+                        </div>
+                        <span class="section-badge">Start here</span>
+                    </div>
                     <div class="grid-2">
                         <div class="form-group">
                             <label>Your Name</label>
-                            <input type="text" id="u-name" placeholder="e.g. Rahul Sharma" value="">
+                            <input type="text" id="u-name" placeholder="e.g. Priya Sharma" value=""
+                                oninput="updateLiveBar()">
                         </div>
                         <div class="form-group">
-                            <label>Your Current Age</label>
-                            <input type="number" id="u-age" placeholder="e.g. 28" value="28" min="18" max="65" inputmode="numeric" pattern="[0-9]*">
+                            <label>Current Age</label>
+                            <input type="number" id="u-age" placeholder="e.g. 28" value="28" min="18" max="65" inputmode="numeric" pattern="[0-9]*"
+                                oninput="updateLiveBar()">
+                            <div class="inline-hint" id="hint-age"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- ── STEP 2: INCOME & STRATEGY ── -->
-                <div class="intake-section">
-                    <div class="intake-section-label"><i data-lucide="trending-up"></i> Step 2 — Income Sources & Strategy</div>
-
-                    <!-- Income Sources Header -->
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                        <div style="font-size:12px;color:rgba(255,255,255,0.5);">Add all your monthly income streams</div>
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <span style="font-size:11px;color:rgba(255,255,255,0.4);">Total:</span>
-                            <span id="income-total-badge" style="font-size:14px;font-weight:800;color:#34d399;font-family:var(--font-mono);">₹0</span>
+                <!-- ── 2. HOW MUCH DO YOU EARN ── -->
+                <div class="intake-section" id="section-income">
+                    <div class="section-dot" id="dot-income"></div>
+                    <div class="section-header-row">
+                        <div>
+                            <div class="section-title">💰 What do you earn every month?</div>
+                            <div class="section-subtitle">Add every income source — salary, rent, freelance, dividends</div>
                         </div>
+                        <span class="section-badge" id="badge-income">Add income</span>
                     </div>
 
-                    <!-- Dynamic income rows container -->
                     <div id="income-sources-container"></div>
 
-                    <!-- Quick-add buttons -->
                     <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 14px;">
                         <button class="income-add-btn" onclick="addIncomeSource('salary','💼 Salary')">+ Salary</button>
                         <button class="income-add-btn" onclick="addIncomeSource('business','🏪 Business')">+ Business</button>
                         <button class="income-add-btn" onclick="addIncomeSource('rent','🏠 Rent')">+ Rent</button>
-                        <button class="income-add-btn" onclick="addIncomeSource('p2p','🤝 P2P Lending')">+ P2P</button>
-                        <button class="income-add-btn" onclick="addIncomeSource('royalty','🎵 Royalty')">+ Royalty</button>
                         <button class="income-add-btn" onclick="addIncomeSource('freelance','💻 Freelance')">+ Freelance</button>
                         <button class="income-add-btn" onclick="addIncomeSource('dividend','📈 Dividends')">+ Dividends</button>
+                        <button class="income-add-btn" onclick="addIncomeSource('p2p','🤝 P2P')">+ P2P</button>
+                        <button class="income-add-btn" onclick="addIncomeSource('royalty','🎵 Royalty')">+ Royalty</button>
                         <button class="income-add-btn" onclick="addIncomeSource('other','💰 Other')">+ Other</button>
                     </div>
+                    <div class="inline-hint" id="hint-income"></div>
 
-                    <!-- Hidden legacy field for backward compat -->
                     <input type="hidden" id="u-income" value="0">
                     <input type="hidden" id="u-sip" value="50000">
 
-                    <div class="form-group" style="margin-top:4px;">
-                        <label>Annual <span class="tip" data-tip="SIP — Systematic Investment Plan. An automatic monthly investment in mutual funds, usually ₹500 or more.">SIP</span> Step-Up</label>
+                    <div class="form-group" style="margin-top:12px;">
+                        <label>How much do you want to increase your <span class="tip" data-tip="SIP — Systematic Investment Plan. An automatic monthly investment in mutual funds, usually ₹500 or more.">SIP</span> each year?</label>
                         <select id="u-stepup">
-                            <option value="0">None (0%) — Flat SIP</option>
-                            <option value="5">Conservative (5%)</option>
-                            <option value="10" selected>Wealth Builder (10%) — Recommended</option>
-                            <option value="15">Aggressive (15%)</option>
+                            <option value="0">Keep it flat — same amount every year</option>
+                            <option value="5">Increase by 5% — conservative</option>
+                            <option value="10" selected>Increase by 10% — recommended (matches salary hikes)</option>
+                            <option value="15">Increase by 15% — aggressive wealth builder</option>
                         </select>
                     </div>
                 </div>
 
-                <!-- ── STEP 3: MONTHLY EXPENSES ── -->
-                <div class="intake-section">
-                    <div class="intake-section-label"><i data-lucide="receipt"></i> Step 3 — Monthly Expenses</div>
+                <!-- ── 3. WHAT DO YOU SPEND ── -->
+                <div class="intake-section" id="section-expenses">
+                    <div class="section-dot" id="dot-expenses"></div>
+                    <div class="section-header-row">
+                        <div>
+                            <div class="section-title">🛒 What do you spend every month?</div>
+                            <div class="section-subtitle">Rough numbers are fine — you can update these anytime</div>
+                        </div>
+                        <span class="section-badge" id="badge-expenses">Required</span>
+                    </div>
+
+                    <div class="expense-chips">
+                        <span style="font-size:10px;color:rgba(255,255,255,0.3);align-self:center;">Quick fill:</span>
+                        <button class="expense-chip" onclick="fillExpensePreset('metro')">🏙️ Metro city</button>
+                        <button class="expense-chip" onclick="fillExpensePreset('tier2')">🏘️ Tier-2 city</button>
+                        <button class="expense-chip" onclick="fillExpensePreset('frugal')">🌿 Frugal</button>
+                    </div>
+
                     <div class="grid-2">
                         <div class="form-group">
-                            <label>Rent & Utilities (₹)</label>
-                            <input type="number" id="u-rent" placeholder="e.g. 25000" value="25000" inputmode="numeric" pattern="[0-9]*" oninput="updateInsuranceImpact()">
+                            <label>Rent &amp; Utilities</label>
+                            <input type="number" id="u-rent" placeholder="e.g. 20,000" value="25000" inputmode="numeric" pattern="[0-9]*"
+                                oninput="updateInsuranceImpact(); updateLiveBar()">
                         </div>
                         <div class="form-group">
-                            <label>Food & Essentials (₹)</label>
-                            <input type="number" id="u-groceries" placeholder="e.g. 15000" value="15000" inputmode="numeric" pattern="[0-9]*" oninput="updateInsuranceImpact()">
+                            <label>Food &amp; Groceries</label>
+                            <input type="number" id="u-groceries" placeholder="e.g. 12,000" value="15000" inputmode="numeric" pattern="[0-9]*"
+                                oninput="updateInsuranceImpact(); updateLiveBar()">
                         </div>
                         <div class="form-group">
-                            <label>Existing EMIs & Bills (₹)</label>
-                            <input type="number" id="u-cc" placeholder="e.g. 15000" value="15000" inputmode="numeric" pattern="[0-9]*" oninput="updateInsuranceImpact()">
+                            <label>EMIs &amp; Recurring Bills</label>
+                            <input type="number" id="u-cc" placeholder="e.g. 10,000" value="15000" inputmode="numeric" pattern="[0-9]*"
+                                oninput="updateInsuranceImpact(); updateLiveBar()">
                         </div>
                         <div class="form-group">
-                            <label>Lifestyle & Entertainment (₹)</label>
-                            <input type="number" id="u-life" placeholder="e.g. 10000" value="10000" inputmode="numeric" pattern="[0-9]*" oninput="updateInsuranceImpact()">
+                            <label>Lifestyle &amp; Miscellaneous</label>
+                            <input type="number" id="u-life" placeholder="e.g. 8,000" value="10000" inputmode="numeric" pattern="[0-9]*"
+                                oninput="updateInsuranceImpact(); updateLiveBar()">
                         </div>
                     </div>
+                    <div class="inline-hint" id="hint-expenses"></div>
                 </div>
 
-                <!-- ── STEP 4: INSURANCE ── -->
-                <div class="intake-section">
-                    <div class="intake-section-label"><i data-lucide="shield-check"></i> Step 4 — Insurance Shields</div>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label>Health Insurance</label>
-                            <select id="u-med" onchange="updateInsuranceImpact(); if(typeof calculateStrategy==='function'&&typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
-                                <option value="no">❌ Not Yet — I Need One</option>
-                                <option value="yes" selected>✅ Active — I'm Covered</option>
-                            </select>
+                <!-- ── 4. PROTECTION ── -->
+                <div class="intake-section" id="section-insurance">
+                    <div class="section-dot" id="dot-insurance"></div>
+                    <div class="section-header-row">
+                        <div>
+                            <div class="section-title">🛡️ Are you protected?</div>
+                            <div class="section-subtitle">Insurance is the first wealth rule — one hospital bill can erase years of savings</div>
                         </div>
-                        <div class="form-group">
-                            <label>Term Life Insurance</label>
-                            <select id="u-term" onchange="updateInsuranceImpact(); if(typeof calculateStrategy==='function'&&typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
-                                <option value="no">❌ Not Yet — I Need One</option>
-                                <option value="yes" selected>✅ Active — Family Protected</option>
-                            </select>
+                        <span class="section-badge" id="badge-insurance">Required</span>
+                    </div>
+
+                    <!-- Health insurance toggle -->
+                    <div style="margin-bottom:14px;">
+                        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Health Insurance</div>
+                        <div class="ins-toggle-row">
+                            <button class="ins-toggle-btn active-yes" id="btn-med-yes" onclick="setInsurance('med','yes')">✅ Yes, I'm covered</button>
+                            <button class="ins-toggle-btn" id="btn-med-no"  onclick="setInsurance('med','no')">❌ Not yet</button>
                         </div>
-                        <div class="form-group" id="med-premium-group">
-                            <label>Health Premium <span style="color:rgba(255,255,255,0.35);font-size:10px;">(₹/month)</span></label>
-                            <input type="number" id="u-med-premium" placeholder="e.g. 1200" value="" min="0" inputmode="numeric"
-                                oninput="if(typeof calculateStrategy==='function'&&typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
-                        </div>
-                        <div class="form-group" id="term-premium-group">
-                            <label>Term Premium <span style="color:rgba(255,255,255,0.35);font-size:10px;">(₹/month)</span></label>
-                            <input type="number" id="u-term-premium" placeholder="e.g. 1500" value="" min="0" inputmode="numeric"
-                                oninput="if(typeof calculateStrategy==='function'&&typeof engineMemory!=='undefined'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
+                        <div id="med-premium-group" style="margin-top:10px;">
+                            <div class="form-group">
+                                <label>Monthly Premium (₹) <span style="color:rgba(255,255,255,0.3);font-weight:400;">— leave blank to auto-estimate</span></label>
+                                <input type="number" id="u-med-premium" placeholder="e.g. 1,200" value="" min="0" inputmode="numeric"
+                                    oninput="updateLiveBar(); if(typeof calculateStrategy==='function'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Term insurance toggle -->
+                    <div>
+                        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Term Life Insurance</div>
+                        <div class="ins-toggle-row">
+                            <button class="ins-toggle-btn active-yes" id="btn-term-yes" onclick="setInsurance('term','yes')">✅ Family is protected</button>
+                            <button class="ins-toggle-btn" id="btn-term-no"  onclick="setInsurance('term','no')">❌ Not yet</button>
+                        </div>
+                        <div id="term-premium-group" style="margin-top:10px;">
+                            <div class="form-group">
+                                <label>Monthly Premium (₹) <span style="color:rgba(255,255,255,0.3);font-weight:400;">— leave blank to auto-estimate</span></label>
+                                <input type="number" id="u-term-premium" placeholder="e.g. 1,500" value="" min="0" inputmode="numeric"
+                                    oninput="updateLiveBar(); if(typeof calculateStrategy==='function'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden selects for backward-compat with existing JS -->
+                    <select id="u-med" style="display:none;" onchange="updateInsuranceImpact(); if(typeof calculateStrategy==='function'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);"><option value="yes" selected>yes</option><option value="no">no</option></select>
+                    <select id="u-term" style="display:none;" onchange="updateInsuranceImpact(); if(typeof calculateStrategy==='function'&&engineMemory.totalAssets!==undefined) calculateStrategy(true);"><option value="yes" selected>yes</option><option value="no">no</option></select>
                     <div id="insurance-warning" style="display:none;margin-top:14px;"></div>
                 </div>
 
-                <!-- ── STEP 4B: RISK PROFILE ── -->
-                <div class="intake-section" style="border-color:rgba(168,85,247,0.2);">
-                    <div class="intake-section-label" style="color:#A855F7;"><i data-lucide="activity"></i> Step 4B — Your Risk Comfort Level</div>
-                    <p style="font-size:12px; color:rgba(255,255,255,0.5); margin-bottom:14px; line-height:1.5;">This helps us recommend the right mix of safe and risky investments for you. Be honest — there are no wrong answers.</p>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label>If your investments drop 20% in one month, you would:</label>
-                            <select id="u-risk-q1" onchange="getRiskProfile()">
-                                <option value="1">Sell everything immediately — I can't handle losses</option>
-                                <option value="2">Sell some and keep some — I get nervous</option>
-                                <option value="3" selected>Do nothing — markets recover eventually</option>
-                                <option value="4">Buy more — this is a sale!</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Your investment experience:</label>
-                            <select id="u-risk-q2" onchange="getRiskProfile()">
-                                <option value="1">Brand new — never invested before</option>
-                                <option value="2" selected>Some experience — FDs, mutual funds</option>
-                                <option value="3">Experienced — stocks, options, crypto</option>
-                                <option value="4">Expert — I understand derivatives & risk</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>When do you need this money?</label>
-                            <select id="u-risk-q3" onchange="getRiskProfile()">
-                                <option value="1">Within 1-2 years</option>
-                                <option value="2">3-5 years</option>
-                                <option value="3" selected>5-10 years</option>
-                                <option value="4">10+ years — I'm in no rush</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Your age group:</label>
-                            <select id="u-risk-q4" onchange="getRiskProfile()">
-                                <option value="4">Under 30 — lots of time to grow</option>
-                                <option value="3" selected>30-40 — balanced approach</option>
-                                <option value="2">40-50 — need to be careful</option>
-                                <option value="1">50+ — capital preservation matters</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="risk-profile-badge" style="margin-top:12px; padding:10px 16px; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.3); border-radius:8px; display:flex; align-items:center; gap:10px;">
-                        <span style="font-size:20px;" id="risk-profile-icon">⚖️</span>
+                <!-- ── 5. YOUR MONEY SO FAR ── -->
+                <div class="intake-section" id="section-portfolio">
+                    <div class="section-dot" id="dot-portfolio"></div>
+                    <div class="section-header-row">
                         <div>
-                            <div style="font-weight:800; font-size:13px; color:#A855F7;" id="risk-profile-label">Moderate Investor</div>
-                            <div style="font-size:11px; color:rgba(255,255,255,0.5);" id="risk-profile-desc">You can handle some ups and downs. Good for balanced mutual funds and index investing.</div>
+                            <div class="section-title">🏦 What do you already have?</div>
+                            <div class="section-subtitle">Bank accounts, mutual funds, FDs, EPF, stocks, gold — all of it</div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- ── STEP 5: CURRENT PORTFOLIO ── -->
-                <div class="intake-section">
-                    <div class="intake-section-header">
-                        <div class="intake-section-label" style="margin-bottom:0;"><i data-lucide="wallet"></i> Step 5 — Current Portfolio</div>
-                        <div class="portfolio-total-badge">
-                            Total Assets: <span class="money-value" id="portfolio-total-display">₹0</span>
+                        <div class="portfolio-total-badge" style="margin:0;">
+                            <span class="money-value" id="portfolio-total-display">₹0</span>
                         </div>
                     </div>
                     <div class="portfolio-table-head">
@@ -290,42 +309,130 @@
                         <span></span>
                     </div>
                     <div id="account-container"></div>
-                    <button class="add-row-btn" onclick="addAccount()">
+                    <button class="add-row-btn" onclick="addAccount(); updateLiveBar();">
                         <i data-lucide="plus-circle"></i> Add Asset
                     </button>
-                    <div class="portfolio-note">💡 Include all assets: FDs, mutual funds, P2P lending, gold, land, EPF, crypto — everything counts.</div>
+                    <div class="portfolio-note">💡 Include FDs, mutual funds, EPF, stocks, gold, real estate, P2P, crypto — everything counts towards your net worth.</div>
                 </div>
 
-                <!-- ── STEP 6: DEBTS & LIABILITIES ── -->
-                <div class="intake-section" style="border-color:rgba(245,158,11,0.2);">
-                    <div class="intake-section-header">
-                        <div class="intake-section-label" style="margin-bottom:0; color:var(--amber);"><i data-lucide="alert-triangle"></i> Step 6 — Debts & Liabilities</div>
-                        <div class="portfolio-total-badge" style="color:var(--rose);">
-                            Total Debt: <span class="money-value" id="debt-total-display">₹0</span>
+                <!-- ── 6. LOANS & DEBTS ── -->
+                <div class="intake-section" style="border-color:rgba(245,158,11,0.15);" id="section-debts">
+                    <div class="section-dot" style="border-color:rgba(245,158,11,0.5);" id="dot-debts"></div>
+                    <div class="section-header-row">
+                        <div>
+                            <div class="section-title">💳 Any loans or debts?</div>
+                            <div class="section-subtitle">Home loan, car loan, credit card, personal loan — skip if none</div>
+                        </div>
+                        <div class="portfolio-total-badge" style="margin:0;color:var(--rose);">
+                            <span class="money-value" id="debt-total-display">₹0</span>
                         </div>
                     </div>
                     <div id="debt-container"></div>
                     <button class="add-row-btn" style="border-color:rgba(245,158,11,0.3);color:var(--amber);" onclick="addDebt()">
-                        <i data-lucide="plus-circle"></i> Add Loan / Debt / EMI
+                        <i data-lucide="plus-circle"></i> Add a Loan or EMI
                     </button>
-                    <div class="portfolio-note" style="border-color:rgba(245,158,11,0.2);">💡 Include home loans, car loans, credit card debt, personal loans, education loans.</div>
+                    <div class="portfolio-note" style="border-color:rgba(245,158,11,0.2);">💡 Include home loans, car loans, credit card balances, personal loans, education loans.</div>
                 </div>
 
-                <!-- ── STEP 7: FINANCIAL GOALS ── -->
-                <div class="intake-section" style="border-color:rgba(129,140,248,0.2);">
-                    <div class="intake-section-label" style="color:var(--indigo);"><i data-lucide="target"></i> Step 7 — Financial Goals (Optional)</div>
-                    <div class="goal-table-head">
-                        <span>Goal Name</span>
-                        <span>Target Amount (₹)</span>
-                        <span>Years to Goal</span>
-                        <span></span>
+                <!-- ── 7. GOALS (collapsible) ── -->
+                <div class="intake-section" style="border-color:rgba(129,140,248,0.15);" id="section-goals">
+                    <div class="section-dot" style="border-color:rgba(129,140,248,0.5);" id="dot-goals"></div>
+                    <div class="section-header-row" style="margin-bottom:0;">
+                        <div>
+                            <div class="section-title">🎯 What are you saving towards?</div>
+                            <div class="section-subtitle">Car, house, travel, kids' education — we'll tell you if it's achievable</div>
+                        </div>
+                        <span class="section-badge optional">Optional</span>
                     </div>
-                    <div id="goal-container"></div>
-                    <button class="add-row-btn" style="border-color:rgba(129,140,248,0.3);color:var(--indigo);" onclick="addGoal()">
-                        <i data-lucide="plus-circle"></i> Add Goal / Milestone
-                    </button>
-                    <div class="portfolio-note" style="border-color:rgba(129,140,248,0.2);">💡 e.g. New Car (₹10L, 3 yrs), Europe Trip (₹3L, 1 yr), Home Down Payment (₹30L, 7 yrs)</div>
+                    <div style="margin-top:10px;">
+                        <button class="section-collapse-toggle" id="goals-toggle" onclick="toggleSection('goals')">
+                            <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                            Add your financial goals
+                        </button>
+                    </div>
+                    <div class="section-collapsible" id="goals-collapsible">
+                        <div style="height:12px;"></div>
+                        <div class="goal-table-head">
+                            <span>Goal Name</span>
+                            <span>Target (₹)</span>
+                            <span>Years Away</span>
+                            <span></span>
+                        </div>
+                        <div id="goal-container"></div>
+                        <button class="add-row-btn" style="border-color:rgba(129,140,248,0.3);color:var(--indigo);" onclick="addGoal()">
+                            <i data-lucide="plus-circle"></i> Add Goal
+                        </button>
+                        <div class="portfolio-note" style="border-color:rgba(129,140,248,0.2);">💡 e.g. New Car (₹10L, 3 yrs), Europe Trip (₹3L, 1 yr), Home Down Payment (₹30L, 7 yrs)</div>
+                    </div>
                 </div>
+
+                <!-- ── 8. RISK COMFORT (collapsible) ── -->
+                <div class="intake-section" style="border-color:rgba(168,85,247,0.15);" id="section-risk">
+                    <div class="section-dot" style="border-color:rgba(168,85,247,0.5);" id="dot-risk"></div>
+                    <div class="section-header-row" style="margin-bottom:0;">
+                        <div>
+                            <div class="section-title">📊 How do you feel about risk?</div>
+                            <div class="section-subtitle">This tunes the investment mix we recommend — no wrong answer</div>
+                        </div>
+                        <span class="section-badge purple" id="badge-risk">Moderate</span>
+                    </div>
+                    <div style="margin-top:10px;">
+                        <button class="section-collapse-toggle" id="risk-toggle" onclick="toggleSection('risk')">
+                            <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                            Tune your risk profile
+                        </button>
+                    </div>
+                    <div class="section-collapsible" id="risk-collapsible">
+                        <div style="height:12px;"></div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>If your portfolio drops 20% in a month, you'd:</label>
+                                <select id="u-risk-q1" onchange="getRiskProfile(); updateRiskBadge();">
+                                    <option value="1">Sell everything — can't handle losses</option>
+                                    <option value="2">Sell some, keep some — I get nervous</option>
+                                    <option value="3" selected>Do nothing — markets recover</option>
+                                    <option value="4">Buy more — this is a sale!</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Investment experience:</label>
+                                <select id="u-risk-q2" onchange="getRiskProfile(); updateRiskBadge();">
+                                    <option value="1">Brand new — never invested</option>
+                                    <option value="2" selected>Some — FDs and mutual funds</option>
+                                    <option value="3">Experienced — stocks, options</option>
+                                    <option value="4">Expert — derivatives &amp; risk models</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>When do you need this money?</label>
+                                <select id="u-risk-q3" onchange="getRiskProfile(); updateRiskBadge();">
+                                    <option value="1">Within 1–2 years</option>
+                                    <option value="2">3–5 years</option>
+                                    <option value="3" selected>5–10 years</option>
+                                    <option value="4">10+ years — I'm in no rush</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Your age group:</label>
+                                <select id="u-risk-q4" onchange="getRiskProfile(); updateRiskBadge();">
+                                    <option value="4">Under 30 — time on my side</option>
+                                    <option value="3" selected>30–40 — balanced approach</option>
+                                    <option value="2">40–50 — getting careful</option>
+                                    <option value="1">50+ — capital preservation</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="risk-profile-badge" style="margin-top:12px; padding:10px 16px; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.3); border-radius:8px; display:flex; align-items:center; gap:10px;">
+                            <span style="font-size:20px;" id="risk-profile-icon">⚖️</span>
+                            <div>
+                                <div style="font-weight:800; font-size:13px; color:#A855F7;" id="risk-profile-label">Moderate Investor</div>
+                                <div style="font-size:11px; color:rgba(255,255,255,0.5);" id="risk-profile-desc">You can handle some ups and downs. Good for balanced mutual funds and index investing.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                </div><!-- /.intake-flow -->
 
                 <!-- ── COMPUTE BUTTON ── -->
                 <button class="compute-cta" id="compute-btn" onclick="promptSaveAndCompute()">
@@ -1391,7 +1498,7 @@
     </div>
 </div>
 
-<script src="script.js?v=202604200003"></script>
+<script src="script.js?v=202604200004"></script>
 <script src="library.js?v=202604170010"></script>
 
 <!-- ══════════════════════════════════════════════════
