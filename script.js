@@ -2111,13 +2111,12 @@ function updateFISlider(sipVal) {
     // Use liquid corpus base (already computed by engine), not raw totalAssets
     const corpusStart = engineMemory.fiCorpusBase || engineMemory.totalAssets || 0;
 
-    // FI target uses CORE living expenses — NOT EMIs (those are paid off by retirement)
-    // Fallback: if engine hasn't run yet use 50k as a sensible demo
-    const coreExp = Math.max(
-        (engineMemory.totalExp || 50000) - (engineMemory.totalEMI || 0),
-        5000  // floor so FIRE number is never 0
-    );
-    const fiTarget = coreExp * 12 * 25; // 25x annual rule (nominal)
+    // FI target = 25× annual living expenses.
+    // totalExp is already living expenses only (rent, food, transport, etc.) —
+    // EMIs are tracked separately in Step 6 and are NOT included in totalExp.
+    // Fallback to ₹50K if engine hasn't run yet (sensible demo default).
+    const coreExp = Math.max(engineMemory.totalExp || 50000, 5000);
+    const fiTarget = coreExp * 12 * 25; // 25× annual rule (nominal)
 
     const inflRate    = getInflationRate(); // live from toggle, default 6%
     const annualRate  = Math.max((engineMemory.blendedCAGR || 12), 1) / 100; // guard against 0
@@ -3571,13 +3570,13 @@ function calculateStrategy(silentMode = false) {
     // Liquidity Flaw Fix: astCash = liquid assets only (savings/FD/bonds).
     // EPF, PPF, real estate are in astIlliquid — excluded here by design.
     calcSurvivalRunway(astCash, totalExp);
-    // Core living expenses for FIRE number = total exp minus EMIs (loans paid off by retirement)
-    const coreExpForFI = Math.max((totalExp - totalEMI), 5000);
-    const { dailyEarning } = calcFreedomMeter(totalAssets, coreExpForFI);
+    // totalExp is already living expenses only (EMIs are separate in totalEMI).
+    // Use totalExp directly for the 25× FIRE target.
+    const { dailyEarning } = calcFreedomMeter(totalAssets, totalExp);
     renderDailyInsight(totalAssets);
 
     // ── Dashboard Layer 1: FI Whip Bar ──────────────────────────────────────
-    renderFIWhipBar(totalAssets, coreExpForFI);
+    renderFIWhipBar(totalAssets, totalExp);
 
     // ── Dashboard Layer 2: Action Alerts ────────────────────────────────────
     renderActionAlerts({
