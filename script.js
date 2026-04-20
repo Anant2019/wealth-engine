@@ -2101,7 +2101,7 @@ function hideCommandResults() {
 // ==================== FI ACCELERATOR SLIDER ====================
 function updateFISlider(sipVal) {
     try {
-    sipVal = Number(sipVal);
+    sipVal = Number(sipVal) || 0;
     const dispEl = document.getElementById('fi-slider-display');
     if (dispEl) dispEl.innerText = formatCurrency(sipVal) + ' / month';
 
@@ -2110,77 +2110,82 @@ function updateFISlider(sipVal) {
 
     // Use liquid corpus base (already computed by engine), not raw totalAssets
     const corpusStart = engineMemory.fiCorpusBase || engineMemory.totalAssets || 0;
-    const monthlyExp  = engineMemory.totalExp || 50000;
-    const fiTarget    = monthlyExp * 12 * 25; // 25x rule (nominal)
 
-    // ── Inflation-adjusted FIRE target ──────────────────────────────────────
-    // Real (today's money) corpus needed = FI target × (1 + inflation)^years_to_fi
-    // We approximate using the inflation rate and expected years-to-FI.
-    // This is the "moving target" — it grows with inflation every year.
-    const inflRate = getInflationRate(); // live from toggle, default 6%
+    // FI target uses CORE living expenses — NOT EMIs (those are paid off by retirement)
+    // Fallback: if engine hasn't run yet use 50k as a sensible demo
+    const coreExp = Math.max(
+        (engineMemory.totalExp || 50000) - (engineMemory.totalEMI || 0),
+        5000  // floor so FIRE number is never 0
+    );
+    const fiTarget = coreExp * 12 * 25; // 25x annual rule (nominal)
 
-    // Use the user's actual blended portfolio CAGR, not hardcoded 12%
-    const annualRate  = (engineMemory.blendedCAGR || 12) / 100;
+    const inflRate    = getInflationRate(); // live from toggle, default 6%
+    const annualRate  = Math.max((engineMemory.blendedCAGR || 12), 1) / 100; // guard against 0
     const monthlyRate = annualRate / 12;
+    const stepUpPct   = (engineMemory.stepUpPercent || 0) / 100;
 
-    // Apply annual step-up if the user selected one
-    const stepUpPct = (engineMemory.stepUpPercent || 0) / 100;
+    // ── Already-FI shortcut ──────────────────────────────────────────────────
+    const fiDateEl  = document.getElementById('fi-date');
+    const fiInsight = document.getElementById('fi-insight');
+    const rateLabel   = (engineMemory.blendedCAGR || 12).toFixed(1) + '% CAGR';
+    const stepUpLabel = stepUpPct > 0 ? ` + ${engineMemory.stepUpPercent}% step-up/yr` : '';
+    const gapAmt      = Math.max(0, fiTarget - corpusStart);
 
+    // Populate the four stat pills (always, even in already-FI case)
+    const corpusPillEl     = document.getElementById('fi-corpus-val');
+    const targetPillEl     = document.getElementById('fi-target-val');
+    const gapPillEl        = document.getElementById('fi-gap-val');
+    const realTargetPillEl = document.getElementById('fi-real-target-val');
+    if (corpusPillEl)  corpusPillEl.textContent  = corpusStart > 0 ? formatCurrency(corpusStart) : '₹0 (add portfolio)';
+    if (targetPillEl)  targetPillEl.textContent  = formatCurrency(fiTarget);
+    if (gapPillEl)     gapPillEl.textContent     = gapAmt > 0 ? formatCurrency(gapAmt) : '✅ Already there!';
+
+    if (corpusStart >= fiTarget && fiTarget > 0) {
+        // User is already financially independent on existing corpus alone
+        if (fiDateEl)  { fiDateEl.textContent = '🏆 Already FI! (Age ' + age + ')'; fiDateEl.style.color = '#34d399'; }
+        if (fiInsight) fiInsight.innerHTML = `Your existing corpus of <strong>${formatCurrency(corpusStart)}</strong> already ` +
+            `exceeds your FIRE target of <strong>${formatCurrency(fiTarget)}</strong>. You are financially independent. ` +
+            `Use the slider to see how much faster you can retire using extra investments from passive income.`;
+        if (realTargetPillEl) realTargetPillEl.textContent = formatCurrency(fiTarget) + ' ✅';
+        return;
+    }
+
+    // ── FI projection loop — NO income cap here (slider is for planning) ────
+    // The income cap belongs in calculateStrategy() for the *recommended* SIP.
+    // The slider is a "what-if" tool — let users explore any amount freely.
     let corpus     = corpusStart;
     let currentSIP = sipVal;
     let months     = 0;
 
-    const baseIncome = engineMemory.income || 0;
     for (months = 0; months < 1200; months++) {
-        // Step up SIP at the start of each new year (month 12, 24, 36 …)
+        // Apply annual step-up at the start of each year (month 12, 24, 36…)
         if (months > 0 && months % 12 === 0 && stepUpPct > 0) {
-            currentSIP = currentSIP * (1 + stepUpPct);
-        }
-        // TC-001: Income-cap — SIP cannot exceed 80% of projected income
-        if (baseIncome > 0) {
-            const yearNum = Math.floor(months / 12);
-            const projIncome = baseIncome * Math.pow(1 + stepUpPct, yearNum);
-            currentSIP = Math.min(currentSIP, projIncome * 0.80);
+            currentSIP = Math.round(currentSIP * (1 + stepUpPct));
         }
         corpus = corpus * (1 + monthlyRate) + currentSIP;
         if (corpus >= fiTarget) break;
     }
 
-    const yearsToFI = months / 12;
-    // Inflation-adjusted target: expenses will be higher in future prices
-    // fiRealTarget = current expenses × (1+infl)^yearsToFI × 12 × 25
-    const fiRealTarget = safeRupees(monthlyExp * Math.pow(1 + inflRate, yearsToFI) * 12 * 25);
+    const yearsToFI    = months / 12;
+    const fiRealTarget = safeRupees(coreExp * Math.pow(1 + inflRate, yearsToFI) * 12 * 25);
+    const fiYear       = new Date().getFullYear() + Math.floor(yearsToFI);
+    const fiAge        = age + Math.floor(yearsToFI);
 
-    const fiYear = new Date().getFullYear() + Math.floor(months / 12);
-    const fiAge  = age + Math.floor(months / 12);
-    const fiDateEl  = document.getElementById('fi-date');
-    const fiInsight = document.getElementById('fi-insight');
-
-    const rateLabel   = (engineMemory.blendedCAGR || 12).toFixed(1) + '% CAGR';
-    const stepUpLabel = stepUpPct > 0 ? ` + ${engineMemory.stepUpPercent}% step-up/yr` : '';
-    const gapAmt      = Math.max(0, fiTarget - corpusStart);
-
-    // Populate the four stat pills
-    const corpusPillEl    = document.getElementById('fi-corpus-val');
-    const targetPillEl    = document.getElementById('fi-target-val');
-    const gapPillEl       = document.getElementById('fi-gap-val');
-    const realTargetPillEl = document.getElementById('fi-real-target-val');
-    if (corpusPillEl)     corpusPillEl.textContent     = corpusStart > 0 ? formatCurrency(corpusStart) : '₹0 (add portfolio)';
-    if (targetPillEl)     targetPillEl.textContent     = formatCurrency(fiTarget);
-    if (gapPillEl)        gapPillEl.textContent        = gapAmt > 0 ? formatCurrency(gapAmt) : '✅ Already there!';
     if (realTargetPillEl) realTargetPillEl.textContent = months < 1199
-        ? formatCurrency(fiRealTarget) + ` (${(inflRate*100).toFixed(1)}% infl)`
+        ? formatCurrency(fiRealTarget) + ` (${(inflRate * 100).toFixed(1)}% infl)`
         : '—';
 
     if (months >= 1199) {
-        if (fiDateEl) { fiDateEl.textContent = 'Needs higher SIP'; fiDateEl.style.color = '#ef4444'; }
-        if (fiInsight) fiInsight.innerHTML = `At <strong>${rateLabel}${stepUpLabel}</strong>, this SIP won't reach the FI target in time. Try increasing your monthly investment.`;
+        if (fiDateEl)  { fiDateEl.textContent = 'Increase your SIP'; fiDateEl.style.color = '#ef4444'; }
+        if (fiInsight) fiInsight.innerHTML = `At <strong>${formatCurrency(sipVal)}/mo</strong> with <strong>${rateLabel}${stepUpLabel}</strong>, ` +
+            `this SIP won't reach the FIRE target of <strong>${formatCurrency(fiTarget)}</strong> in 100 years. ` +
+            `Try a higher monthly investment — even ₹5,000 more per month makes a big difference.`;
     } else {
-        if (fiDateEl) { fiDateEl.textContent = fiYear + ' (Age ' + fiAge + ')'; fiDateEl.style.color = '#34d399'; }
+        if (fiDateEl)  { fiDateEl.textContent = fiYear + '  (Age ' + fiAge + ')'; fiDateEl.style.color = '#34d399'; }
         if (fiInsight) fiInsight.innerHTML =
             `<strong>${formatCurrency(sipVal)}/mo</strong>${stepUpLabel} at <strong>${rateLabel}</strong> ` +
-            `for <strong>${yearsToFI.toFixed(1)} yrs</strong> — nominal target <strong>${formatCurrency(fiTarget)}</strong>, ` +
-            `but inflation (${(inflRate*100).toFixed(1)}% p.a.) means you'll actually need <strong>${formatCurrency(fiRealTarget)}</strong> in future money.`;
+            `for <strong>${yearsToFI.toFixed(1)} yrs</strong> — nominal FIRE target <strong>${formatCurrency(fiTarget)}</strong>. ` +
+            `Inflation (${(inflRate * 100).toFixed(1)}% p.a.) means you'll need <strong>${formatCurrency(fiRealTarget)}</strong> in future rupees.`;
     }
     } catch(e) { console.warn('updateFISlider error:', e); }
 }
@@ -3566,11 +3571,13 @@ function calculateStrategy(silentMode = false) {
     // Liquidity Flaw Fix: astCash = liquid assets only (savings/FD/bonds).
     // EPF, PPF, real estate are in astIlliquid — excluded here by design.
     calcSurvivalRunway(astCash, totalExp);
-    const { dailyEarning } = calcFreedomMeter(totalAssets, totalExp);
+    // Core living expenses for FIRE number = total exp minus EMIs (loans paid off by retirement)
+    const coreExpForFI = Math.max((totalExp - totalEMI), 5000);
+    const { dailyEarning } = calcFreedomMeter(totalAssets, coreExpForFI);
     renderDailyInsight(totalAssets);
 
     // ── Dashboard Layer 1: FI Whip Bar ──────────────────────────────────────
-    renderFIWhipBar(totalAssets, totalExp);
+    renderFIWhipBar(totalAssets, coreExpForFI);
 
     // ── Dashboard Layer 2: Action Alerts ────────────────────────────────────
     renderActionAlerts({
