@@ -2826,19 +2826,21 @@ a:has(button), a.btn-link {
     /* card-top-row inside mobile cards */
     .dy-account .card-top-row,
     .dy-debt .card-top-row,
-    .dy-goal .card-top-row {
+    .dy-goal .card-top-row,
+    .dy-child .card-top-row {
         display: flex;
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
         width: 100%;
-        margin-bottom: 4px;
+        margin-bottom: 8px;
     }
 
     /* ✕ button: static inside card-top-row, no absolute */
     .dy-account .del-btn,
     .dy-debt .del-btn,
-    .dy-goal .del-btn {
+    .dy-goal .del-btn,
+    .dy-child .del-btn {
         position: static !important;
         width: 32px;
         height: 32px;
@@ -5561,4 +5563,67 @@ body {
     .intake-section { padding: 16px 16px 16px 40px; }
     .section-dot { left: 11px; top: 18px; width: 12px; height: 12px; }
     .risk-radio-grid { grid-template-columns: 1fr 1fr; }
+}
+/* ── Required Field Asterisk ────────────────────────────────────── */
+.required-star {
+    color: #ef4444 !important;
+    font-weight: 700;
+    font-size: 1.1em;
+    margin-left: 2px;
+    text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+    text-transform: none;
+}
+
+/* ── Custom Toggle Switch ───────────────────────────────────────── */
+.toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+    background: rgba(255,255,255,0.03);
+    border: 1.5px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 10px 14px;
+    transition: all 0.2s;
+    width: fit-content;
+    min-width: 120px;
+}
+.toggle-row:hover {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.15);
+}
+.toggle-row input {
+    display: none;
+}
+.toggle-track {
+    width: 38px;
+    height: 20px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 20px;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.toggle-row input:checked + .toggle-track {
+    background: var(--purple);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+}
+.toggle-thumb {
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.toggle-row input:checked + .toggle-track .toggle-thumb {
+    transform: translateX(18px);
+}
+.toggle-label-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--purple);
 }

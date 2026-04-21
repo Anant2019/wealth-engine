@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aarth Sutra — Personal Wealth Tracker</title>
+<meta name="description" content="Free personal wealth tracker for India. Track expenses, net worth, and SIP projections. All data stays on your device — nothing is uploaded anywhere.">
+<!-- PWA manifest for Add to Home Screen -->
+<link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;Aarth Sutra&quot;,&quot;short_name&quot;:&quot;AarthSutra&quot;,&quot;start_url&quot;:&quot;.&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230b0f1e&quot;,&quot;theme_color&quot;:&quot;%236366f1&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>&quot;,&quot;sizes&quot;:&quot;any&quot;,&quot;type&quot;:&quot;image/svg+xml&quot;}]}">
+<meta name="theme-color" content="#6366f1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Aarth Sutra">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0b0f1e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#f1f5f9;overflow-x:hidden}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
+
+/* ── WIZARD ── */
+#wizard{position:fixed;inset:0;background:#0b0f1e;display:flex;align-items:center;justify-content:center;z-index:100;overflow-y:auto}
+.wiz-inner{width:100%;max-width:420px;padding:24px 20px}
+.wiz-dots{display:flex;gap:6px;justify-content:center;margin-bottom:34px}
+.dot{height:8px;border-radius:4px;background:rgba(255,255,255,.15);transition:width .3s,background .3s}
+.dot.active{background:#6366f1}
+.dot.done{background:#6366f1}
+.wiz-step{animation:sR .35s cubic-bezier(.22,1,.36,1) both}
+.wiz-step.back{animation:sL .35s cubic-bezier(.22,1,.36,1) both}
+@keyframes sR{from{opacity:0;transform:translateX(36px)}to{opacity:1;transform:none}}
+@keyframes sL{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:none}}
+.step-icon{font-size:44px;text-align:center;margin-bottom:10px}
+.step-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:6px}
+.step-sub{font-size:14px;color:rgba(255,255,255,.45);text-align:center;margin-bottom:26px}
+.field-label{display:block;font-size:12px;color:rgba(255,255,255,.45);margin-bottom:6px}
+.text-input{width:100%;padding:12px 16px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#f1f5f9;font-size:16px;margin-bottom:18px}
+.slider-row{display:flex;justify-content:space-between;margin-bottom:6px}
+.slider-label{font-size:13px;color:rgba(255,255,255,.45)}
+.slider-val{font-size:15px;font-weight:700}
+input[type=range]{width:100%;accent-color:#6366f1;margin-bottom:18px;display:block}
+.primary-btn{width:100%;padding:14px;margin-top:8px;border:none;border-radius:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+.primary-btn:disabled{background:rgba(255,255,255,.08);color:rgba(255,255,255,.22);cursor:not-allowed}
+.primary-btn.green{background:linear-gradient(135deg,#10b981,#059669)}
+.back-btn{width:100%;margin-top:14px;background:none;border:none;color:rgba(255,255,255,.4);font-size:14px;cursor:pointer;text-align:center}
+.surplus-box{background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.25);border-radius:14px;padding:14px 20px;margin-bottom:20px}
+.surplus-lbl{font-size:12px;color:rgba(255,255,255,.45);margin-bottom:4px}
+.surplus-amt{font-size:28px;font-weight:800;color:#10b981}
+.surplus-amt.neg{color:#ef4444}
+
+/* ── DASHBOARD ── */
+#dashboard{display:none;min-height:100vh;background:linear-gradient(145deg,#0b0f1e 0%,#130f2e 55%,#0b0f1e 100%)}
+
+/* tab header — position:fixed, NOTHING can ever cover it */
+#tab-header{
+  position:fixed;top:0;left:0;right:0;
+  z-index:9000; /* lower than logger (9999), higher than everything else */
+  background:rgba(11,15,30,.98);
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+.tab-header-inner{max-width:540px;margin:0 auto;padding:12px 16px 0}
+.name-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.greeting{font-size:17px;font-weight:700}
+.app-label{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase}
+.sip-badge{background:rgba(99,102,241,.14);border:1px solid rgba(99,102,241,.3);border-radius:20px;padding:5px 12px;color:#6366f1;font-size:12px;font-weight:700}
+.tab-bar{display:flex;gap:4px}
+.tab-btn{flex:1;padding:9px 0;background:none;border:none;border-bottom:2.5px solid transparent;color:rgba(255,255,255,.45);font-size:13px;font-weight:400;cursor:pointer;transition:color .18s,border-color .18s;font-family:inherit}
+.tab-btn.active{border-bottom-color:#6366f1;color:#f1f5f9;font-weight:700}
+
+/* content area — paddingTop clears the fixed header */
+#tab-content{max-width:540px;margin:0 auto;padding:116px 16px 110px}
+
+/* ── CARDS ── */
+.card{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin-bottom:14px}
+.card.hero-green{background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(99,102,241,.12));border-color:rgba(16,185,129,.22)}
+.card.hero-ind{background:linear-gradient(135deg,rgba(99,102,241,.14),rgba(139,92,246,.1));border-color:rgba(99,102,241,.28)}
+.sec-label{font-size:11px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mini-card{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:13px 12px}
+.mini-icon{font-size:22px;margin-bottom:5px}
+.mini-lbl{font-size:11px;color:rgba(255,255,255,.45);margin-bottom:3px}
+.mini-val{font-size:15px;font-weight:800}
+
+/* budget bars */
+.budget-item{margin-bottom:16px}
+.budget-item:last-child{margin-bottom:0}
+.budget-row{display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px}
+.budget-track{height:6px;background:rgba(255,255,255,.08);border-radius:3px}
+.budget-fill{height:100%;border-radius:3px;transition:width .6s ease}
+
+/* txn list */
+.txn-item{display:flex;align-items:center;gap:12px;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)}
+.txn-item:last-child{padding-bottom:0;margin-bottom:0;border-bottom:none}
+.txn-emoji-box{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.txn-meta{flex:1;min-width:0}
+.txn-name{font-size:14px;font-weight:600}
+.txn-note{font-size:12px;color:rgba(255,255,255,.45);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.txn-amt{font-weight:700;font-size:14px;flex-shrink:0}
+.txn-amt.income{color:#10b981}
+.txn-amt.expense{color:#ef4444}
+.empty-state{text-align:center;padding:20px 0}
+.empty-icon{font-size:30px;margin-bottom:8px}
+.empty-text{color:rgba(255,255,255,.45);font-size:14px}
+.empty-sub{color:rgba(255,255,255,.35);font-size:13px;margin-top:4px}
+
+/* balance rows */
+.bal-row{display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)}
+.bal-row:last-child{padding-bottom:0;margin-bottom:0;border-bottom:none}
+.bal-dot-row{display:flex;align-items:center;gap:10px;font-size:14px}
+.bal-dot{width:8px;height:8px;border-radius:50%}
+.bal-total{border-top:1px solid rgba(255,255,255,.08);margin-top:12px;padding-top:12px;display:flex;justify-content:space-between;font-size:13px}
+.nw-center{text-align:center}
+.nw-lbl{font-size:12px;color:rgba(255,255,255,.45);margin-bottom:4px}
+.nw-val{font-size:34px;font-weight:800;color:#10b981}
+.nw-sub{font-size:12px;color:rgba(255,255,255,.45);margin-top:4px}
+
+/* plan */
+.fi-center{text-align:center}
+.fi-icon{font-size:34px;margin-bottom:8px}
+.fi-title{font-size:17px;font-weight:700;margin-bottom:4px}
+.fi-sub{font-size:13px;color:rgba(255,255,255,.45)}
+.fi-target-pill{margin-top:10px;background:rgba(99,102,241,.18);border-radius:8px;padding:8px 16px;display:inline-block;color:#6366f1;font-size:14px;font-weight:700}
+.legend-row{display:flex;gap:16px;justify-content:center;margin-top:6px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,.45)}
+.legend-line{width:14px;height:0;border-top:2px solid}
+
+/* disclaimer */
+.disclaimer{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:16px;padding:12px 16px}
+.disclaimer p{font-size:10px;color:rgba(255,255,255,.25);line-height:1.6}
+
+/* ── FAB ── */
+#fab{position:fixed;bottom:28px;right:24px;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#10b981,#6366f1);border:none;box-shadow:0 8px 24px rgba(16,185,129,.38);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:8999}
+#fab svg{width:26px;height:26px;stroke:#fff;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── LOGGER ── */
+#logger-overlay{display:none;position:fixed;inset:0;z-index:9999}
+#logger-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.72)}
+#logger-sheet{position:absolute;bottom:0;left:0;right:0;background:#0d1122;border:1px solid rgba(255,255,255,.09);border-radius:22px 22px 0 0;padding:20px 16px 36px;animation:shU .3s cubic-bezier(.22,1,.36,1) both}
+@keyframes shU{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.logger-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.logger-title{font-size:17px;font-weight:700}
+.close-btn{background:none;border:none;color:rgba(255,255,255,.45);cursor:pointer;font-size:22px;line-height:1}
+.cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.cat-btn{position:relative;padding:9px 4px 7px;border-radius:12px;background:rgba(255,255,255,.05);border:1.5px solid transparent;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;transition:background .15s,border-color .15s}
+.cat-btn.selected{border-color:var(--cat-color);background:var(--cat-bg)}
+.cat-btn .cat-emoji{font-size:22px}
+.cat-btn .cat-name{font-size:11px;font-weight:600;color:rgba(255,255,255,.45)}
+.cat-btn.selected .cat-name{color:var(--cat-color)}
+/* ✅ check badge — only visible when selected */
+.cat-check{position:absolute;top:4px;right:5px;font-size:11px;opacity:0;transition:opacity .15s}
+.cat-btn.selected .cat-check{opacity:1}
+.amount-display{background:rgba(255,255,255,.05);border-radius:12px;padding:11px 16px;margin-bottom:10px;text-align:center;font-size:30px;font-weight:700;color:rgba(255,255,255,.35)}
+.amount-display.has-val{color:#f1f5f9}
+.note-input{width:100%;padding:10px 14px;margin-bottom:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#f1f5f9;font-size:14px;font-family:inherit}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.num-btn{padding:13px 0;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.07);color:#f1f5f9;font-size:18px;font-weight:600;cursor:pointer;font-family:inherit}
+.num-btn.del{background:rgba(239,68,68,.14);color:#ef4444}
+.add-btn{width:100%;padding:15px;border:none;border-radius:14px;background:rgba(255,255,255,.07);color:rgba(255,255,255,.22);font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
+.add-btn.ready{background:linear-gradient(135deg,#10b981,#6366f1);color:#fff}
+
+/* ── CELEBRATE TOAST — bottom left, never touches tab bar ── */
+#celebrate-toast{
+  display:none;
+  position:fixed;
+  bottom:100px;left:20px;
+  z-index:8998; /* below logger, below header */
+  background:linear-gradient(135deg,#10b981,#6366f1);
+  border-radius:14px;
+  padding:12px 18px;
+  box-shadow:0 8px 28px rgba(16,185,129,.32);
+  pointer-events:none;
+  max-width:280px;
+  animation:toastAnim 3.4s ease both;
+}
+@keyframes toastAnim{
+  0%{opacity:0;transform:translateY(16px)}
+  12%{opacity:1;transform:translateY(0)}
+  80%{opacity:1;transform:translateY(0)}
+  100%{opacity:0;transform:translateY(8px)}
+}
+.toast-row{display:flex;align-items:center;gap:10px}
+.toast-check{font-size:20px}
+.toast-title{color:#fff;font-weight:700;font-size:14px}
+.toast-sub{color:rgba(255,255,255,.8);font-size:12px}
+
+canvas{border-radius:8px}
+</style>
+</head>
+<body>
+
+<!-- ══ WIZARD ══════════════════════════════════════════════════════ -->
+<div id="wizard">
+  <div class="wiz-inner">
+    <div class="wiz-dots" id="wiz-dots"></div>
+    <div id="wiz-step"></div>
+    <button class="back-btn" id="wiz-back" onclick="wizBack()" style="display:none">← Back</button>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD ════════════════════════════════════════════════════ -->
+<div id="dashboard">
+
+  <!-- Fixed tab header — always visible, nothing can cover it -->
+  <div id="tab-header">
+    <div class="tab-header-inner">
+      <div class="name-row">
+        <div>
+          <div class="app-label">Aarth Sutra</div>
+          <div class="greeting" id="greeting">Hey 👋</div>
+        </div>
+        <div class="sip-badge" id="sip-badge">SIP +10%/yr</div>
+      </div>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="showTab(0)">Overview</button>
+        <button class="tab-btn" onclick="showTab(1)">Balance</button>
+        <button class="tab-btn" onclick="showTab(2)">My Plan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scrollable content -->
+  <div id="tab-content"></div>
+
+  <!-- ✅ LEGAL FIX 4: Footer with contact + Terms — Consumer Protection Rules 2020 -->
+  <div id="legal-footer" style="max-width:540px;margin:0 auto;padding:0 16px 36px;text-align:center">
+    <div style="border-top:1px solid rgba(255,255,255,.07);padding-top:20px">
+      <p style="font-size:10px;color:rgba(255,255,255,.25);line-height:1.7;margin-bottom:12px">
+        Mutual fund investments are subject to market risks. Aarth Sutra is not a SEBI-registered Investment Adviser.
+        All projections are a personal planning tool only and do not constitute investment advice.
+        Your data is stored locally on your device and is never transmitted to any server.
+      </p>
+      <div style="display:flex;justify-content:center;gap:20px;flex-wrap:wrap">
+        <a href="#" onclick="showModal('privacy');return false"
+          style="font-size:11px;color:rgba(255,255,255,.35);text-decoration:underline">Privacy Policy</a>
+        <a href="#" onclick="showModal('terms');return false"
+          style="font-size:11px;color:rgba(255,255,255,.35);text-decoration:underline">Terms of Use</a>
+        <a href="mailto:support@aarthsutra.in"
+          style="font-size:11px;color:rgba(255,255,255,.35);text-decoration:underline">Contact Us</a>
+      </div>
+      <p style="font-size:10px;color:rgba(255,255,255,.18);margin-top:10px">© 2026 Aarth Sutra. Made in India 🇮🇳</p>
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <button id="fab" onclick="openLogger()">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+</div>
+
+<!-- ══ LOGGER ═══════════════════════════════════════════════════════ -->
+<div id="logger-overlay">
+  <div id="logger-backdrop" onclick="closeLogger()"></div>
+  <div id="logger-sheet">
+    <div class="logger-head">
+      <span class="logger-title">Log transaction</span>
+      <button class="close-btn" onclick="closeLogger()">×</button>
+    </div>
+    <div class="cat-grid" id="cat-grid"></div>
+    <div class="amount-display" id="amount-display">₹0</div>
+    <input class="note-input" id="note-input" placeholder="Note (optional)">
+    <div class="numpad" id="numpad"></div>
+    <button class="add-btn" id="add-btn" onclick="submitTxn()">Select category & amount</button>
+  </div>
+</div>
+
+<!-- ══ CELEBRATE ════════════════════════════════════════════════════ -->
+<div id="celebrate-toast">
+  <div class="toast-row">
+    <span class="toast-check">✅</span>
+    <div>
+      <div class="toast-title">Blueprint locked in!</div>
+      <div class="toast-sub">Welcome to Aarth Sutra 🌱</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// CONSTANTS & STATE
+// ─────────────────────────────────────────────────────────────────
+const PROFILE_KEY = 'as_profile_v4';
+const TXN_KEY     = 'as_txns_v4';
+
+// ✅ This flag is a plain JS variable — ALWAYS false on page load.
+// Only set to true when wizard actually completes.
+// Refresh → variable resets to false → no celebration.
+let _justCompleted = false;
+
+const CATS = [
+  {id:'food',     emoji:'🍔',label:'Food',     type:'expense',color:'#f59e0b'},
+  {id:'petrol',   emoji:'⛽',label:'Petrol',   type:'expense',color:'#60a5fa'},
+  {id:'groceries',emoji:'🛒',label:'Groceries',type:'expense',color:'#10b981'},
+  {id:'bill',     emoji:'💳',label:'Bill',     type:'expense',color:'#ef4444'},
+  {id:'rent',     emoji:'🏠',label:'Rent',     type:'expense',color:'#8b5cf6'},
+  {id:'sip',      emoji:'📈',label:'SIP',      type:'expense',color:'#6366f1'},
+  {id:'treat',    emoji:'🍫',label:'Treat',    type:'expense',color:'#f472b6'},
+  {id:'income',   emoji:'💰',label:'Income',   type:'income', color:'#10b981'},
+];
+
+let profile = null;
+let txns    = [];
+let currentTab = 0;
+let assumedReturn = 12; // user-controlled, default 12% p.a.
+
+// logger state
+let selCat  = null;
+let amount  = '';
+
+// ─────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────
+const INR = n => '₹' + Math.round(n).toLocaleString('en-IN');
+const el  = id => document.getElementById(id);
+
+function growCorpus(sip, stepUp, rate, yrs) {
+  let corpus = 0, cur = sip, mr = rate / 12 / 100;
+  for (let y = 0; y < yrs; y++) {
+    for (let m = 0; m < 12; m++) corpus = corpus * (1 + mr) + cur;
+    cur *= (1 + stepUp / 100);
+  }
+  return corpus;
+}
+
+function loadData() {
+  try { profile = JSON.parse(localStorage.getItem(PROFILE_KEY)); } catch {}
+  try { txns    = JSON.parse(localStorage.getItem(TXN_KEY)) || []; } catch {}
+}
+
+function saveProfile() {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {}
+}
+
+function saveTxns() {
+  try { localStorage.setItem(TXN_KEY, JSON.stringify(txns)); } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// WIZARD
+// ─────────────────────────────────────────────────────────────────
+let wizStep = 0;
+let wizDir  = 1;
+const wizData = {
+  name:'', age:'27', income:75000,
+  rent:15000, food:8000, emi:10000, lifestyle:5000,
+  health:500, term:1000, sipStepUp:10,
+};
+
+const STEP_COUNT = 5;
+
+function wizRender() {
+  // dots
+  const dots = el('wiz-dots');
+  dots.innerHTML = '';
+  for (let i = 0; i < STEP_COUNT; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < wizStep ? ' done' : '') + (i === wizStep ? ' active' : '');
+    d.style.width = (i === wizStep ? 24 : 8) + 'px';
+    dots.appendChild(d);
+  }
+
+  // back button
+  el('wiz-back').style.display = (wizStep > 0 && wizStep !== 3) ? 'block' : 'none';
+
+  // content
+  const step = el('wiz-step');
+  step.className = 'wiz-step' + (wizDir < 0 ? ' back' : '');
+  // force re-animation
+  step.style.animation = 'none';
+  step.offsetHeight;
+  step.style.animation = '';
+
+  step.innerHTML = [s0, s1, s2, s3, s4][wizStep]();
+}
+
+function s0() {
+  return `
+    <div class="step-icon">🌱</div>
+    <div class="step-title">Aarth Sutra</div>
+    <div class="step-sub" style="margin-bottom:28px">Your personal wealth engine — track every rupee, build every goal.</div>
+    <!-- ✅ LEGAL FIX 3: Privacy statement — DPDP Act compliance -->
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:10px 14px;margin-bottom:20px;display:flex;gap:10px;align-items:flex-start">
+      <span style="font-size:16px;flex-shrink:0">🔒</span>
+      <p style="font-size:12px;color:rgba(255,255,255,.55);line-height:1.6;margin:0">
+        <strong style="color:rgba(255,255,255,.75)">Your data never leaves your device.</strong>
+        Everything is stored locally in your browser only. Nothing is uploaded to any server. We collect zero personal data.
+      </p>
+    </div>
+    <label class="field-label">Your first name</label>
+    <input class="text-input" id="w-name" value="${wizData.name}" placeholder="e.g. Anant" oninput="wizData.name=this.value;updateS0Btn()">
+    <label class="field-label">Age</label>
+    <input class="text-input" id="w-age" type="number" value="${wizData.age}" placeholder="27" oninput="wizData.age=this.value">
+    <button class="primary-btn" id="s0-btn" onclick="wizNext()" ${wizData.name.trim()?'':'disabled'}>Build my blueprint →</button>
+  `;
+}
+function updateS0Btn() {
+  const btn = el('s0-btn');
+  if (btn) btn.disabled = !wizData.name.trim();
+}
+
+function s1() {
+  return `
+    <div class="step-icon">💼</div>
+    <div class="step-title">Monthly Income</div>
+    <div class="step-sub">Net take-home after TDS</div>
+    <div class="slider-row"><span class="slider-label">Net salary</span><span class="slider-val" style="color:#10b981" id="v-income">${INR(wizData.income)}</span></div>
+    <input type="range" min="10000" max="300000" step="1000" value="${wizData.income}" oninput="wizData.income=+this.value;el('v-income').textContent=INR(wizData.income)">
+    <button class="primary-btn" onclick="wizNext()">Next →</button>
+  `;
+}
+
+function s2() {
+  const sliders = [
+    {key:'rent',  label:'Rent / home loan', min:0, max:80000,  color:'#8b5cf6'},
+    {key:'food',  label:'Food & groceries', min:0, max:30000,  color:'#f59e0b'},
+    {key:'emi',   label:'Other EMIs',       min:0, max:80000,  color:'#ef4444'},
+    {key:'lifestyle',label:'Lifestyle & transport',min:0,max:50000,color:'#60a5fa'},
+  ];
+  return `
+    <div class="step-icon">🏠</div>
+    <div class="step-title">Fixed Expenses</div>
+    <div class="step-sub">Monthly commitments</div>
+    ${sliders.map(s=>`
+      <div class="slider-row"><span class="slider-label">${s.label}</span><span class="slider-val" style="color:${s.color}" id="v-${s.key}">${INR(wizData[s.key])}</span></div>
+      <input type="range" min="${s.min}" max="${s.max}" step="500" value="${wizData[s.key]}" oninput="wizData.${s.key}=+this.value;el('v-${s.key}').textContent=INR(wizData.${s.key})">
+    `).join('')}
+    <button class="primary-btn" onclick="wizNext()">Next →</button>
+  `;
+}
+
+function s3() {
+  // auto-advance
+  setTimeout(() => { wizDir=1; wizStep++; wizRender(); }, 2400);
+  return `
+    <div class="step-icon">🛡️</div>
+    <div class="step-title">Insurance</div>
+    <div class="step-sub">Monthly premiums</div>
+    <div class="slider-row"><span class="slider-label">Health insurance</span><span class="slider-val" style="color:#10b981" id="v-health">${INR(wizData.health)}</span></div>
+    <input type="range" min="0" max="5000" step="100" value="${wizData.health}" oninput="wizData.health=+this.value;el('v-health').textContent=INR(wizData.health)">
+    <div class="slider-row"><span class="slider-label">Term life</span><span class="slider-val" style="color:#6366f1" id="v-term">${INR(wizData.term)}</span></div>
+    <input type="range" min="0" max="5000" step="100" value="${wizData.term}" oninput="wizData.term=+this.value;el('v-term').textContent=INR(wizData.term)">
+    <p style="color:rgba(255,255,255,.4);font-size:13px;text-align:center;margin-top:8px">Moving on in a moment…</p>
+  `;
+}
+
+function s4() {
+  const surplus = wizData.income - (wizData.rent+wizData.food+wizData.emi+wizData.lifestyle+wizData.health+wizData.term);
+  return `
+    <div class="step-icon">📈</div>
+    <div class="step-title">SIP Step-up</div>
+    <div class="step-sub">How much to raise your SIP each year</div>
+    <div class="slider-row"><span class="slider-label">Annual step-up</span><span class="slider-val" style="color:#6366f1" id="v-sup">${wizData.sipStepUp}%</span></div>
+    <input type="range" min="0" max="30" step="1" value="${wizData.sipStepUp}" oninput="wizData.sipStepUp=+this.value;el('v-sup').textContent=wizData.sipStepUp+'%'">
+    <p style="color:rgba(255,255,255,.4);font-size:13px;text-align:center;line-height:1.55;margin-bottom:20px">
+      At ${wizData.sipStepUp}% step-up, wealth compounds — not just grows.
+    </p>
+    <div class="surplus-box">
+      <div class="surplus-lbl">Available to invest / month</div>
+      <div class="surplus-amt${surplus<0?' neg':''}">${INR(surplus)}</div>
+    </div>
+    <button class="primary-btn green" onclick="wizFinish()">🔒 Lock in my blueprint</button>
+  `;
+}
+
+function wizNext() {
+  wizDir = 1;
+  wizStep++;
+  wizRender();
+}
+
+function wizBack() {
+  wizDir = -1;
+  wizStep--;
+  wizRender();
+}
+
+function wizFinish() {
+  profile = {
+    name: wizData.name,
+    age:  parseInt(wizData.age) || 27,
+    income:    wizData.income,
+    rent:      wizData.rent,
+    food:      wizData.food,
+    emi:       wizData.emi,
+    lifestyle: wizData.lifestyle,
+    health:    wizData.health,
+    term:      wizData.term,
+    sipStepUp: wizData.sipStepUp,
+  };
+  saveProfile();
+
+  // ✅ Set flag ONLY here — plain JS variable, resets on every page load
+  _justCompleted = true;
+
+  showDashboard();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────────────────────────
+function showDashboard() {
+  el('wizard').style.display    = 'none';
+  el('dashboard').style.display = 'block';
+
+  el('greeting').textContent = `Hey, ${profile.name} 👋`;
+  el('sip-badge').textContent = `SIP +${profile.sipStepUp}%/yr`;
+
+  showTab(0);
+
+  // ✅ Show celebrate ONLY if wizard just ran — never on refresh
+  if (_justCompleted) {
+    _justCompleted = false; // consume immediately
+    showCelebrate();
+  }
+}
+
+function showTab(idx) {
+  currentTab = idx;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', i===idx);
+  });
+  const renders = [renderOverview, renderBalance, renderPlan];
+  el('tab-content').innerHTML = renders[idx]();
+  if (idx === 2) drawChart();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// OVERVIEW TAB
+// ─────────────────────────────────────────────────────────────────
+function renderOverview() {
+  const { income, rent, food, emi, lifestyle, health, term } = profile;
+  const fixed   = rent + food + emi + lifestyle + health + term;
+  const surplus = income - fixed;
+
+  const spendMap = {};
+  txns.filter(t=>t.type==='expense').forEach(t=>{
+    spendMap[t.label] = (spendMap[t.label]||0) + t.amount;
+  });
+  const loggedIn  = txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const loggedOut = txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const loggedNet = loggedIn - loggedOut;
+
+  const budgets = [
+    {label:'Rent',budget:rent,color:'#8b5cf6'},
+    {label:'Food',budget:food,color:'#f59e0b'},
+    {label:'EMIs',budget:emi,color:'#ef4444'},
+    {label:'Lifestyle',budget:lifestyle,color:'#60a5fa'},
+  ];
+
+  const recentTxns = txns.slice(0,10);
+
+  return `
+    <!-- surplus -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between">
+        <div>
+          <div style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:3px">Budget surplus / mo</div>
+          <div style="font-size:26px;font-weight:800;color:${surplus>=0?'#10b981':'#ef4444'}">${INR(surplus)}</div>
+        </div>
+        ${(loggedIn>0||loggedOut>0)?`
+        <div style="text-align:right">
+          <div style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:3px">Logged net</div>
+          <div style="font-size:18px;font-weight:700;color:${loggedNet>=0?'#10b981':'#ef4444'}">${INR(loggedNet)}</div>
+        </div>`:''}
+      </div>
+    </div>
+
+    <!-- budget check -->
+    <div class="sec-label">Monthly budget check</div>
+    <div class="card">
+      ${budgets.map(b=>{
+        const actual = spendMap[b.label]||0;
+        const pct    = b.budget>0 ? Math.min(100,actual/b.budget*100) : 0;
+        return `
+          <div class="budget-item">
+            <div class="budget-row">
+              <span>${b.label}</span>
+              <span style="color:${pct>85?'#ef4444':'rgba(255,255,255,.45)'}">${actual>0?INR(actual):'—'} / ${INR(b.budget)}</span>
+            </div>
+            <div class="budget-track">
+              <div class="budget-fill" style="width:${pct}%;background:${pct>85?'#ef4444':b.color}"></div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+
+    <!-- recent txns -->
+    <div class="sec-label">Recent transactions</div>
+    <div class="card">
+      ${recentTxns.length===0?`
+        <div class="empty-state">
+          <div class="empty-icon">💳</div>
+          <div class="empty-text">Nothing logged yet.</div>
+          <div class="empty-sub">Tap + to add your first entry.</div>
+        </div>
+      `:recentTxns.map(t=>`
+        <div class="txn-item">
+          <div class="txn-emoji-box" style="background:${t.color}20">${t.emoji}</div>
+          <div class="txn-meta">
+            <div class="txn-name">${t.label}</div>
+            ${t.note?`<div class="txn-note">${t.note}</div>`:''}
+          </div>
+          <div class="txn-amt ${t.type}">${t.type==='income'?'+':'−'}${INR(t.amount)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BALANCE TAB
+// ─────────────────────────────────────────────────────────────────
+function renderBalance() {
+  const { income, emi } = profile;
+  const assets = [
+    {label:'Savings & FDs', value:income*3,  color:'#10b981'},
+    {label:'Mutual Funds',  value:income*6,  color:'#6366f1'},
+    {label:'Direct Equity', value:income*2,  color:'#f59e0b'},
+    {label:'EPF / NPS',     value:income*1,  color:'#8b5cf6'},
+  ];
+  const liabs = [
+    {label:'Home Loan',   value:emi*48,     color:'#ef4444'},
+    {label:'Auto Loan',   value:emi*12,     color:'#f59e0b'},
+    {label:'Credit Card', value:income*0.3, color:'#8b5cf6'},
+  ];
+  const tA = assets.reduce((s,a)=>s+a.value,0);
+  const tL = liabs.reduce((s,a)=>s+a.value,0);
+  const nw = tA - tL;
+
+  return `
+    <div class="card hero-green">
+      <div class="nw-center">
+        <div class="nw-lbl">Estimated Net Worth</div>
+        <div class="nw-val">${INR(nw)}</div>
+        <div class="nw-sub">Assets − Liabilities</div>
+      </div>
+    </div>
+
+    <div class="sec-label">Assets</div>
+    <div class="card">
+      ${assets.map((a,i)=>`
+        <div class="bal-row" ${i===assets.length-1?'style="padding-bottom:0;margin-bottom:0;border-bottom:none"':''}>
+          <div class="bal-dot-row"><div class="bal-dot" style="background:${a.color}"></div>${a.label}</div>
+          <span style="color:#10b981;font-weight:700">+${INR(a.value)}</span>
+        </div>
+      `).join('')}
+      <div class="bal-total"><span>Total Assets</span><span style="color:#10b981;font-weight:800">${INR(tA)}</span></div>
+    </div>
+
+    <div class="sec-label">Liabilities</div>
+    <div class="card">
+      ${liabs.map((a,i)=>`
+        <div class="bal-row" ${i===liabs.length-1?'style="padding-bottom:0;margin-bottom:0;border-bottom:none"':''}>
+          <div class="bal-dot-row"><div class="bal-dot" style="background:${a.color}"></div>${a.label}</div>
+          <span style="color:#ef4444;font-weight:700">−${INR(a.value)}</span>
+        </div>
+      `).join('')}
+      <div class="bal-total"><span>Total Liabilities</span><span style="color:#ef4444;font-weight:800">${INR(tL)}</span></div>
+    </div>
+
+    <div class="disclaimer"><p>Illustrative estimates based on your profile. Tap + to log real holdings for accurate tracking.</p></div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MY PLAN TAB
+// ─────────────────────────────────────────────────────────────────
+function renderPlan() {
+  const { age, income, rent, food, emi, lifestyle, health, term, sipStepUp } = profile;
+  const fixed   = rent + food + emi + lifestyle + health + term;
+  const surplus = income - fixed;
+  const invest  = Math.max(0, Math.round(surplus * 0.8));
+  const fiTgt   = fixed * 12 * 25;
+  const rate    = assumedReturn; // user's own assumption, not a recommendation
+
+  const c10 = growCorpus(invest, sipStepUp, rate, 10);
+  const c20 = growCorpus(invest, sipStepUp, rate, 20);
+  const c30 = growCorpus(invest, sipStepUp, rate, 30);
+  const yrs = c10>=fiTgt?10:c20>=fiTgt?20:c30>=fiTgt?30:35;
+
+  const milestones = [
+    {label:'10-yr corpus',value:c10,icon:'🌱'},
+    {label:'20-yr corpus',value:c20,icon:'🌳'},
+    {label:'30-yr corpus',value:c30,icon:'🏔️'},
+    {label:'FI Target',   value:fiTgt,icon:'🎯'},
+  ];
+
+  return `
+    <div class="card hero-ind">
+      <div class="fi-center">
+        <div class="fi-icon">🔥</div>
+        <div class="fi-title">FI in ~${yrs} years (age ${age+yrs})</div>
+        <div class="fi-sub">investing ${INR(invest)}/mo · ${sipStepUp}% step-up/yr</div>
+        <div style="margin-top:10px"><span class="fi-target-pill">FI corpus needed: ${INR(fiTgt)}</span></div>
+      </div>
+    </div>
+
+    <!-- ✅ LEGAL FIX 1: User sets their own return assumption — not a recommendation -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:13px;color:rgba(255,255,255,.45)">Your return assumption (you decide)</span>
+        <span style="font-size:15px;font-weight:700;color:#6366f1" id="return-val">${rate}% p.a.</span>
+      </div>
+      <input type="range" min="6" max="18" step="0.5" value="${rate}"
+        oninput="assumedReturn=+this.value;el('return-val').textContent=this.value+'% p.a.';showTab(2)"
+        style="margin-bottom:0">
+      <div style="display:flex;justify-content:space-between;margin-top:4px">
+        <span style="font-size:10px;color:rgba(255,255,255,.3)">6% (conservative)</span>
+        <span style="font-size:10px;color:rgba(255,255,255,.3)">12% (historical avg)</span>
+        <span style="font-size:10px;color:rgba(255,255,255,.3)">18% (optimistic)</span>
+      </div>
+    </div>
+
+    <div class="sec-label">Corpus projection (₹ Lakhs)</div>
+    <div class="card" style="padding:14px 12px 10px">
+      <canvas id="corpus-chart" width="480" height="180" style="width:100%;height:180px"></canvas>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-line" style="border-color:#6366f1"></div>Corpus</div>
+        <div class="legend-item"><div class="legend-line" style="border-color:#10b981;border-top-style:dashed"></div>FI target</div>
+      </div>
+    </div>
+
+    <div class="sec-label">Milestones</div>
+    <div class="two-col" style="margin-bottom:14px">
+      ${milestones.map(m=>`
+        <div class="mini-card">
+          <div class="mini-icon">${m.icon}</div>
+          <div class="mini-lbl">${m.label}</div>
+          <div class="mini-val">${INR(m.value)}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- ✅ LEGAL FIX 2: Strengthened SEBI disclaimer -->
+    <div class="disclaimer">
+      <p style="margin-bottom:6px;color:rgba(255,255,255,.45);font-size:11px;font-weight:600">⚖️ Important Disclaimer</p>
+      <p>Mutual fund investments are subject to market risks. Read all scheme-related documents carefully. Past performance is not indicative of future returns. The return rate above is <strong>your own assumption</strong> — Aarth Sutra does not recommend any specific rate, fund, or investment. Aarth Sutra is <strong>not a SEBI-registered Investment Adviser or Research Analyst</strong>. All projections are a personal planning calculator, not financial advice. Please consult a SEBI-registered Investment Adviser before making any investment decision.</p>
+    </div>
+  `;
+}
+
+function drawChart() {
+  const canvas = el('corpus-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const { age, income, rent, food, emi, lifestyle, health, term, sipStepUp } = profile;
+  const fixed   = rent + food + emi + lifestyle + health + term;
+  const surplus = income - fixed;
+  const invest  = Math.max(0, Math.round(surplus * 0.8));
+  const fiTgt   = fixed * 12 * 25;
+
+  const years = [5,10,15,20,25,30];
+  const corpus = years.map(y => growCorpus(invest, sipStepUp, assumedReturn, y) / 100000);
+  const fi     = years.map(() => fiTgt / 100000);
+  const maxVal = Math.max(...corpus, ...fi) * 1.1;
+
+  const W = canvas.width, H = canvas.height;
+  const pad = { top:10, right:10, bottom:28, left:52 };
+  const cW = W - pad.left - pad.right;
+  const cH = H - pad.top  - pad.bottom;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const xP = i => pad.left + (i / (years.length-1)) * cW;
+  const yP = v => pad.top  + cH - (v / maxVal) * cH;
+
+  // grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let i=0; i<=4; i++) {
+    const y = pad.top + (i/4)*cH;
+    ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cW,y); ctx.stroke();
+  }
+
+  // FI line (dashed)
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5,4]);
+  ctx.beginPath();
+  fi.forEach((v,i) => i===0?ctx.moveTo(xP(i),yP(v)):ctx.lineTo(xP(i),yP(v)));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // corpus gradient fill
+  const grad = ctx.createLinearGradient(0,pad.top,0,pad.top+cH);
+  grad.addColorStop(0,'rgba(99,102,241,0.35)');
+  grad.addColorStop(1,'rgba(99,102,241,0.02)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  corpus.forEach((v,i) => i===0?ctx.moveTo(xP(i),yP(v)):ctx.lineTo(xP(i),yP(v)));
+  ctx.lineTo(xP(years.length-1), pad.top+cH);
+  ctx.lineTo(xP(0), pad.top+cH);
+  ctx.closePath();
+  ctx.fill();
+
+  // corpus line
+  ctx.strokeStyle = '#6366f1';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  corpus.forEach((v,i) => i===0?ctx.moveTo(xP(i),yP(v)):ctx.lineTo(xP(i),yP(v)));
+  ctx.stroke();
+
+  // dots
+  corpus.forEach((v,i) => {
+    ctx.fillStyle = '#6366f1';
+    ctx.beginPath();
+    ctx.arc(xP(i),yP(v),3,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  // x labels
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '10px system-ui';
+  ctx.textAlign = 'center';
+  years.forEach((y,i) => ctx.fillText(String(age+y), xP(i), H-8));
+
+  // y labels
+  ctx.textAlign = 'right';
+  [0,.25,.5,.75,1].forEach(f => {
+    const v = maxVal * f;
+    const label = v>=100 ? `${(v/100).toFixed(0)}Cr` : `${Math.round(v)}L`;
+    ctx.fillText(label, pad.left-6, yP(v)+3);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// LOGGER
+// ─────────────────────────────────────────────────────────────────
+function openLogger() {
+  selCat = null;
+  amount = '';
+  el('note-input').value = '';
+  buildCatGrid();
+  buildNumpad();
+  updateAmountDisplay();
+  updateAddBtn();
+  el('logger-overlay').style.display = 'block';
+  // re-animate sheet
+  const sheet = el('logger-sheet');
+  sheet.style.animation = 'none';
+  sheet.offsetHeight;
+  sheet.style.animation = '';
+}
+
+function closeLogger() {
+  el('logger-overlay').style.display = 'none';
+}
+
+function buildCatGrid() {
+  const grid = el('cat-grid');
+  grid.innerHTML = CATS.map(c=>`
+    <button class="cat-btn" id="cat-${c.id}"
+      style="--cat-color:${c.color};--cat-bg:${c.color}22"
+      onclick="selectCat('${c.id}','${c.color}')">
+      <span class="cat-check">✅</span>
+      <span class="cat-emoji">${c.emoji}</span>
+      <span class="cat-name">${c.label}</span>
+    </button>
+  `).join('');
+}
+
+function selectCat(id, color) {
+  selCat = id;
+  // clear all buttons
+  document.querySelectorAll('.cat-btn').forEach(b => {
+    b.classList.remove('selected');
+  });
+  // mark selected — CSS handles ✅ visibility and background via .selected class
+  const btn = el('cat-' + id);
+  if (btn) btn.classList.add('selected');
+  updateAddBtn();
+}
+
+function buildNumpad() {
+  const pad = el('numpad');
+  const keys = ['7','8','9','4','5','6','1','2','3','','0','⌫'];
+  pad.innerHTML = keys.map(k=>`
+    <button class="num-btn${k==='⌫'?' del':''}" onclick="numTap('${k}')">${k}</button>
+  `).join('');
+}
+
+function numTap(k) {
+  if (k==='⌫') { amount = amount.slice(0,-1); }
+  else if (k==='' ) { return; }
+  else if (amount.length<7) { amount += k; }
+  updateAmountDisplay();
+  updateAddBtn();
+}
+
+function updateAmountDisplay() {
+  const d = el('amount-display');
+  if (amount) {
+    d.textContent = '₹' + Number(amount).toLocaleString('en-IN');
+    d.classList.add('has-val');
+  } else {
+    d.textContent = '₹0';
+    d.classList.remove('has-val');
+  }
+}
+
+function updateAddBtn() {
+  const btn = el('add-btn');
+  const cat = CATS.find(c=>c.id===selCat);
+  if (selCat && amount) {
+    btn.className = 'add-btn ready';
+    btn.textContent = `Add ${cat.emoji} ${INR(parseInt(amount))}`;
+  } else {
+    btn.className = 'add-btn';
+    btn.textContent = 'Select category & amount';
+  }
+}
+
+function submitTxn() {
+  if (!selCat || !amount) return;
+  const cat = CATS.find(c=>c.id===selCat);
+  txns.unshift({
+    id:    Date.now(),
+    catId: selCat,
+    emoji: cat.emoji,
+    label: cat.label,
+    type:  cat.type,
+    color: cat.color,
+    amount:parseInt(amount),
+    note:  el('note-input').value.trim(),
+    date:  new Date().toISOString(),
+  });
+  saveTxns();
+  closeLogger();
+  if (currentTab===0) showTab(0); // refresh overview
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CELEBRATE — fires ONLY when _justCompleted is true (never on refresh)
+// ─────────────────────────────────────────────────────────────────
+function showCelebrate() {
+  const toast = el('celebrate-toast');
+  toast.style.display = 'block';
+  // restart animation
+  toast.style.animation = 'none';
+  toast.offsetHeight;
+  toast.style.animation = 'toastAnim 3.4s ease both';
+  setTimeout(() => { toast.style.display = 'none'; }, 3500);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// LEGAL MODALS — Privacy Policy & Terms of Use
+// ─────────────────────────────────────────────────────────────────
+const LEGAL_CONTENT = {
+  privacy: {
+    title: '🔒 Privacy Policy',
+    body: `
+      <p><strong>Last updated: April 2026</strong></p>
+      <br>
+      <p><strong>1. Data we collect</strong><br>
+      Aarth Sutra collects no personal data on any server. All information you enter (name, income, expenses, transactions) is stored exclusively in your browser's localStorage on your own device.</p>
+      <br>
+      <p><strong>2. Data transmission</strong><br>
+      Zero data is transmitted to any server, third party, or external service. Aarth Sutra works completely offline once loaded. There are no analytics, no tracking pixels, and no cookies.</p>
+      <br>
+      <p><strong>3. Your rights — DPDP Act 2023</strong><br>
+      As a Data Principal under India's Digital Personal Data Protection Act 2023, you have the right to:<br>
+      • <strong>Access</strong> — export your data anytime via Settings → Export<br>
+      • <strong>Correction</strong> — edit any entry directly in the app<br>
+      • <strong>Erasure</strong> — delete all data via Settings → Clear browsing data, or reset the app<br>
+      • <strong>Grievance</strong> — raise a concern with our Grievance / Data Protection contact below<br>
+      Since all data is stored only on your device, no server-side processing occurs and no data transfer is involved.</p>
+      <br>
+      <p><strong>4. Data retention</strong><br>
+      Data is retained in your browser's localStorage until you clear it. We have no copy. There is no server-side retention.</p>
+      <br>
+      <p><strong>5. Children</strong><br>
+      This app is not intended for users under 18 years of age. If you believe a minor has used the app, please write to us immediately.</p>
+      <br>
+      <p><strong>6. Data Protection Officer / Grievance Officer</strong><br>
+      Aditya Kumar, Data Protection &amp; Grievance Officer<br>
+      Email: <a href="mailto:dpo@aarthsutra.in" style="color:#6366f1">dpo@aarthsutra.in</a><br>
+      Response time: within 2 working days. If unresolved within 15 days, you may approach the Data Protection Board of India.</p>
+      <br>
+      <p><strong>7. Consent</strong><br>
+      By using Aarth Sutra and entering data, you consent to it being stored locally on your own device as described above. You may withdraw consent at any time by clearing all app data.</p>
+    `
+  },
+  terms: {
+    title: '⚖️ Terms of Use',
+    body: `
+      <p><strong>Last updated: April 2026</strong></p>
+      <br>
+      <p><strong>1. Nature of service</strong><br>
+      Aarth Sutra is a personal finance planning calculator. It is not a SEBI-registered Investment Adviser, Research Analyst, or financial intermediary of any kind.</p>
+      <br>
+      <p><strong>2. No investment advice</strong><br>
+      All projections, return assumptions, and calculations are personal planning tools based on numbers you enter. Nothing in this app constitutes investment advice, a solicitation, or a recommendation to buy or sell any security or financial product. Consult a SEBI-registered Investment Adviser before making any financial decision.</p>
+      <br>
+      <p><strong>3. No guarantee of returns</strong><br>
+      Mutual fund investments are subject to market risks. Past performance is not indicative of future returns. The return rate you set in the calculator is your own assumption.</p>
+      <br>
+      <p><strong>4. Data responsibility</strong><br>
+      All data is stored locally on your device. You are responsible for backing up your data. We cannot recover lost data.</p>
+      <br>
+      <p><strong>5. Limitation of liability</strong><br>
+      Aarth Sutra is provided "as is" without warranty of any kind. We are not liable for any financial decisions made based on the projections shown.</p>
+      <br>
+      <p><strong>6. Governing law</strong><br>
+      These terms are governed by the laws of India. Disputes subject to jurisdiction of courts in India.</p>
+      <br>
+      <p><strong>7. Grievance redressal</strong><br>
+      <strong>Grievance Officer:</strong> Aditya Kumar<br>
+      Email: <a href="mailto:support@aarthsutra.in" style="color:#6366f1">support@aarthsutra.in</a> — we respond within 2 working days.<br>
+      If your complaint is unresolved within 15 days, you may escalate to the Data Protection Board of India.<br>
+      For investment-related grievances, you may also file a complaint on SEBI's investor portal:
+      <a href="https://scores.sebi.gov.in" target="_blank" style="color:#6366f1">scores.sebi.gov.in</a>
+      or the ODR portal <a href="https://smartodr.in" target="_blank" style="color:#6366f1">smartodr.in</a>.</p>
+    `
+  }
+};
+
+function showModal(type) {
+  const content = LEGAL_CONTENT[type];
+  const existing = el('legal-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'legal-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:flex-end;justify-content:center';
+  modal.innerHTML = `
+    <div onclick="el('legal-modal').remove()" style="position:absolute;inset:0;background:rgba(0,0,0,.75)"></div>
+    <div style="position:relative;z-index:1;background:#0d1122;border:1px solid rgba(255,255,255,.1);border-radius:22px 22px 0 0;padding:24px 20px 40px;width:100%;max-width:540px;max-height:80vh;overflow-y:auto;animation:shU .3s cubic-bezier(.22,1,.36,1) both">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h2 style="font-size:18px;font-weight:700;color:#f1f5f9">${content.title}</h2>
+        <button onclick="el('legal-modal').remove()" style="background:none;border:none;color:rgba(255,255,255,.45);font-size:24px;cursor:pointer;line-height:1">×</button>
+      </div>
+      <div style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.7">${content.body}</div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────────────────────
+loadData();
+if (profile) {
+  // Profile exists → go straight to dashboard, NO celebration
+  showDashboard();
+} else {
+  // First time → show wizard
+  wizRender();
+}
+</script>
+</body>
+</html>

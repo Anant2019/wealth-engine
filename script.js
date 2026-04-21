@@ -997,49 +997,49 @@ function loadAllData() {
     try {
         const userData = JSON.parse(saved);
 
-        // Load personal info
-        if (userData.name) document.getElementById('u-name').value = userData.name;
-        if (userData.age) document.getElementById('u-age').value = userData.age;
+        // Load personal info (using !== undefined to allow 0 or empty strings if intended)
+        if (userData.name !== undefined) document.getElementById('u-name').value = userData.name;
+        if (userData.age !== undefined) document.getElementById('u-age').value = userData.age;
+        
         // Restore income sources (new multi-source) or fall back to legacy single income
         if (userData.incomeSources && userData.incomeSources.length > 0) {
             restoreIncomeSources(userData.incomeSources);
-        } else if (userData.income) {
-            // Legacy migration: single income → one salary row
+        } else if (userData.income !== undefined) {
             restoreIncomeSources([{ type: 'salary', label: '💼 Salary', amount: parseFloat(userData.income) || 0 }]);
         }
+        
         refreshIncomeBadge();
-        if (userData.sip) document.getElementById('u-sip').value = userData.sip;
-        if (userData.stepup) document.getElementById('u-stepup').value = userData.stepup;
+        
+        if (userData.sip !== undefined) document.getElementById('u-sip').value = userData.sip;
+        if (userData.stepup !== undefined) document.getElementById('u-stepup').value = userData.stepup;
 
         // Load expenses
-        if (userData.rent) document.getElementById('u-rent').value = userData.rent;
-        if (userData.groceries) document.getElementById('u-groceries').value = userData.groceries;
-        if (userData.cc) document.getElementById('u-cc').value = userData.cc;
-        if (userData.life) document.getElementById('u-life').value = userData.life;
+        if (userData.rent !== undefined)      document.getElementById('u-rent').value      = userData.rent;
+        if (userData.groceries !== undefined) document.getElementById('u-groceries').value = userData.groceries;
+        if (userData.cc !== undefined)        document.getElementById('u-cc').value        = userData.cc;
+        if (userData.life !== undefined)      document.getElementById('u-life').value      = userData.life;
 
         // Load insurance
-        document.getElementById('u-med').value = userData.med || 'yes';
-        document.getElementById('u-term').value = userData.term || 'yes';
-        if (userData.medPremium)  { const el = document.getElementById('u-med-premium');  if (el) el.value = userData.medPremium; }
-        if (userData.termPremium) { const el = document.getElementById('u-term-premium'); if (el) el.value = userData.termPremium; }
+        if (userData.med !== undefined)  document.getElementById('u-med').value  = userData.med  || 'yes';
+        if (userData.term !== undefined) document.getElementById('u-term').value = userData.term || 'yes';
+        
+        if (userData.medPremium !== undefined)  { const el = document.getElementById('u-med-premium');  if (el) el.value = userData.medPremium; }
+        if (userData.termPremium !== undefined) { const el = document.getElementById('u-term-premium'); if (el) el.value = userData.termPremium; }
 
         // Load risk profile
-        if (userData.riskQ1) document.getElementById('u-risk-q1').value = userData.riskQ1;
-        if (userData.riskQ2) document.getElementById('u-risk-q2').value = userData.riskQ2;
-        if (userData.riskQ3) document.getElementById('u-risk-q3').value = userData.riskQ3;
-        if (userData.riskQ4) document.getElementById('u-risk-q4').value = userData.riskQ4;
+        if (userData.riskQ1 !== undefined) document.getElementById('u-risk-q1').value = userData.riskQ1;
+        if (userData.riskQ2 !== undefined) document.getElementById('u-risk-q2').value = userData.riskQ2;
+        if (userData.riskQ3 !== undefined) document.getElementById('u-risk-q3').value = userData.riskQ3;
+        if (userData.riskQ4 !== undefined) document.getElementById('u-risk-q4').value = userData.riskQ4;
 
-        // Load accounts — use hasOwnProperty so that a saved empty array (user deleted all)
-        // is respected instead of falling back to defaults
+        // Load accounts
         const accountContainer = document.getElementById('account-container');
-        if (userData.hasOwnProperty('accounts')) {
+        if (userData.hasOwnProperty('accounts') && Array.isArray(userData.accounts)) {
             accountContainer.innerHTML = '';
             userData.accounts.forEach(acc => {
                 addAccount(acc.type, acc.name, parseFloat(acc.value) || 0, parseFloat(acc.rate) || null);
             });
-            // If user deliberately has 0 assets saved, leave it empty (respect their choice)
         } else {
-            // Old save format without accounts key — add defaults
             setupDefaultPortfolio();
         }
 
@@ -1117,6 +1117,53 @@ function clearAllData() {
 
 // Called when user clicks "Compute My Wealth Blueprint"
 function promptSaveAndCompute() {
+    // 1. Mandatory Field Validation
+    const ageEl = document.getElementById('u-age');
+    const sipEl = document.getElementById('u-sip');
+    let hasError = false;
+    let firstErrorEl = null;
+
+    const validateEl = (el, condition) => {
+        if (!el) return;
+        if (!condition(el.value)) {
+            el.style.border = '2px solid #ef4444';
+            el.style.backgroundColor = 'rgba(239,68,68,0.05)';
+            if (!firstErrorEl) firstErrorEl = el;
+            hasError = true;
+        } else {
+            el.style.border = '';
+            el.style.backgroundColor = '';
+        }
+    };
+
+    validateEl(ageEl, val => { const age = parseInt(val); return !isNaN(age) && age > 0; });
+    validateEl(sipEl, val => { const sip = parseInt(val); return !isNaN(sip); }); // SIP can be 0 but shouldn't be empty
+
+    // Income validation (must be > 0)
+    const incContainer = document.getElementById('income-sources-container');
+    if (getTotalIncome() <= 0) {
+        if (incContainer) {
+            incContainer.style.border = '2px solid #ef4444';
+            incContainer.style.borderRadius = '8px';
+            incContainer.style.padding = '8px';
+            if (!firstErrorEl) firstErrorEl = incContainer;
+            hasError = true;
+        }
+    } else if (incContainer) {
+        incContainer.style.border = '';
+        incContainer.style.padding = '';
+        incContainer.style.backgroundColor = '';
+    }
+
+    if (hasError) {
+        showErrorToast('Please fill in the required fields (highlighted in red).', '❌');
+        if (firstErrorEl) {
+            firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => { if (firstErrorEl.focus) firstErrorEl.focus(); }, 300);
+        }
+        return;
+    }
+
     // Reset stuck isComputing guard (can get stuck if page was force-refreshed mid-compute)
     isComputing = false;
 
@@ -1148,6 +1195,66 @@ function saveAndCompute() {
     closeSavePrompt();
     saveAllData();
     calculateStrategy();
+}
+
+/** 
+ * Mandatory Field Validation for Child Planning
+ */
+function validateChildInputs() {
+    const budgetEl = document.getElementById('child-budget');
+    const rows = document.querySelectorAll('.dy-child');
+    let hasError = false;
+    let firstErrorEl = null;
+
+    const markError = (el) => {
+        el.style.border = '2px solid #ef4444';
+        el.style.backgroundColor = 'rgba(239,68,68,0.05)';
+        if (!firstErrorEl) firstErrorEl = el;
+        hasError = true;
+    };
+
+    const clearError = (el) => {
+        el.style.border = '';
+        el.style.backgroundColor = '';
+    };
+
+    if (!budgetEl || parseFloat(budgetEl.value) <= 0) {
+        markError(budgetEl);
+    } else {
+        clearError(budgetEl);
+    }
+
+    if (rows.length === 0) {
+        showErrorToast('Please add at least one child to plan for.', '👶');
+        return false;
+    }
+
+    rows.forEach(row => {
+        const nameEl = row.querySelector('.child-name');
+        const ageEl = row.querySelector('.child-age');
+        
+        if (!nameEl || !nameEl.value.trim()) {
+            markError(nameEl);
+        } else {
+            clearError(nameEl);
+        }
+
+        if (!ageEl || ageEl.value === '' || isNaN(parseFloat(ageEl.value))) {
+            markError(ageEl);
+        } else {
+            clearError(ageEl);
+        }
+    });
+
+    if (hasError) {
+        showErrorToast('Missing child details. Please check the fields in red.', '❌');
+        if (firstErrorEl) {
+            firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => { if (firstErrorEl.focus) firstErrorEl.focus(); }, 300);
+        }
+        return false;
+    }
+    return true;
 }
 
 function computeWithoutSaving() {
@@ -1486,8 +1593,8 @@ function calcSurvivalRunway(astCash, totalExp) {
     if (!valEl) return runwayMonths;
 
     // Animate number
-    let prev = engineMemory.prevRunway || 0;
-    if (prev < runwayMonths) celebrateRunwayGain();
+    let prev = engineMemory.prevRunway;
+    if (prev !== undefined && prev < runwayMonths) celebrateRunwayGain();
     engineMemory.prevRunway = runwayMonths;
 
     valEl.textContent = runwayMonths + (runwayMonths === 1 ? ' month' : ' months');
@@ -1754,14 +1861,18 @@ document.addEventListener('DOMContentLoaded', function() {
         autoSaveTimer = setTimeout(saveAllDataSilent, 1500);
     });
 
-    // Save immediately before the page unloads (refresh/close/navigate away).
-    // Doing this WITHOUT calling preventDefault so the browser shows NO confirmation dialog.
-    window.addEventListener('beforeunload', function() {
-        saveAllDataSilent();
+    // Remove beforeunload listener that was tearing down data during refresh
+    
+    // Clear red highlights on type
+    document.addEventListener('input', function(e) {
+        if (e.target.style.border.includes('rgb(239, 68, 68)')) { // #ef4444
+            e.target.style.border = '';
+            e.target.style.backgroundColor = '';
+        }
     });
 
-    // Load saved data first — defaults are only added if nothing was saved
-    loadAllData();
+    // Consolidate final boot sequence to the actual bottom of the file
+    // to ensure all functions are defined before trigger.
 
     // MOB-FUN-03: Strip commas from numeric inputs as user types
     // Handles Indian mobile keyboard habit of typing "1,00,000"
@@ -1795,16 +1906,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     refreshProfileTopbar(); // run once on load
 
-    // Always land on the intake (My Numbers) tab — never auto-restore to Plan/Dash.
-    // The user should always start with their data in front of them, not a stale result.
-    const welcomeOverlay = document.getElementById('welcome-overlay');
-    if (!welcomeOverlay || welcomeOverlay.classList.contains('hidden')) {
-        setTimeout(() => {
-            switchTab('intake');     // always start on intake
-            calculateStrategy(true); // silent background recalc — no spinner
-            refreshProfileTopbar();
-        }, 200);
-    }
+    // Restore the last active tab, or default to intake on first visit
+    const _lastTab = localStorage.getItem('aarth_active_tab') || 'intake';
+    const _hasData = !!localStorage.getItem('aarthSutraData');
+    setTimeout(() => {
+        // Only force 'intake' on a genuine first visit (no saved data, no remembered tab)
+        const tabToRestore = _hasData ? _lastTab : 'intake';
+        switchTab(tabToRestore);
+        if (_hasData) calculateStrategy(true); // silent background recalc
+        refreshProfileTopbar();
+    }, 200);
 });
 
 /** Refresh the profile avatar in the topbar.
@@ -2735,29 +2846,15 @@ function completeWelcome() {
 
 function checkFirstVisit() {
     let visited = false;
-    try { visited = !!localStorage.getItem('aarth_visited'); } catch(e){}
-
-    // Restore persisted data
-    try {
-        const savedName = localStorage.getItem('aarth_user_name');
-        const savedKey  = localStorage.getItem('aarth_api_key');
-        if (savedName) {
-            const el = document.getElementById('u-name');
-            if (el) el.value = savedName;
-            const wn = document.getElementById('welcome-name');
-            if (wn) wn.value = savedName;
-        }
-        if (savedKey) {
-            const plainKey = decryptApiKey(savedKey);
-            ['gemini-api-key', 'gemini-api-key-2'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = plainKey;
-            });
-        }
+    let hasData = false;
+    try { 
+        visited = !!localStorage.getItem('aarth_visited'); 
+        hasData = !!localStorage.getItem('aarthSutraData');
     } catch(e){}
 
     const overlay = document.getElementById('welcome-overlay');
-    if (visited && overlay) {
+    // If they have saved data, they definitely shouldn't see the welcome screen again
+    if ((visited || hasData) && overlay) {
         overlay.classList.add('hidden');
     }
     // If not visited, overlay stays visible (it's shown by default in HTML)
@@ -5158,9 +5255,13 @@ function addChildRow() {
     div.className = 'dy-row dy-child';
     div.id = id;
     div.innerHTML = `
-        <div class="dy-row-fields" style="flex-wrap:wrap; gap:10px;">
+        <div class="card-top-row">
+            <span class="dy-card-label">👶 Child</span>
+            <button class="del-btn" onclick="document.getElementById('${id}').remove(); saveAllDataSilent();" title="Remove">✕</button>
+        </div>
+        <div class="dy-row-fields" style="flex-wrap:wrap; gap:10px; margin-top:8px;">
             <div class="form-group" style="flex:1; min-width:130px;">
-                <label>Child's Name</label>
+                <label>Child's Name <span style="color:var(--rose);">*</span></label>
                 <input type="text" class="child-name" placeholder="e.g. Aarav" value="">
             </div>
             <div class="form-group" style="flex:1; min-width:110px;">
@@ -5171,8 +5272,8 @@ function addChildRow() {
                 </select>
             </div>
             <div class="form-group" style="flex:1; min-width:100px;">
-                <label>Current Age</label>
-                <input type="number" class="child-age" placeholder="e.g. 3" value="3" min="0" max="17">
+                <label>Current Age <span style="color:var(--rose);">*</span></label>
+                <input type="number" class="child-age" placeholder="e.g. 3" value="3" min="0" max="17" inputmode="numeric">
             </div>
             <div class="form-group" style="flex:1; min-width:150px;">
                 <label>Education Goal</label>
@@ -5183,24 +5284,21 @@ function addChildRow() {
                     <option value="mba">💼 MBA / Management</option>
                 </select>
             </div>
-            <div class="form-group" style="flex:1; min-width:150px; display:flex; flex-direction:column; justify-content:flex-end;">
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; padding: 10px 0 6px;">
-                    <input type="checkbox" class="child-marriage" checked style="width:16px;height:16px;accent-color:#a855f7;">
-                    Include Marriage Planning
+            <div class="form-group" style="flex:1; min-width:180px; display:flex; flex-direction:column; justify-content:flex-end;">
+                <label class="marriage-check-label" style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:10px 14px; background:rgba(168,85,247,0.08); border:1.5px solid rgba(168,85,247,0.25); border-radius:10px; transition:all 0.2s;">
+                    <input type="checkbox" class="child-marriage" checked style="width:18px; height:18px; accent-color:#a855f7; cursor:pointer; flex-shrink:0;">
+                    <span style="font-size:12px; font-weight:600; color:rgba(255,255,255,0.8);">Include Marriage Planning 💍</span>
                 </label>
-            </div>
-            <div style="display:flex; align-items:flex-end; padding-bottom:2px;">
-                <button class="del-row-btn" onclick="document.getElementById('${id}').remove()" title="Remove this child">
-                    <i data-lucide="trash-2"></i>
-                </button>
             </div>
         </div>`;
     c.appendChild(div);
-    lucide.createIcons();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 /** Main child planning computation — improved with monthly compounding + horizon allocation */
 function computeChildPlan() {
+    if (!validateChildInputs()) return;
+    
     const tier    = (document.getElementById('child-city-tier')?.value) || 'tier2';
     const budget  = parseFloat(document.getElementById('child-budget')?.value) || 10000;
     const rows    = document.querySelectorAll('.dy-child');
@@ -5208,13 +5306,7 @@ function computeChildPlan() {
 
     if (!results) return;
 
-    if (rows.length === 0) {
-        results.style.display = 'block';
-        results.innerHTML = `<div class="app-card" style="text-align:center; padding:24px; color:rgba(255,255,255,0.5);">
-            👶 Please add at least one child above, then tap <strong>Plan My Child's Future</strong>.
-        </div>`;
-        return;
-    }
+    // (Validation handled above)
 
     const eduCosts     = CHILD_EDU_COSTS[tier];
     const marriageCost = CHILD_MARRIAGE_COSTS[tier];
@@ -8927,14 +9019,35 @@ function setInsurance(type, val) {
     } catch(e) { /* silent */ }
 }
 
-// ── Boot: initialise range fills and run initial disclosure check ─────────────
+// ── Final Boot Sequence ────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("Aarth Sutra: Final Boot Sequence...");
+    
+    // Restore raw identity data first
+    try {
+        const sn = localStorage.getItem('aarth_user_name');
+        if (sn) document.querySelectorAll('#u-name, #welcome-name').forEach(el => el.value = sn);
+        
+        const sk = localStorage.getItem('aarth_api_key');
+        if (sk) {
+            const pk = decryptApiKey(sk);
+            document.querySelectorAll('#gemini-api-key, #gemini-api-key-2, #welcome-api-key').forEach(el => el.value = pk);
+        }
+    } catch(e) {}
+
+    // Load full app state
+    loadAllData();
+    
+    // UI Polish and Disclosure Checks
     setTimeout(() => {
         initAllRangeFills();
         checkProgressiveDisclosure();
-        // If restoring from localStorage, run disclosure check after data loads
-        // (saveAllDataSilent / loadSavedData typically runs in the first 300ms)
-        setTimeout(checkProgressiveDisclosure, 350);
+        
+        // Restore tab
+        const activeTab = localStorage.getItem('aarth_active_tab') || 'intake';
+        switchTab(activeTab);
+        
+        console.log("Aarth Sutra: App Ready.");
     }, 150);
 });
 
