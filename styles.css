@@ -5627,3 +5627,80 @@ body {
     font-weight: 600;
     color: var(--purple);
 }
+
+/* ── Application Footer & Disclaimer ────────────────────────────── */
+.app-footer {
+    margin-top: 60px;
+    padding: 40px 24px;
+    background: rgba(255, 255, 255, 0.02);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 13px;
+    line-height: 1.6;
+    text-align: center;
+}
+.footer-content {
+    max-width: 600px;
+    margin: 0 auto;
+}
+.disclaimer-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.app-footer p {
+    margin-bottom: 16px;
+}
+.footer-links {
+    margin-top: 24px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.25);
+}
+.footer-links span {
+    margin: 0 8px;
+}
+
+@media (max-width: 600px) {
+    .app-footer {
+        padding: 30px 20px 100px; /* Extra bottom padding for mobile tab bar */
+        font-size: 12px;
+    }
+}
+
+/* ── Custom Marriage Toggle Select ──────────────────────────────── */
+.marr-toggle-group {
+    display: flex;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+}
+.marr-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.4);
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-body);
+}
+.marr-btn:hover {
+    color: rgba(255,255,255,0.8);
+    background: rgba(255,255,255,0.03);
+}
+.marr-btn.active {
+    background: #A855F7; /* Purple theme */
+    color: white;
+    box-shadow: 0 4px 12px rgba(168, 85, 247, 0.35);
+}

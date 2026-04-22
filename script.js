@@ -5285,14 +5285,38 @@ function addChildRow() {
                 </select>
             </div>
             <div class="form-group" style="flex:1; min-width:180px; display:flex; flex-direction:column; justify-content:flex-end;">
-                <label class="marriage-check-label" style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:10px 14px; background:rgba(168,85,247,0.08); border:1.5px solid rgba(168,85,247,0.25); border-radius:10px; transition:all 0.2s;">
-                    <input type="checkbox" class="child-marriage" checked style="width:18px; height:18px; accent-color:#a855f7; cursor:pointer; flex-shrink:0;">
-                    <span style="font-size:12px; font-weight:600; color:rgba(255,255,255,0.8);">Include Marriage Planning 💍</span>
-                </label>
+                <label style="font-size:11px; color:rgba(255,255,255,0.4); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Include Marriage Planning 💍</label>
+                <div class="marr-toggle-group" id="marr-group-${id}">
+                    <button type="button" class="marr-btn active" data-val="yes" onclick="setMarriageState('${id}', true)">Yes</button>
+                    <button type="button" class="marr-btn" data-val="no" onclick="setMarriageState('${id}', false)">No</button>
+                    <input type="checkbox" class="child-marriage" checked style="display:none;">
+                </div>
             </div>
         </div>`;
     c.appendChild(div);
     if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+/** Helper to toggle marriage planning state in child rows */
+function setMarriageState(rowId, state) {
+    const group = document.getElementById('marr-group-' + rowId);
+    if (!group) return;
+    
+    // Update internal checkbox for engine
+    const chk = group.querySelector('.child-marriage');
+    if (chk) chk.checked = state;
+
+    // Update UI buttons
+    group.querySelectorAll('.marr-btn').forEach(btn => {
+        const val = btn.getAttribute('data-val');
+        if ((state && val === 'yes') || (!state && val === 'no')) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    if (window.saveAllDataSilent) saveAllDataSilent();
 }
 
 /** Main child planning computation — improved with monthly compounding + horizon allocation */
