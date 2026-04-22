@@ -7,6 +7,10 @@
     <meta name="description" content="Aarth Sutra — Precision wealth planning for the modern professional. 100% Secure, 100% Local.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:ital,wght@0,600;0,700;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=202604210001">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="wealth_engine_app_icon_1776833462378.png">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -1571,6 +1575,15 @@
 
     <script src="script.js?v=2.1"></script>
     <script src="library.js?v=202604170010"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(reg => console.log('Wealth Engine: Service Worker Registered'))
+                    .catch(err => console.log('SW Registration Failed:', err));
+            });
+        }
+    </script>
 
 <!-- ══════════════════════════════════════════════════
      FULL-SCREEN GUARD LOADER

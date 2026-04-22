@@ -1,0 +1,17 @@
+{
+  "name": "Wealth Engine",
+  "short_name": "WealthEngine",
+  "description": "Premium Indian Financial Planning & Wealth Roadmap Tool",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0a0c10",
+  "theme_color": "#0a0c10",
+  "icons": [
+    {
+      "src": "wealth_engine_app_icon_1776833462378.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
